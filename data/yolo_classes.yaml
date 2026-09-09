@@ -1,0 +1,46 @@
+# Detection classes for the schematic parser. Three groups share one YOLO head
+# but are consumed separately downstream:
+#   - component coarse classes (index 0..13): become contest components
+#   - text (index 14): text regions, cropped and sent to OCR
+#   - pin_tip (index 15): pin endpoints, drive PinF1 and net building
+# Do not reorder after a training run starts. Rare CVJsonStd categories collapse
+# into `other` (contest does not compare text for `other`).
+names:
+  - ic
+  - resistor
+  - capacitor
+  - inductor
+  - diode
+  - transistor
+  - gnd
+  - vcc
+  - net_label
+  - connector
+  - crystal
+  - switch
+  - testpoint
+  - other
+  - text
+  - pin_tip
+
+# contest component type -> coarse yolo component class
+coarse_map:
+  ic: ic
+  resistor: resistor
+  capacitor: capacitor
+  inductor: inductor
+  diode: diode
+  led: diode
+  bjt: transistor
+  mosfet: transistor
+  gnd: gnd
+  vcc: vcc
+  net_label: net_label
+  connector: connector
+  crystal: crystal
+  switch: switch
+  testpoint: testpoint
+  # everything else -> other
+
+TEXT_CLASS: text
+PIN_CLASS: pin_tip

@@ -1,0 +1,10 @@
+numpy>=1.24
+opencv-python>=4.8
+PyYAML>=6.0
+Pillow>=10.0
+scikit-image>=0.22
+paddleocr>=2.7
+ultralytics>=8.3
+scipy>=1.11
+torch>=2.1
+paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/

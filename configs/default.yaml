@@ -1,0 +1,57 @@
+dataset_root: "/data1/chenjh/PCBNet/data/Dataset300"
+output_root: "outputs"
+split_seed: 42
+split_ratio: [0.8, 0.1, 0.1]
+
+thresholds:
+  bbox_px: 20.0
+  pin_px: 5.0
+  line_px: 5.0
+  pin_wire_eps: 5.0
+  rdp_eps: 2.5
+
+weights:
+  component: 0.30
+  pin: 0.25
+  net_hypergraph: 0.35
+  net_line: 0.10
+
+# NOTE: yolo_weights intentionally empty. The previous best.pt was trained on an
+# obsolete 28-class scheme; the class list is now coarse components + text +
+# pin_tip. Retrain with scripts/train_yolo.py, then point this at the new best.pt.
+models:
+  yolo_weights: "/data1/chenjh/PCBNet/outputs/models/yolo/train/weights/best.pt"
+  unet_weights: "/data1/chenjh/PCBNet/outputs/models/unet/best.pt"
+
+train:
+  yolo:
+    model: yolo11s.pt
+    epochs: 80
+    imgsz: 1280
+    batch: 4
+  unet:
+    epochs: 20
+    size: 512
+    batch: 2
+    lr: 0.001
+
+ocr:
+  enabled: true
+  lang: "en"
+  conf_tau: 0.85          # tokens below this go to stage3 correction
+
+vision:
+  max_side: 1600
+  max_components: 400
+  max_segments: 4000
+  pin_snap_px: 5.0        # tip snaps to a wire endpoint within this distance
+
+use_llm: false
+
+stage3:
+  enabled: false          # gated LLM correction; off by default
+  provider: "qwen"
+  model: "qwen3.7-plus"
+  max_calls_per_case: 40  # token/time guard so 30-50 cases finish < 2h
+  time_budget_sec: 60
+  use_vlm_crop: false     # send low-conf text crop to a VLM
