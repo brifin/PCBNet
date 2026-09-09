@@ -29,10 +29,6 @@ def _resolve_model(name: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-yaml", default="")
-    parser.add_argument("--model", default="yolo11n.pt")
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--imgsz", type=int, default=1280)
-    parser.add_argument("--batch", type=int, default=4)
     parser.add_argument("--device", default="")
     parser.add_argument("--smoke", action="store_true", help="1 epoch / imgsz 640 sanity run")
     parser.add_argument("--config", default=str(ROOT / "configs" / "default.yaml"))
@@ -50,12 +46,12 @@ def main() -> int:
     if not Path(data).exists():
         print(f"缺少 {data}，先运行: py scripts\\prepare_labels.py --splits train,val")
         return 1
-    epochs = 1 if args.smoke else int(args.epochs if args.epochs else train_cfg.get("epochs", 50))
-    imgsz = 640 if args.smoke else int(args.imgsz if args.imgsz else train_cfg.get("imgsz", 1280))
-    batch = 2 if args.smoke else int(args.batch if args.batch else train_cfg.get("batch", 4))
+    epochs = 1 if args.smoke else int(train_cfg.get("epochs", 50))
+    imgsz = 640 if args.smoke else int(train_cfg.get("imgsz", 1280))
+    batch = 2 if args.smoke else int(train_cfg.get("batch", 4))
     project = project_root() / "outputs" / "models" / "yolo"
     project.mkdir(parents=True, exist_ok=True)
-    model_name = _resolve_model(args.model or train_cfg.get("model") or "yolo11n.pt")
+    model_name = _resolve_model(train_cfg.get("model") or "yolo11n.pt")
     if not Path(model_name).exists() and Path(model_name).name == "yolo11n.pt":
         bundled = project / "yolo11n.pt"
         if bundled.exists():

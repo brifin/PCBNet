@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any 
+from .visual import run_vision_visualize, run_gt_visualize
+from tqdm import tqdm
 
 import cv2
 import numpy as np
 
+import logging
+# 禁用 paddle DEBUG 和 WARNING 级别的日志
+logging.disable(logging.DEBUG)
+logging.disable(logging.WARNING)
 
 @dataclass
 class DetBox:
@@ -70,20 +76,19 @@ def _read_image(path: str | Path) -> np.ndarray:
 def _try_yolo(img: np.ndarray, weights: str) -> list[DetBox]:
     if not weights:
         return []
-    try:
-        from ultralytics import YOLO
 
-        model = YOLO(weights)
-        res = model.predict(img, verbose=False)[0]
-        boxes = []
-        names = res.names
-        for b in res.boxes:
-            xyxy = b.xyxy[0].tolist()
-            cls = int(b.cls[0])
-            boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
-        return boxes
-    except Exception:
-        return []
+    from ultralytics import YOLO
+
+    model = YOLO(weights)
+    res = model.predict(img, verbose=False)[0]
+    boxes = []
+    names = res.names
+    for b in res.boxes:
+        xyxy = b.xyxy[0].tolist()
+        cls = int(b.cls[0])
+        boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
+    return boxes
+
 
 
 def _nms(boxes: list[DetBox], iou_thr: float = 0.35) -> list[DetBox]:
@@ -180,55 +185,69 @@ def _install_torch_stub() -> None:
 
 def _get_ocr(lang: str = "en"):
     global _OCR_ENGINE
+
     if _OCR_ENGINE is not None:
         return _OCR_ENGINE
-    # IMPORTANT: fully import paddle BEFORE paddleocr/paddlex. paddlex lazily
-    # re-imports paddle during model construction; if paddleocr is imported first
-    # paddle can be left partially initialized ("no attribute 'tensor'"). Importing
-    # paddle first completes paddle/__init__ (incl. monkey_patch) and caches it.
-    device = "cpu"
-    try:
-        import paddle  # noqa: F401
-
-        _ = paddle.tensor  # force full init
-        if paddle.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0:
-            device = "gpu"
-    except Exception:
-        device = "cpu"
-
-    # paddlex unconditionally imports modelscope, which imports torch. torch's
-    # bundled cudnn DLL clashes with paddle's in a single process (Windows
-    # WinError 127). In this paddle-only OCR process real torch cannot load, so
-    # inject a lightweight stub to satisfy modelscope's import (models are cached,
-    # no download happens). Guarded: never runs when real torch is already loaded.
-    import sys as _sys
-
-    if "torch" not in _sys.modules:
-        try:
-            import torch  # noqa: F401
-        except Exception:
-            _install_torch_stub()
 
     from paddleocr import PaddleOCR
+    
+    _OCR_ENGINE = PaddleOCR(
+        lang=lang,
+        device="cuda:0",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+    )
 
-    try:
-        _OCR_ENGINE = PaddleOCR(
-            lang=lang,
-            device=device,
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-        )
-    except TypeError:
-        try:
-            _OCR_ENGINE = PaddleOCR(
-                lang=lang,
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=False,
-            )
-        except TypeError:
-            _OCR_ENGINE = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
+    # if _OCR_ENGINE is not None:
+    #     return _OCR_ENGINE
+    # # IMPORTANT: fully import paddle BEFORE paddleocr/paddlex. paddlex lazily
+    # # re-imports paddle during model construction; if paddleocr is imported first
+    # # paddle can be left partially initialized ("no attribute 'tensor'"). Importing
+    # # paddle first completes paddle/__init__ (incl. monkey_patch) and caches it.
+    # device = "cpu"
+    # try:
+    #     import paddle  # noqa: F401
+
+    #     _ = paddle.tensor  # force full init
+    #     if paddle.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0:
+    #         device = "gpu"
+    # except Exception:
+    #     device = "cpu"
+
+    # # paddlex unconditionally imports modelscope, which imports torch. torch's
+    # # bundled cudnn DLL clashes with paddle's in a single process (Windows
+    # # WinError 127). In this paddle-only OCR process real torch cannot load, so
+    # # inject a lightweight stub to satisfy modelscope's import (models are cached,
+    # # no download happens). Guarded: never runs when real torch is already loaded.
+    # import sys as _sys
+
+    # if "torch" not in _sys.modules:
+    #     try:
+    #         import torch  # noqa: F401
+    #     except Exception:
+    #         _install_torch_stub()
+
+    # from paddleocr import PaddleOCR
+
+    # try:
+    #     _OCR_ENGINE = PaddleOCR(
+    #         lang=lang,
+    #         device="cuda:0",
+    #         use_doc_orientation_classify=False,
+    #         use_doc_unwarping=False,
+    #         use_textline_orientation=False,
+    #     )
+    # except TypeError:
+    #     try:
+    #         _OCR_ENGINE = PaddleOCR(
+    #             lang=lang,
+    #             use_doc_orientation_classify=False,
+    #             use_doc_unwarping=False,
+    #             use_textline_orientation=False,
+    #         )
+    #     except TypeError:
+    #         _OCR_ENGINE = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
     return _OCR_ENGINE
 
 
@@ -317,7 +336,7 @@ def _ocr_on_boxes(img: np.ndarray, boxes: list[list[float]], lang: str = "en", p
     """Crop each detected text box (padded), OCR upright + rotated, keep best."""
     h, w = img.shape[:2]
     out: list[TextBox] = []
-    for bb in boxes:
+    for bb in tqdm(boxes, desc="Text Box Infering: "):
         x1 = max(0, int(bb[0]) - pad)
         y1 = max(0, int(bb[1]) - pad)
         x2 = min(w, int(bb[2]) + pad)
@@ -432,9 +451,24 @@ def _clean_components(
     text_cover_thr: float = 0.7,
     dedup_iou: float = 0.55,
     contain_thr: float = 0.8,
+    comp_score_thr: float = 0.2,      # ✅ 新增：元器件最低置信阈值
+    text_box_score_thr: float = 0.2,   # ✅ 新增：YOLO文本框最低置信阈值
 ) -> list[DetBox]:
     """Remove component boxes that are really printed text, and de-duplicate
     heavily overlapping / nested same-type boxes (keep the higher score)."""
+
+    # ========== 新增1：过滤低置信元器件框 ==========
+    comps = [c for c in comps if c.score >= comp_score_thr]
+    if not comps:
+        return []
+
+    # ========== 新增2：过滤低置信YOLO文本框 ==========
+    filtered_text_boxes: list[list[float]] = []
+    for tb in text_boxes:
+        if tb[4] >= text_box_score_thr:
+            filtered_text_boxes.append(tb)
+    text_boxes = filtered_text_boxes
+
     # 1) suppress symbol components almost entirely covered by a single text box
     kept: list[DetBox] = []
     for c in comps:
@@ -465,7 +499,7 @@ def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float
     pins: list[PinBox] = []
     for d in dets:
         if d.label == TEXT_LABEL:
-            text_boxes.append(d.bbox)
+            text_boxes.append(d.bbox + [d.score])
         elif d.label == PIN_LABEL:
             cx = (d.bbox[0] + d.bbox[2]) / 2.0
             cy = (d.bbox[1] + d.bbox[3]) / 2.0
@@ -538,4 +572,9 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
         skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
     else:
         skel, segs = wired
+
+    # 可视化
+    run_vision_visualize(image_path, img, comps, texts, skel, pins)
+    run_gt_visualize(image_path, img)
+
     return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs)

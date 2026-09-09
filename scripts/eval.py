@@ -18,6 +18,7 @@ from pcbnet.pipeline import infer_image
 from pcbnet.schema import load_json
 from pcbnet.scorer import apply_empty_gt_text_policy, score_batch, score_case_aligned
 
+from tqdm import tqdm
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -38,7 +39,7 @@ def main() -> int:
     index = index_cases(all_cases)
     out_root = project_root() / cfg.get("output_root", "outputs")
     items = []
-    for cid in ids:
+    for cid in tqdm(ids):
         case = index.get(cid)
         if not case:
             continue
