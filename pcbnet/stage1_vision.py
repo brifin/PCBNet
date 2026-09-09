@@ -451,8 +451,8 @@ def _clean_components(
     text_cover_thr: float = 0.7,
     dedup_iou: float = 0.55,
     contain_thr: float = 0.8,
-    comp_score_thr: float = 0.2,      # ✅ 新增：元器件最低置信阈值
-    text_box_score_thr: float = 0.2,   # ✅ 新增：YOLO文本框最低置信阈值
+    comp_score_thr: float = 0.0,      # ✅ 新增：元器件最低置信阈值
+    text_box_score_thr: float = 0.0,   # ✅ 新增：YOLO文本框最低置信阈值
 ) -> list[DetBox]:
     """Remove component boxes that are really printed text, and de-duplicate
     heavily overlapping / nested same-type boxes (keep the higher score)."""

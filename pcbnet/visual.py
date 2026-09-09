@@ -111,9 +111,10 @@ def run_gt_visualize(img_path, img):
         cv2.putText(vis_gt_comp, txt_type, pos_type,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
 
-        txt_name = cinfo.get("name", "") or ""
+        
+        txt = cinfo.get("name", "") or cinfo.get("value", "") or ""
         pos_name = (x1, max(y1 - 14, 14))
-        cv2.putText(vis_gt_comp, txt_name, pos_name,
+        cv2.putText(vis_gt_comp, txt, pos_name,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
     pins_gt = gt.get("pins", {})
