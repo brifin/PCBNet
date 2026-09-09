@@ -141,22 +141,94 @@ _OCR_ENGINE = None
 _OCR_ERROR_PRINTED = False
 
 
+def _install_torch_stub() -> None:
+    """Register a minimal fake `torch` so a torch-free process can import modelscope.
+
+    Only used inside the paddle-only OCR process where real torch cannot be loaded
+    (cudnn DLL clash). Provides just the names modelscope touches at import time.
+    """
+    import importlib.machinery as machinery
+    import sys
+    import types
+    from unittest.mock import MagicMock
+
+    def _spec(name: str, pkg: bool = False) -> machinery.ModuleSpec:
+        spec = machinery.ModuleSpec(name, loader=None, is_package=pkg)
+        return spec
+
+    torch = types.ModuleType("torch")
+    torch.__version__ = "0.0.0+stub"
+    torch.__spec__ = _spec("torch", pkg=True)
+    torch.__path__ = []  # type: ignore[attr-defined]
+    torch.__getattr__ = lambda name: MagicMock(name=f"torch.{name}")  # type: ignore[attr-defined]
+    mp = types.ModuleType("torch.multiprocessing")
+    mp.__spec__ = _spec("torch.multiprocessing")
+    mp.__getattr__ = lambda name: MagicMock(name=f"torch.multiprocessing.{name}")  # type: ignore[attr-defined]
+    dist = types.ModuleType("torch.distributed")
+    dist.__spec__ = _spec("torch.distributed")
+    dist.is_available = lambda: False  # type: ignore[attr-defined]
+    dist.is_initialized = lambda: False  # type: ignore[attr-defined]
+    dist.get_rank = lambda *a, **k: 0  # type: ignore[attr-defined]
+    dist.get_world_size = lambda *a, **k: 1  # type: ignore[attr-defined]
+    dist.__getattr__ = lambda name: MagicMock(name=f"torch.distributed.{name}")  # type: ignore[attr-defined]
+    torch.multiprocessing = mp  # type: ignore[attr-defined]
+    torch.distributed = dist  # type: ignore[attr-defined]
+    sys.modules["torch"] = torch
+    sys.modules["torch.multiprocessing"] = mp
+    sys.modules["torch.distributed"] = dist
+
+
 def _get_ocr(lang: str = "en"):
     global _OCR_ENGINE
     if _OCR_ENGINE is not None:
         return _OCR_ENGINE
+    # IMPORTANT: fully import paddle BEFORE paddleocr/paddlex. paddlex lazily
+    # re-imports paddle during model construction; if paddleocr is imported first
+    # paddle can be left partially initialized ("no attribute 'tensor'"). Importing
+    # paddle first completes paddle/__init__ (incl. monkey_patch) and caches it.
+    device = "cpu"
+    try:
+        import paddle  # noqa: F401
+
+        _ = paddle.tensor  # force full init
+        if paddle.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0:
+            device = "gpu"
+    except Exception:
+        device = "cpu"
+
+    # paddlex unconditionally imports modelscope, which imports torch. torch's
+    # bundled cudnn DLL clashes with paddle's in a single process (Windows
+    # WinError 127). In this paddle-only OCR process real torch cannot load, so
+    # inject a lightweight stub to satisfy modelscope's import (models are cached,
+    # no download happens). Guarded: never runs when real torch is already loaded.
+    import sys as _sys
+
+    if "torch" not in _sys.modules:
+        try:
+            import torch  # noqa: F401
+        except Exception:
+            _install_torch_stub()
 
     from paddleocr import PaddleOCR
 
     try:
         _OCR_ENGINE = PaddleOCR(
             lang=lang,
+            device=device,
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
         )
     except TypeError:
-        _OCR_ENGINE = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
+        try:
+            _OCR_ENGINE = PaddleOCR(
+                lang=lang,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+            )
+        except TypeError:
+            _OCR_ENGINE = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
     return _OCR_ENGINE
 
 
@@ -326,6 +398,66 @@ def _try_unet_wires(
         return None
 
 
+def _bbox_iou(a: list[float], b: list[float]) -> float:
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    if inter <= 0:
+        return 0.0
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _cover_frac(inner: list[float], outer: list[float]) -> float:
+    """Fraction of `inner`'s area that is covered by `outer`."""
+    ix1, iy1 = max(inner[0], outer[0]), max(inner[1], outer[1])
+    ix2, iy2 = min(inner[2], outer[2]), min(inner[3], outer[3])
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    area = max(0.0, inner[2] - inner[0]) * max(0.0, inner[3] - inner[1])
+    return inter / area if area > 0 else 0.0
+
+
+# Symbol-like classes where a box fully covered by printed text is a misdetection.
+# Power/label classes are inherently text-like and excluded from that filter.
+_TEXTLIKE_EXEMPT = {"net_label", "gnd", "vcc"}
+
+
+def _clean_components(
+    comps: list[DetBox],
+    text_boxes: list[list[float]],
+    text_cover_thr: float = 0.7,
+    dedup_iou: float = 0.55,
+    contain_thr: float = 0.8,
+) -> list[DetBox]:
+    """Remove component boxes that are really printed text, and de-duplicate
+    heavily overlapping / nested same-type boxes (keep the higher score)."""
+    # 1) suppress symbol components almost entirely covered by a single text box
+    kept: list[DetBox] = []
+    for c in comps:
+        if c.label not in _TEXTLIKE_EXEMPT and text_boxes:
+            if max((_cover_frac(c.bbox, tb) for tb in text_boxes), default=0.0) >= text_cover_thr:
+                continue
+        kept.append(c)
+    # 2) de-duplicate same-label overlapping / nested boxes, keep higher score
+    kept.sort(key=lambda d: d.score, reverse=True)
+    final: list[DetBox] = []
+    for c in kept:
+        dup = False
+        for f in final:
+            if c.label != f.label:
+                continue
+            if _bbox_iou(c.bbox, f.bbox) >= dedup_iou or _cover_frac(c.bbox, f.bbox) >= contain_thr:
+                dup = True
+                break
+        if not dup:
+            final.append(c)
+    return final
+
+
 def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox]]:
     comp_labels = _component_labels()
     comps: list[DetBox] = []
@@ -343,6 +475,25 @@ def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float
     return comps, text_boxes, pins
 
 
+def _load_cached_ocr(image_path: str | Path, cfg: dict[str, Any]) -> list[TextBox] | None:
+    """Return cached OCR text boxes for this image, or None if no cache exists."""
+    try:
+        from .config import project_root
+        from .ocr_cache import load_json, ocr_cache_file
+
+        out_root = project_root() / (cfg.get("output_root") or "outputs")
+        data = load_json(ocr_cache_file(out_root, image_path))
+        if data is None:
+            return None
+        return [
+            TextBox(bbox=[float(v) for v in t["bbox"]], content=str(t.get("content") or ""), score=float(t.get("score", 1.0)))
+            for t in data
+            if t.get("content")
+        ]
+    except Exception:
+        return None
+
+
 def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) -> VisionOut:
     cfg = cfg or {}
     img = _read_image(image_path)
@@ -357,8 +508,8 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
     lang = str(ocr_cfg.get("lang") or "en")
 
     dets = _try_yolo(img, models.get("yolo_weights") or "")
-
     comps, text_boxes, pins = _split_detections(dets)
+    comps = _clean_components(comps, text_boxes)
 
     if not comps:
         # No detector: rule-based component fallback (weak, low score expected).
@@ -368,17 +519,19 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
             for box in comps:
                 box.bbox = [v / scale for v in box.bbox]
 
-    if text_boxes:
-        # Detector-assisted OCR: crop each text box on the full-res image.
-        texts = _ocr_on_boxes(img, text_boxes, lang=lang) if ocr_enabled else []
-    else:
-        # Fallback: full-image OCR on a downscaled copy, then rescale coords.
-        ocr_img, _ = _maybe_resize(img, max_side)
-        texts = _ocr_texts(ocr_img, enabled=ocr_enabled, lang=lang)
-        if ocr_img.shape[0] != h or ocr_img.shape[1] != w:
-            sx, sy = w / ocr_img.shape[1], h / ocr_img.shape[0]
-            for t in texts:
-                t.bbox = [t.bbox[0] * sx, t.bbox[1] * sy, t.bbox[2] * sx, t.bbox[3] * sy]
+    texts = _load_cached_ocr(image_path, cfg) if ocr_enabled else []
+    if texts is None:
+        # No cache: OCR in-process (only works in a paddle-only process; when
+        # torch/YOLO is loaded this raises a cudnn DLL clash and returns []).
+        if text_boxes:
+            texts = _ocr_on_boxes(img, text_boxes, lang=lang) if ocr_enabled else []
+        else:
+            ocr_img, _ = _maybe_resize(img, max_side)
+            texts = _ocr_texts(ocr_img, enabled=ocr_enabled, lang=lang)
+            if ocr_img.shape[0] != h or ocr_img.shape[1] != w:
+                sx, sy = w / ocr_img.shape[1], h / ocr_img.shape[0]
+                for t in texts:
+                    t.bbox = [t.bbox[0] * sx, t.bbox[1] * sy, t.bbox[2] * sx, t.bbox[3] * sy]
 
     wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
     if wired is None:

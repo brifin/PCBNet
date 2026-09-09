@@ -57,14 +57,12 @@ def main() -> int:
     coarse = load_coarse_map()
     out = project_root() / "outputs" / "labels"
     index = index_cases(cases)
-
     if args.verify_only:
         errors = verify_labels(out, wanted, names)
         print(f"verify errors={len(errors)}")
         for e in errors[:20]:
             print(" ", e)
         return 0 if not errors else 1
-
     manifest = {"splits": {}, "classes": names}
     for split in wanted:
         ids = splits.get(split, [])

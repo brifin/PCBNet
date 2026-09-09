@@ -108,6 +108,23 @@ def _component_ok(pred: dict, gt: dict, bbox_thr: float) -> bool:
     return True
 
 
+def apply_empty_gt_text_policy(pred: dict[str, Any], gt: dict[str, Any]) -> dict[str, Any]:
+    """GT-empty text policy: if the annotation has no name/value, do not compare
+    against a filled prediction. Used only at local eval (Dataset300 often leaves
+    those fields blank). Submission JSON is unchanged."""
+    import copy
+
+    out = copy.deepcopy(pred)
+    for key, gc in (gt.get("components") or {}).items():
+        pc = (out.get("components") or {}).get(key)
+        if not pc:
+            continue
+        field = _need_text(gc.get("type") or "")
+        if field and not str(gc.get(field) or "").strip():
+            pc[field] = None
+    return out
+
+
 def _pin_ok(pred: dict, gt: dict, pin_thr: float) -> bool:
     if str(pred.get("pinname") or "") != str(gt.get("pinname") or ""):
         return False

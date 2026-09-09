@@ -20,10 +20,12 @@ from .stage1_vision import PinBox, VisionOut
 
 POWER_NETS = {"VCC", "GND", "VDD", "VSS", "VPP", "VEE", "AGND", "DGND", "3V3", "5V"}
 
-DESIGNATOR_RE = re.compile(r"^[A-Z]{1,3}\d+$")
-DESIGNATOR_LOOSE_RE = re.compile(r"^([A-Za-z]{1,3})[.\s-]*(\d+)$")
+DESIGNATOR_RE = re.compile(r"^[A-Z]{1,3}\d{1,3}$")
+DESIGNATOR_LOOSE_RE = re.compile(r"^([A-Za-z]{1,3})[.\s-]*(\d{1,3})$")
+DESIGNATOR_FIND_RE = re.compile(r"\b([A-Za-z]{1,3})[.\s-]*(\d{1,3})\b")
 VALUE_RE = re.compile(r"\d+(\.\d+)?\s*([kKmMuUnNpPµμ]?[FfHhΩRW]?|[kKmM])\b")
 PIN_NUM_RE = re.compile(r"^[A-Za-z]?\d{1,3}$|^[A-Z]\d{1,2}$")
+PACKAGE_RE = re.compile(r"^(0201|0402|0603|0805|1206|1210|2512)$")
 
 PREFIX_TYPE = {
     "R": "resistor",
@@ -44,16 +46,57 @@ PREFIX_TYPE = {
     "F": "fuse",
     "BT": "battery",
 }
+# Valid designator prefixes. K is a button/key ref (GT type is often `other`, so
+# it is allowed as a key but never used to overwrite the detected type).
+VALID_PREFIX = set(PREFIX_TYPE) | {"K"}
+TYPE_OVERRIDE_PREFIX = {"R", "C", "L", "U", "IC", "Q", "D", "Y", "X", "J", "P", "CN", "TP", "F", "BT"}
+
+
+def _strip_token(text: str) -> str:
+    return re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", (text or "").strip())
 
 
 def _as_designator(text: str) -> str | None:
-    raw = (text or "").strip()
-    if DESIGNATOR_RE.match(raw):
-        return raw
-    m = DESIGNATOR_LOOSE_RE.match(raw.replace(" ", "")) or DESIGNATOR_LOOSE_RE.match(raw)
-    if not m:
+    """Accept only real schematic refs (R5, U3, C21), not packages / part numbers / net names."""
+    raw = _strip_token(text)
+    if not raw:
         return None
-    return m.group(1).upper() + m.group(2)
+    compact = raw.replace(" ", "")
+    cand = None
+    if DESIGNATOR_RE.match(raw.upper()) and raw[0].isalpha():
+        cand = raw.upper()
+    else:
+        m = DESIGNATOR_LOOSE_RE.match(compact) or DESIGNATOR_LOOSE_RE.match(raw)
+        if m:
+            cand = m.group(1).upper() + m.group(2)
+    if not cand:
+        return None
+    pref = _prefix_of(cand)
+    digits = cand[len(pref) :]
+    if pref not in VALID_PREFIX:
+        return None
+    if PACKAGE_RE.match(digits):
+        return None
+    if len(digits) > 3:
+        return None
+    return cand
+
+
+def _extract_designators(text: str) -> list[str]:
+    """Whole-string match first, then tokens inside mixed OCR like 'RTC_I2C_SDA R5'."""
+    found: list[str] = []
+    whole = _as_designator(text)
+    if whole:
+        found.append(whole)
+    for tok in re.split(r"[\s,;:/|]+", text or ""):
+        d = _as_designator(tok)
+        if d and d not in found:
+            found.append(d)
+    for m in DESIGNATOR_FIND_RE.finditer(text or ""):
+        d = _as_designator(m.group(1) + m.group(2))
+        if d and d not in found:
+            found.append(d)
+    return found
 
 
 def _prefix_of(designator: str) -> str:
@@ -81,6 +124,21 @@ def _center(bbox: list[float]) -> tuple[float, float]:
     return (bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0
 
 
+def _bbox_gap(a: list[float], b: list[float]) -> float:
+    """Min gap between two axis-aligned boxes (0 if they overlap)."""
+    dx = max(0.0, a[0] - b[2], b[0] - a[2])
+    dy = max(0.0, a[1] - b[3], b[1] - a[3])
+    return math.hypot(dx, dy)
+
+
+def _end_boxes(bbox: list[float]) -> list[list[float]]:
+    """Left and right 30% slices — mixed OCR often puts the ref at one end."""
+    x1, y1, x2, y2 = bbox
+    w = max(1.0, x2 - x1)
+    cut = 0.30 * w
+    return [[x1, y1, x1 + cut, y2], [x2 - cut, y1, x2, y2]]
+
+
 def _hungarian(cost: list[list[float]]) -> list[tuple[int, int]]:
     if not cost or not cost[0]:
         return []
@@ -106,15 +164,35 @@ def _hungarian(cost: list[list[float]]) -> list[tuple[int, int]]:
 # Text classification
 # ----------------------------------------------------------------------------
 
+def _looks_value(txt: str) -> bool:
+    t = (txt or "").strip().lstrip("=>~")
+    if not t or _as_designator(t):
+        return False
+    if PACKAGE_RE.match(t) or re.fullmatch(r"0[468]0[235]|1206|1210|2512", t):
+        return False
+    # Net-style tokens (KEY1, SCL) are not values even if they contain a digit.
+    if re.fullmatch(r"[A-Z]{2,}\d*", t):
+        return False
+    if re.fullmatch(r"\d+(\.\d+)?\s*[kKmMuUnNpPµμ]?[FfHhΩRW]", t):
+        return True
+    if re.fullmatch(r"\d+(\.\d+)?[kKmMuUnNpP]", t):
+        return True
+    if re.search(r"\d+(\.\d+)?\s*[kKmMuUnNpPµμFfHhΩRW]/?", t):
+        return True
+    return False
+
+
 def _classify_text(txt: str) -> str:
     t = (txt or "").strip()
     if not t:
         return "junk"
-    if re.search(r"(Schematic|Sheet|Drawn|SchDoc|Title|\.Sch)", t, re.I):
+    if re.search(r"(Schematic|Sheet|Drawn|SchDoc|Title|\.Sch|CSDN|@)", t, re.I):
         return "junk"
     if _as_designator(t):
         return "designator"
-    if VALUE_RE.search(t) or re.fullmatch(r"\d+(\.\d+)?[kKmMuUnNpP]", t):
+    if _extract_designators(t):
+        return "mixed"
+    if _looks_value(t):
         return "value"
     if re.search(r"[A-Za-z]{2,}\d|\d+[A-Za-z]{2,}", t) and len(t) >= 3:
         return "name"
@@ -123,12 +201,64 @@ def _classify_text(txt: str) -> str:
     return "other"
 
 
+def _prepare_texts(raw: list[dict]) -> list[dict]:
+    """Classify OCR tokens and explode mixed strings into virtual designator texts."""
+    out: list[dict] = []
+    for t in raw:
+        content = (t.get("content") or "").strip()
+        cls = _classify_text(content)
+        item = {
+            "bbox": list(t["bbox"]),
+            "content": content,
+            "score": float(t.get("score") or 1.0),
+            "cls": cls,
+            "used": False,
+        }
+        if cls == "designator":
+            item["content"] = _as_designator(content) or content
+            out.append(item)
+            continue
+        if cls == "mixed":
+            for des in _extract_designators(content):
+                for box in _end_boxes(item["bbox"]):
+                    out.append(
+                        {
+                            "bbox": box,
+                            "content": des,
+                            "score": item["score"],
+                            "cls": "designator",
+                            "used": False,
+                            "virtual": True,
+                        }
+                    )
+            rest = content
+            for des in _extract_designators(content):
+                rest = re.sub(re.escape(des), " ", rest, flags=re.I)
+            rest = rest.strip(" -_/|")
+            if rest and _looks_value(rest):
+                out.append({**item, "content": rest, "cls": "value"})
+            elif rest:
+                out.append({**item, "content": rest, "cls": "name"})
+            continue
+        out.append(item)
+    return out
+
+
 # ----------------------------------------------------------------------------
 # Text-component binding: Hungarian + category / alignment / uniqueness
 # ----------------------------------------------------------------------------
 
+def _prefix_ok_for_type(pref: str, ctype: str) -> bool:
+    expect = PREFIX_TYPE.get(pref, "")
+    if pref == "K":
+        return ctype in {"switch", "other", "net_label"}
+    if not expect:
+        return True
+    return ctype in {expect, "other", "ic"} or ctype == expect
+
+
 def _bind_designators(comps: list[dict], texts: list[dict]) -> None:
-    des_idx = [i for i, t in enumerate(texts) if t["cls"] == "designator"]
+    des_idx = [i for i, t in enumerate(texts) if t["cls"] == "designator" and not t.get("used")]
     if not comps or not des_idx:
         return
     BIG = 1e6
@@ -139,49 +269,124 @@ def _bind_designators(comps: list[dict], texts: list[dict]) -> None:
         for i in des_idx:
             t = texts[i]
             tcx, tcy = _center(t["bbox"])
-            d = math.hypot(cx - tcx, cy - tcy)
+            d = _bbox_gap(comp["img_bbox"], t["bbox"]) + 0.25 * math.hypot(cx - tcx, cy - tcy)
             des = _as_designator(t["content"])
             pref = _prefix_of(des or "")
-            expect = PREFIX_TYPE.get(pref, "")
-            # Category consistency: forbid clear cross-type prefixes.
-            if expect and comp["type"] not in {expect, "other", "ic"} and expect != comp["type"]:
+            if des and not _prefix_ok_for_type(pref, comp["type"]):
                 row.append(BIG)
                 continue
-            aligned = abs(tcy - cy) < 12 or abs(tcx - cx) < 12
-            bonus = (25.0 if aligned else 0.0) + (15.0 if expect == comp["type"] else 0.0)
+            aligned = abs(tcy - cy) < 16 or abs(tcx - cx) < 16
+            expect = PREFIX_TYPE.get(pref, "")
+            bonus = (25.0 if aligned else 0.0) + (20.0 if expect and expect == comp["type"] else 0.0)
             row.append(max(0.0, d - bonus))
         cost.append(row)
+    assigned_des: set[str] = set()
     for ci, k in _hungarian(cost):
         if ci >= len(comps) or k >= len(des_idx) or cost[ci][k] >= BIG:
             continue
-        ti = des_idx[k]
-        # Local uniqueness: only accept if reasonably close.
-        cx, cy = _center(comps[ci]["img_bbox"])
-        tcx, tcy = _center(texts[ti]["bbox"])
-        if math.hypot(cx - tcx, cy - tcy) > 220:
+        if comps[ci].get("designator"):
             continue
-        comps[ci]["designator"] = _as_designator(texts[ti]["content"])
+        ti = des_idx[k]
+        if _bbox_gap(comps[ci]["img_bbox"], texts[ti]["bbox"]) > 80:
+            cx, cy = _center(comps[ci]["img_bbox"])
+            tcx, tcy = _center(texts[ti]["bbox"])
+            if math.hypot(cx - tcx, cy - tcy) > 180:
+                continue
+        des = _as_designator(texts[ti]["content"])
+        if not des or des in assigned_des:
+            continue
+        comps[ci]["designator"] = des
         texts[ti]["used"] = True
+        assigned_des.add(des)
+    _bind_leftover_designators(comps, texts, assigned_des)
 
 
-def _assign_name_value(comp: dict, texts: list[dict]) -> tuple[str | None, str | None]:
-    cx, cy = _center(comp["img_bbox"])
-    name = value = None
-    cands = sorted(
-        (t for t in texts if not t.get("used") and t["cls"] in {"value", "name"}),
-        key=lambda t: math.hypot(cx - _center(t["bbox"])[0], cy - _center(t["bbox"])[1]),
-    )
-    for t in cands:
-        d = math.hypot(cx - _center(t["bbox"])[0], cy - _center(t["bbox"])[1])
-        if d > 160:
-            break
-        if comp["type"] in {"resistor", "capacitor", "inductor"} and t["cls"] == "value" and value is None:
-            value = t["content"]  # keep original case: 10k != 10K
-            t["used"] = True
-        elif comp["type"] == "ic" and t["cls"] == "name" and name is None:
-            name = t["content"]
-            t["used"] = True
-    return name, value
+def _bind_leftover_designators(comps: list[dict], texts: list[dict], assigned: set[str]) -> None:
+    """Second pass: leftover components pick the nearest unused matching ref."""
+    unused = [t for t in texts if t["cls"] == "designator" and not t.get("used")]
+    for comp in comps:
+        if comp.get("designator"):
+            continue
+        best, best_d = None, 70.0
+        for t in unused:
+            if t.get("used"):
+                continue
+            des = _as_designator(t["content"])
+            if not des or des in assigned or not _prefix_ok_for_type(_prefix_of(des), comp["type"]):
+                continue
+            d = _bbox_gap(comp["img_bbox"], t["bbox"])
+            if d < best_d:
+                best, best_d = t, d
+        if best is not None:
+            des = _as_designator(best["content"])
+            if des:
+                comp["designator"] = des
+                best["used"] = True
+                assigned.add(des)
+
+
+def _assign_values(comps: list[dict], texts: list[dict]) -> None:
+    """One-to-one value binding for R/C/L. IC names are not written onto the
+    contest record: local GT names are empty ~75% of the time, and a filled
+    name zeros an otherwise correct U5/R29-style match."""
+    val_idx = [i for i, t in enumerate(texts) if not t.get("used") and t["cls"] == "value" and _looks_value(t["content"])]
+    targets = [c for c in comps if c["type"] in {"resistor", "capacitor", "inductor"}]
+    if not targets or not val_idx:
+        return
+    BIG = 1e6
+    cost = []
+    for comp in targets:
+        row = []
+        for i in val_idx:
+            d = _bbox_gap(comp["img_bbox"], texts[i]["bbox"])
+            row.append(d if d <= 90 else BIG)
+        cost.append(row)
+    used_t: set[int] = set()
+    for ci, k in _hungarian(cost):
+        if ci >= len(targets) or k >= len(val_idx) or cost[ci][k] >= BIG:
+            continue
+        if k in used_t:
+            continue
+        ti = val_idx[k]
+        targets[ci]["value"] = texts[ti]["content"].strip().lstrip("=>~")
+        texts[ti]["used"] = True
+        used_t.add(k)
+
+
+def _as_ic_partname(text: str) -> str | None:
+    """Chip PNs used as contest keys when the sheet has no U-number (e.g. LME49723)."""
+    raw = _strip_token(text)
+    if not raw or len(raw) < 5:
+        return None
+    if not re.fullmatch(r"[A-Za-z]{2,6}\d{3,6}[A-Za-z0-9]*", raw):
+        return None
+    digits = re.sub(r"^[A-Za-z]+", "", raw)
+    if PACKAGE_RE.match(digits[:4] if len(digits) >= 4 else digits):
+        return None
+    if re.match(r"(KEY|SCL|SDA|VDD|VSS|GND|VCC)", raw, re.I):
+        return None
+    return raw
+
+
+def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
+    """Chip PN near an IC, used only as a fallback key (not written as `name`)."""
+    if comp["type"] != "ic":
+        return None
+    best, best_d = None, 220.0
+    for t in texts:
+        if t.get("used"):
+            continue
+        content = (t.get("content") or "").strip()
+        pn = _as_ic_partname(content.split()[0] if content else "")
+        if not pn:
+            continue
+        d = _bbox_gap(comp["img_bbox"], t["bbox"])
+        cx, cy = _center(comp["img_bbox"])
+        tcx, tcy = _center(t["bbox"])
+        d = min(d, math.hypot(cx - tcx, cy - tcy))
+        if d < best_d:
+            best, best_d = pn, d
+    return best
 
 
 # ----------------------------------------------------------------------------
@@ -374,9 +579,8 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     height = float(vision.height)
     out = empty_contest_json()
 
-    texts = [{"bbox": t.bbox, "content": t.content, "score": t.score, "cls": _classify_text(t.content)} for t in vision.texts]
+    texts = _prepare_texts([{"bbox": t.bbox, "content": t.content, "score": t.score} for t in vision.texts])
 
-    # 构建元件列表 comps
     comps: list[dict] = []
     for det in vision.components:
         comps.append({"type": _type_of(det.label, cmap), "img_bbox": det.bbox, "designator": None, "net_label": None})
@@ -385,9 +589,8 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     comps.sort(key=lambda c: (round(c["img_bbox"][1] / 10), round(c["img_bbox"][0] / 10)))
 
     _bind_designators(comps, texts)
+    _assign_values(comps, texts)
     # net_label / power text near label-type components
-
-    # 给网络类元件绑定网络标签
     for comp in comps:
         if comp["type"] in {"net_label", "testpoint", "gnd", "vcc"} and not comp.get("designator"):
             cx, cy = _center(comp["img_bbox"])
@@ -398,27 +601,32 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
                     comp["net_label"] = t["content"].strip()
                     break
 
-    # 生成元件唯一 key，处理重名
     used_keys: dict[str, int] = {}
     pin_nodes: list[dict] = []
     for i, comp in enumerate(comps):
         des = comp.get("designator")
-        raw_key = des or comp.get("net_label") or f"{comp['type']}_{i+1}"
-        # Keep type consistent with a recovered designator prefix.
+        ic_pn = _nearby_ic_partname(comp, texts) if not des else None
+        if ic_pn:
+            for t in texts:
+                if _as_ic_partname((t.get("content") or "").split()[0] if t.get("content") else "") == ic_pn and not t.get("used"):
+                    t["used"] = True
+                    break
+        raw_key = des or ic_pn or comp.get("net_label") or f"{comp['type']}_{i+1}"
+        # Trust R/C/U/... prefixes to fix a wrong detector class; never remap K/S
+        # (GT often types those as `other`, and overwriting would zero the match).
         if des:
-            mapped = PREFIX_TYPE.get(_prefix_of(des))
-            if mapped:
+            pref = _prefix_of(des)
+            mapped = PREFIX_TYPE.get(pref)
+            if mapped and pref in TYPE_OVERRIDE_PREFIX:
                 comp["type"] = mapped
         used_keys[raw_key] = used_keys.get(raw_key, 0) + 1
         key = raw_key if used_keys[raw_key] == 1 else f"{raw_key}_{used_keys[raw_key]}"
         comp["key"] = key
 
-        # 填充元件信息，提取引脚
-        name, value = _assign_name_value(comp, texts)
         out["components"][key] = {
             "type": comp["type"],
-            "name": name,
-            "value": value,
+            "name": None,
+            "value": comp.get("value"),
             "bbox": image_bbox_to_contest(comp["img_bbox"], height),
         }
         out["pins"][key] = {}
@@ -431,12 +639,10 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
             out["pins"][key][pk] = {"pinname": pinname, "point": contest_point(xy[0], xy[1], height)}
             pin_nodes.append({"ref": f"{key}.{number}", "xy": xy})
 
-    # 并查集做引脚连通分析
     parent, find, union = _union_find([p["ref"] for p in pin_nodes])
     _connect_pins(pin_nodes, vision, eps, union)
     _merge_flywires(out, comps, union)
 
-    # 按连通根分组，绑定导线 segments，输出 nets
     groups: dict[str, list[dict]] = defaultdict(list)
     for p in pin_nodes:
         groups[find(p["ref"])].append(p)

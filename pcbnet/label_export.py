@@ -180,7 +180,6 @@ def export_split(
         sx, sy = iw / max(cw, 1), ih / max(ch, 1)
         dest_img = img_dir / f"{cid}{case.image.suffix.lower()}"
         shutil.copy2(case.image, dest_img)
-
         lines = []
         n_skip = 0
         for comp in (data.get("components") or {}).values():
@@ -201,7 +200,6 @@ def export_split(
                 lines.append(line)
             else:
                 n_skip += 1
-
         n_text = n_pin = 0
         if text_id is not None:
             for t in (data.get("texts") or {}).values():
@@ -216,7 +214,6 @@ def export_split(
                 if line:
                     lines.append(line)
                     n_text += 1
-
         if pin_id is not None:
             for pin in (data.get("pins") or {}).values():
                 tb = _tip_box(pin.get("tip"))
@@ -228,7 +225,6 @@ def export_split(
                 if line:
                     lines.append(line)
                     n_pin += 1
-                    
         (lbl_dir / f"{cid}.txt").write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
         mask = _draw_wire_mask(data.get("edges") or {}, cw, ch)
         if (cw, ch) != (iw, ih):

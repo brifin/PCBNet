@@ -128,20 +128,17 @@ def main() -> int:
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     train_set = WireSet(train_pairs, size, limit)
     val_set = WireSet([(val_img, val_mask)], size, limit) if val_img.exists() and val_mask.exists() else train_set
-
     if len(train_set) == 0:
         print("train 集合为空")
         return 1
     train_loader = DataLoader(train_set, batch_size=batch, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=0)
-
     model = build_unet().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     out_dir = project_root() / "outputs" / "models" / "unet"
     out_dir.mkdir(parents=True, exist_ok=True)
     best_dice, best_path = -1.0, out_dir / "best.pt"
     history = []
-
     print(f"[unet] train={len(train_set)} val={len(val_set)} epochs={epochs} size={size} device={device}")
     for epoch in range(1, epochs + 1):
         model.train()
@@ -154,14 +151,12 @@ def main() -> int:
             loss.backward()
             opt.step()
             losses.append(float(loss.item()))
-
         model.eval()
         dices = []
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(device), y.to(device)
                 dices.append(float(dice_coef(model(x), y).item()))
-
         mean_loss = sum(losses) / max(len(losses), 1)
         mean_dice = sum(dices) / max(len(dices), 1)
         history.append({"epoch": epoch, "loss": mean_loss, "val_dice": mean_dice})
@@ -171,7 +166,6 @@ def main() -> int:
         if mean_dice >= best_dice:
             best_dice = mean_dice
             torch.save(ckpt, best_path)
-
     pointer = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "best": str(best_path),
@@ -179,7 +173,6 @@ def main() -> int:
         "history": history,
         "device": device,
     }
-    
     (out_dir / "last_run.json").write_text(json.dumps(pointer, ensure_ascii=False, indent=2), encoding="utf-8")
     print("训练完成。把下面路径填进 configs/default.yaml 的 models.unet_weights：")
     print(f"  {best_path}")
