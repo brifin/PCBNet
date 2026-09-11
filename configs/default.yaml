@@ -1,4 +1,5 @@
-dataset_root: "/data1/chenjh/PCBNet/data/Dataset300"
+dataset_root: "../赛题六公开数据集/200_train_cases"
+test_root: "../赛题六公开数据集/10_GTcase"
 output_root: "outputs"
 split_seed: 42
 split_ratio: [0.8, 0.1, 0.1]
@@ -20,8 +21,8 @@ weights:
 # obsolete 28-class scheme; the class list is now coarse components + text +
 # pin_tip. Retrain with scripts/train_yolo.py, then point this at the new best.pt.
 models:
-  yolo_weights: "/data1/chenjh/PCBNet/outputs/models/yolo/train/weights/best.pt"
-  unet_weights: "/data1/chenjh/PCBNet/outputs/models/unet/best.pt"
+  yolo_weights: "outputs/models/yolo/train/weights/best.pt"
+  unet_weights: "outputs/models/unet/best.pt"
 
 train:
   yolo:

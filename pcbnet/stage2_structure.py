@@ -28,23 +28,23 @@ PIN_NUM_RE = re.compile(r"^[A-Za-z]?\d{1,3}$|^[A-Z]\d{1,2}$")
 PACKAGE_RE = re.compile(r"^(0201|0402|0603|0805|1206|1210|2512)$")
 
 PREFIX_TYPE = {
-    "R": "resistor",
-    "C": "capacitor",
-    "L": "inductor",
-    "U": "ic",
-    "IC": "ic",
-    "Q": "transistor",
-    "D": "diode",
-    "Y": "crystal",
-    "X": "crystal",
+    "R": "r",
+    "C": "c",
+    "L": "l",
+    "U": "box",
+    "IC": "box",
+    "Q": "mosfet",
+    "D": "d",
+    "Y": "crystal_2pin",
+    "X": "crystal_2pin",
     "SW": "switch",
     "S": "switch",
-    "J": "connector",
-    "P": "connector",
-    "CN": "connector",
+    "J": "pin",
+    "P": "pin",
+    "CN": "pin",
     "TP": "testpoint",
     "F": "fuse",
-    "BT": "battery",
+    "BT": "battary",
 }
 # Valid designator prefixes. K is a button/key ref (GT type is often `other`, so
 # it is allowed as a key but never used to overwrite the detected type).
@@ -251,10 +251,10 @@ def _prepare_texts(raw: list[dict]) -> list[dict]:
 def _prefix_ok_for_type(pref: str, ctype: str) -> bool:
     expect = PREFIX_TYPE.get(pref, "")
     if pref == "K":
-        return ctype in {"switch", "other", "net_label"}
+        return ctype in {"switch", "other", "net_input"}
     if not expect:
         return True
-    return ctype in {expect, "other", "ic"} or ctype == expect
+    return ctype in {expect, "other", "box"} or ctype == expect
 
 
 def _bind_designators(comps: list[dict], texts: list[dict]) -> None:
@@ -330,7 +330,7 @@ def _assign_values(comps: list[dict], texts: list[dict]) -> None:
     contest record: local GT names are empty ~75% of the time, and a filled
     name zeros an otherwise correct U5/R29-style match."""
     val_idx = [i for i, t in enumerate(texts) if not t.get("used") and t["cls"] == "value" and _looks_value(t["content"])]
-    targets = [c for c in comps if c["type"] in {"resistor", "capacitor", "inductor"}]
+    targets = [c for c in comps if c["type"] in {"r", "c", "l"}]
     if not targets or not val_idx:
         return
     BIG = 1e6
@@ -369,8 +369,8 @@ def _as_ic_partname(text: str) -> str | None:
 
 
 def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
-    """Chip PN near an IC, used only as a fallback key (not written as `name`)."""
-    if comp["type"] != "ic":
+    """Chip PN near an IC, used only as a fallback key (not written as `Name`)."""
+    if comp["type"] != "box":
         return None
     best, best_d = None, 220.0
     for t in texts:
@@ -395,11 +395,11 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
 
 def _geometry_pins(bbox: list[float], ctype: str) -> list[tuple[str, tuple[float, float]]]:
     x1, y1, x2, y2 = bbox
-    if ctype in {"resistor", "capacitor", "inductor", "diode", "led", "crystal"}:
+    if ctype in {"r", "c", "l", "d", "led", "crystal_2pin"}:
         if abs(x2 - x1) >= abs(y2 - y1):
             return [("1", (x1, (y1 + y2) / 2)), ("2", (x2, (y1 + y2) / 2))]
         return [("1", ((x1 + x2) / 2, y1)), ("2", ((x1 + x2) / 2, y2))]
-    if ctype in {"gnd", "vcc", "net_label", "testpoint"}:
+    if ctype in {"gnd", "v", "net_input", "testpoint"}:
         return [("1", ((x1 + x2) / 2, y2 if ctype == "gnd" else y1))]
     pins = []
     n = max(1, min(8, int(round((y2 - y1) / 24)) or 4))
@@ -462,7 +462,7 @@ def _nearest_pinnum(pt: tuple[float, float], texts: list[dict]) -> str | None:
 
 
 def _nearest_pinname(pt: tuple[float, float], texts: list[dict], comp: dict) -> str | None:
-    if comp["type"] != "ic":
+    if comp["type"] != "box":
         return None
     best, best_d = None, 40.0
     for t in texts:
@@ -551,7 +551,7 @@ def _connect_pins(pin_nodes: list[dict], vision: VisionOut, eps: float, union) -
 def _merge_flywires(out: dict, comps: list[dict], union) -> None:
     label_groups: dict[str, list[str]] = defaultdict(list)
     for comp in comps:
-        if comp["type"] not in {"net_label", "testpoint"}:
+        if comp["type"] not in {"net_input", "testpoint"}:
             continue
         label = comp.get("designator") or comp.get("net_label")
         if not label or label.upper() in POWER_NETS:
@@ -592,7 +592,7 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     _assign_values(comps, texts)
     # net_label / power text near label-type components
     for comp in comps:
-        if comp["type"] in {"net_label", "testpoint", "gnd", "vcc"} and not comp.get("designator"):
+        if comp["type"] in {"net_input", "testpoint", "gnd", "v"} and not comp.get("designator"):
             cx, cy = _center(comp["img_bbox"])
             for t in texts:
                 if t.get("used") or t["cls"] not in {"name", "other", "value"}:
@@ -602,16 +602,17 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
                     break
 
     used_keys: dict[str, int] = {}
+    empty_seq = 0
     pin_nodes: list[dict] = []
     for i, comp in enumerate(comps):
         des = comp.get("designator")
-        ic_pn = _nearby_ic_partname(comp, texts) if not des else None
+        # box 类型：Name 用附近 IC 型号名（其余类型 Name == key）
+        ic_pn = _nearby_ic_partname(comp, texts) if comp["type"] == "box" else None
         if ic_pn:
             for t in texts:
                 if _as_ic_partname((t.get("content") or "").split()[0] if t.get("content") else "") == ic_pn and not t.get("used"):
                     t["used"] = True
                     break
-        raw_key = des or ic_pn or comp.get("net_label") or f"{comp['type']}_{i+1}"
         # Trust R/C/U/... prefixes to fix a wrong detector class; never remap K/S
         # (GT often types those as `other`, and overwriting would zero the match).
         if des:
@@ -619,13 +620,17 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
             mapped = PREFIX_TYPE.get(pref)
             if mapped and pref in TYPE_OVERRIDE_PREFIX:
                 comp["type"] = mapped
-        used_keys[raw_key] = used_keys.get(raw_key, 0) + 1
-        key = raw_key if used_keys[raw_key] == 1 else f"{raw_key}_{used_keys[raw_key]}"
+            used_keys[des] = used_keys.get(des, 0) + 1
+            key = des if used_keys[des] == 1 else f"{des}_{used_keys[des]}"
+        else:
+            # 无位号元件：赛题规则 key 为 ∅<编号>（编号自由/顺序）
+            empty_seq += 1
+            key = f"∅{empty_seq}"
         comp["key"] = key
 
         out["components"][key] = {
             "type": comp["type"],
-            "name": None,
+            "Name": ic_pn or key,
             "value": comp.get("value"),
             "bbox": image_bbox_to_contest(comp["img_bbox"], height),
         }

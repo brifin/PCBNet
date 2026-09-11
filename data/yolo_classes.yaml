@@ -23,23 +23,43 @@ names:
   - text
   - pin_tip
 
-# contest component type -> coarse yolo component class
+# race type (赛题词表) -> coarse yolo component class
 coarse_map:
-  ic: ic
-  resistor: resistor
-  capacitor: capacitor
-  inductor: inductor
-  diode: diode
+  box: ic
+  block: ic
+  amp: ic
+  amp_3pin: ic
+  amp_5pin: ic
+  opt: ic
+  r: resistor
+  c: capacitor
+  l: inductor
+  transfomer: inductor
+  d: diode
   led: diode
-  bjt: transistor
+  esd: diode
   mosfet: transistor
+  mosfet_npn: transistor
+  mosfet_pnp: transistor
+  bjt: transistor
+  bjt_npn: transistor
+  bjt_pnp: transistor
   gnd: gnd
-  vcc: vcc
-  net_label: net_label
-  connector: connector
+  v: vcc
+  net_input: net_label
+  net_output: net_label
+  net_short: net_label
+  net_bidirection: net_label
   crystal: crystal
+  crystal_2pin: crystal
+  crystal_3pin: crystal
+  crystal_4pin: crystal
   switch: switch
+  jumper: switch
   testpoint: testpoint
+  pin: connector
+  circle_header: connector
+  dc: connector
   # everything else -> other
 
 TEXT_CLASS: text

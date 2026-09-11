@@ -90,9 +90,9 @@ def _bbox_ok(pred: list[float], gt: list[float], thr: float) -> bool:
 
 
 def _need_text(ctype: str) -> str | None:
-    if ctype == "ic":
-        return "name"
-    if ctype in {"resistor", "capacitor"}:
+    if ctype == "box":
+        return "Name"
+    if ctype in {"r", "c"}:
         return "value"
     return None
 
