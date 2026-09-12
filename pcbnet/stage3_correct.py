@@ -59,16 +59,16 @@ def correct(contest: dict[str, Any], cfg: dict[str, Any] | None = None) -> dict[
         if not client.available or used >= budget:
             return token
         used += 1
-        allowed = "A-Z0-9_" if category != "ic" else "A-Za-z0-9_-"
+        allowed = "A-Z0-9_" if category != "box" else "A-Za-z0-9_-"
         return client.correct_token(token, allowed, category)
 
     for comp in (contest.get("components") or {}).values():
-        name = comp.get("name")
+        name = comp.get("Name")
         if isinstance(name, str) and _looks_wrong(name):
             fixed = _rule_fix(name)
             if fixed == name:
                 fixed = maybe_llm(name, comp.get("type"))
-            comp["name"] = fixed
+            comp["Name"] = fixed
         # value is intentionally not case-normalised or LLM-touched.
 
     for ck, pins in (contest.get("pins") or {}).items():

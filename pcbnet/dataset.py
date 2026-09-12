@@ -40,7 +40,8 @@ def scan_dataset(dataset_root: str | Path) -> list[Case]:
     if not root.exists():
         return cases
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
-        cvjson = _first(d.glob("*_CVJsonStd.json"))
+        # 赛题公开数据集标注：*_target.json（测试）或 *_target_named.json（训练）
+        cvjson = _first(d.glob("*_target*.json"))
         image = _first(p for p in d.iterdir() if p.suffix.lower() in IMAGE_EXTS)
         if cvjson is None or image is None:
             continue
@@ -74,8 +75,11 @@ def make_splits(cases: list[Case], seed: int = 42, ratio: tuple[float, float, fl
 
 def load_or_create_splits(data_dir: Path, cases: list[Case], seed: int = 42, ratio=(0.8, 0.1, 0.1)) -> dict[str, list[str]]:
     path = data_dir / "splits.json"
+    current = {c.case_id for c in cases}
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
+        splits = json.loads(path.read_text(encoding="utf-8"))
+        if set(splits.get("all") or []) == current:
+            return splits
     splits = make_splits(cases, seed=seed, ratio=ratio)
     path.write_text(json.dumps(splits, ensure_ascii=False, indent=2), encoding="utf-8")
     return splits

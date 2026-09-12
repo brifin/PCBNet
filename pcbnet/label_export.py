@@ -175,60 +175,52 @@ def export_split(
             rows.append({"case_id": cid, "status": "failed_image"})
             continue
         ih, iw = img.shape[:2]
-        canvas = data.get("canvas") or {}
-        cw, ch = int(canvas.get("width") or iw), int(canvas.get("height") or ih)
-        sx, sy = iw / max(cw, 1), ih / max(ch, 1)
         dest_img = img_dir / f"{cid}{case.image.suffix.lower()}"
         shutil.copy2(case.image, dest_img)
         lines = []
         n_skip = 0
+        # 组件框：赛题 bbox 是左下角坐标(y 向上)，翻转到图像坐标(y 向下)
         for comp in (data.get("components") or {}).values():
-            if not _is_active(comp):
+            bx = comp.get("bbox")
+            if not bx or len(bx) != 4:
                 n_skip += 1
                 continue
-            box = _box_xyxy(comp.get("realBBox") or comp.get("location"))
-            if not box:
-                n_skip += 1
-                continue
-            if sx != 1.0 or sy != 1.0:
-                box = (box[0] * sx, box[1] * sy, box[2] * sx, box[3] * sy)
-            contest_type = category_map.get(comp.get("category"), "other")
-            coarse = coarse_component_class(contest_type, coarse_map, cls_ids)
+            x1, y1, x2, y2 = (float(v) for v in bx)
+            box = (min(x1, x2), ih - max(y1, y2), max(x1, x2), ih - min(y1, y2))
+            race_type = comp.get("type")
+            coarse = coarse_component_class(race_type, coarse_map, cls_ids)
             hist[coarse] += 1
             line = yolo_line(box, iw, ih, cls_ids.get(coarse, other_id))
             if line:
                 lines.append(line)
             else:
                 n_skip += 1
-        n_text = n_pin = 0
-        if text_id is not None:
-            for t in (data.get("texts") or {}).values():
-                if not str(t.get("content") or "").strip():
-                    continue
-                box = _box_xyxy(t.get("location"))
-                if not box:
-                    continue
-                if sx != 1.0 or sy != 1.0:
-                    box = (box[0] * sx, box[1] * sy, box[2] * sx, box[3] * sy)
-                line = yolo_line(box, iw, ih, text_id)
-                if line:
-                    lines.append(line)
-                    n_text += 1
+        # 赛题数据无 text 标注，text 类无训练标签（n_text 恒 0）
+        n_text = 0
+        n_pin = 0
         if pin_id is not None:
-            for pin in (data.get("pins") or {}).values():
-                tb = _tip_box(pin.get("tip"))
-                if not tb:
-                    continue
-                if sx != 1.0 or sy != 1.0:
-                    tb = (tb[0] * sx, tb[1] * sy, tb[2] * sx, tb[3] * sy)
-                line = yolo_line(tb, iw, ih, pin_id)
-                if line:
-                    lines.append(line)
-                    n_pin += 1
+            for pins in (data.get("pins") or {}).values():
+                for pin in (pins or {}).values():
+                    pt = pin.get("point") or {}
+                    try:
+                        px, py = float(pt["x"]), ih - float(pt["y"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    tb = _tip_box((px, py))
+                    if not tb:
+                        continue
+                    line = yolo_line(tb, iw, ih, pin_id)
+                    if line:
+                        lines.append(line)
+                        n_pin += 1
         (lbl_dir / f"{cid}.txt").write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
-        mask = _draw_wire_mask(data.get("edges") or {}, cw, ch)
-        if (cw, ch) != (iw, ih):
-            mask = cv2.resize(mask, (iw, ih), interpolation=cv2.INTER_NEAREST)
+        # 导线 mask：赛题 nets.edges 是左下角坐标，翻转到图像坐标画线
+        mask = np.zeros((ih, iw), np.uint8)
+        for net in (data.get("nets") or {}).values():
+            for seg in (net.get("edges") or {}).values():
+                pts = [(int(round(float(p["x"]))), int(round(ih - float(p["y"])))) for p in seg]
+                if len(pts) >= 2:
+                    cv2.polylines(mask, [np.asarray(pts, dtype=np.int32).reshape(-1, 1, 2)], False, 255, 2)
         cv2.imencode(".png", mask)[1].tofile(str(mask_dir / f"{cid}.png"))
         rows.append(
             {

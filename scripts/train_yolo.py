@@ -35,6 +35,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         from ultralytics import YOLO
+        import ultralytics.engine.trainer as _et
+
+        _et.check_amp = lambda model: False  # 禁用 AMP 检查，跳过联网下载 yolo26n.pt（无外网会卡住）
     except ImportError:
         print("未安装 ultralytics。建议在 Python 3.10–3.12 环境执行：")
         print("  py -m pip install ultralytics")
@@ -67,6 +70,7 @@ def main() -> int:
         "patience": 20,
         "workers": 0,
         "plots": False,
+        "amp": False,  # 跳过 AMP 检查（会联网下载 yolo26n.pt，无外网服务器会卡住）
     }
     if args.device:
         kwargs["device"] = args.device

@@ -2,22 +2,25 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from os.path import dirname, join
+from pathlib import Path
 import os
 import json
 
 def run_vision_visualize(img_path, img, comps, texts, skel, pins):
+    img_path = Path(img_path)
     save_dir = f"outputs/viz/{img_path.parent.name}"
     os.makedirs(save_dir, exist_ok=True)
     img_bgr = img.copy()
-    if img_bgr.ndim == 3:
-        img_bgr = cv2.cvtColor(img_bgr, cv2.COLOR_RGB2BGR)
 
-    # ========== 图1：只画元器件组件框（蓝色） ==========
+    # ========== 图1：组件框(标 type) + 文本框(标 content) + pin 打点 ==========
+    from .gt_adapter import load_category_map
+
+    cmap = load_category_map()
     vis_comp = img_bgr.copy()
     for comp in comps:
         x1, y1, x2, y2 = map(int, comp.bbox)
         cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (255, 0, 0), 1)
-        cv2.putText(vis_comp, f"{comp.label}", (x1, max(y1 - 5, 10)),
+        cv2.putText(vis_comp, cmap.get(comp.label, comp.label), (x1, max(y1 - 5, 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
     for t in texts:
         x1, y1, x2, y2 = map(int, t.bbox)
@@ -81,6 +84,7 @@ def flip_gt_y(gt: dict, h_img: int) -> dict:
 
 
 def run_gt_visualize(img_path, img):
+    img_path = Path(img_path)
     with open(f"outputs/gt/{img_path.parent.name}.json", "r") as f:
         gt = json.load(f)
 
@@ -93,10 +97,8 @@ def run_gt_visualize(img_path, img):
     gt = flip_gt_y(gt, h_img)
 
     img_bgr = img.copy()
-    if img_bgr.ndim == 3:
-        img_bgr = cv2.cvtColor(img_bgr, cv2.COLOR_RGB2BGR)
 
-    # ====================== 图1：GT components ======================
+    # ====================== 图1：GT components（组件框标 type + pin 打点）======================
     vis_gt_comp = img_bgr.copy()
     comps_gt = gt.get("components", {})
 
@@ -110,12 +112,6 @@ def run_gt_visualize(img_path, img):
         pos_type = (x1, max(y1 - 2, 2))
         cv2.putText(vis_gt_comp, txt_type, pos_type,
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
-
-        
-        txt = cinfo.get("name", "") or cinfo.get("value", "") or ""
-        pos_name = (x1, max(y1 - 14, 14))
-        cv2.putText(vis_gt_comp, txt, pos_name,
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
     pins_gt = gt.get("pins", {})
     for cid, pin_dict in pins_gt.items():

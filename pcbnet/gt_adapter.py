@@ -19,20 +19,29 @@ PLACEHOLDER_RE = re.compile(r"^[A-Z]+\?$")
 VALUE_HINT_RE = re.compile(r"\d+(k|K|uF|nF|pF|mF|ohm|Ω)", re.I)
 POWER_NETS = {"VCC", "GND", "VDD", "VSS", "VPP", "VEE"}
 TYPE_PREFIX = {
-    "ic": ("U", "IC"),
-    "resistor": ("R",),
-    "capacitor": ("C",),
-    "inductor": ("L",),
-    "diode": ("D",),
+    "box": ("U", "IC"),
+    "block": ("U", "IC"),
+    "r": ("R",),
+    "c": ("C",),
+    "l": ("L",),
+    "d": ("D",),
     "led": ("D", "LED"),
     "bjt": ("Q",),
+    "bjt_npn": ("Q",),
+    "bjt_pnp": ("Q",),
     "mosfet": ("Q", "M"),
+    "mosfet_npn": ("Q", "M"),
+    "mosfet_pnp": ("Q", "M"),
     "crystal": ("Y", "X"),
+    "crystal_2pin": ("Y", "X"),
+    "crystal_3pin": ("Y", "X"),
+    "crystal_4pin": ("Y", "X"),
     "switch": ("SW", "S"),
-    "connector": ("J", "P", "CN"),
+    "pin": ("J", "P", "CN"),
+    "circle_header": ("J", "P", "CN"),
     "testpoint": ("TP",),
     "fuse": ("F",),
-    "battery": ("BT",),
+    "battary": ("BT",),
 }
 
 
@@ -77,6 +86,12 @@ def _contents_by_detail(associated: dict[str, Any] | None, detail: str) -> list[
 _SHEET_JUNK_RE = re.compile(r"(Drawn\s*By|Sheet|SchDoc|\.Sch\b|Schematic\d*|Title|Rev\b|Date)", re.I)
 
 
+def _empty_key(fallback: str) -> str:
+    """无位号元件：fallback 是 CVJsonStd cpnt_id（如 C_16），赛题规则用 ∅<编号>。"""
+    m = re.match(r"^[A-Za-z]+_(\d+)$", fallback or "")
+    return f"∅{m.group(1)}" if m else fallback
+
+
 def _pick_designator(associated: dict[str, Any] | None, fallback: str, dst_type: str) -> str:
     # Authoritative signal first: texts explicitly tagged as a designator.
     for text in _contents_by_detail(associated, "designator"):
@@ -90,12 +105,12 @@ def _pick_designator(associated: dict[str, Any] | None, fallback: str, dst_type:
                 return text
         for text in contents:
             if PLACEHOLDER_RE.match(text) and text[:-1] in prefixes:
-                return fallback
-    elif dst_type not in {"ic", "gnd", "vcc", "net_label"}:
+                return _empty_key(fallback)
+    elif dst_type not in {"box", "gnd", "v", "net_input"}:
         for text in contents:
             if DESIGNATOR_RE.match(text):
                 return text
-    return fallback
+    return _empty_key(fallback)
 
 
 def _is_plausible_ic_name(content: str) -> bool:
@@ -201,6 +216,12 @@ def cvjson_to_contest(
 ) -> dict[str, Any]:
     if not isinstance(cvjson, dict):
         cvjson = json.loads(Path(cvjson).read_text(encoding="utf-8"))
+    # 赛题公开数据集的 *_target.json 已是最终赛题格式（components/pins/nets，
+    # key 位号/∅、type race、Name、左下角坐标），直接透传，无需再转换。
+    if "nets" in cvjson and "canvas" not in cvjson:
+        import copy
+
+        return copy.deepcopy(cvjson)
     category_map = category_map or load_category_map()
     height = float((cvjson.get("canvas") or {}).get("height") or 0)
     texts = cvjson.get("texts") or {}
@@ -224,14 +245,12 @@ def cvjson_to_contest(
         dst_type = category_map.get(src_type, src_type.lower() or "other")
         key = uniquify(_pick_designator(comp.get("associatedTexts"), cpnt_id, dst_type))
         bbox_src = comp.get("realBBox") or comp.get("location") or {"x1": 0, "y1": 0, "x2": 0, "y2": 0}
-        name = _pick_ic_name(comp, texts) if dst_type == "ic" else None
-        value = _pick_value(comp.get("associatedTexts")) if dst_type in {"resistor", "capacitor"} else None
-        if dst_type not in {"ic", "resistor", "capacitor"}:
-            extras = _associated_contents(comp.get("associatedTexts"))
-            name = name or (extras[0] if extras else None)
+        # Name：box 用 IC 型号名（searchName），其余类型 Name == key（位号或 ∅ 编号）
+        name = (_pick_ic_name(comp, texts) if dst_type == "box" else None) or key
+        value = _pick_value(comp.get("associatedTexts")) if dst_type in {"r", "c"} else None
         out["components"][key] = {
             "type": dst_type,
-            "name": name,
+            "Name": name,
             "value": value,
             "bbox": image_bbox_to_contest(bbox_src, height),
         }

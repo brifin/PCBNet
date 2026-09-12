@@ -28,14 +28,19 @@ def main() -> int:
     parser.add_argument("--config", default=str(ROOT / "configs" / "default.yaml"))
     args = parser.parse_args()
     cfg = load_config(args.config)
-    all_cases = scan_dataset(cfg["dataset_root"])
-    splits = load_or_create_splits(
-        project_root() / "data",
-        all_cases,
-        seed=cfg.get("split_seed", 42),
-        ratio=tuple(cfg.get("split_ratio", [0.8, 0.1, 0.1])),
-    )
-    ids = splits.get(args.split, [])
+    # test 用赛题 10_GTcase（独立目录），train/val 用 200_train_cases 的划分
+    use_test_root = args.split == "test" and bool(cfg.get("test_root"))
+    all_cases = scan_dataset(cfg.get("test_root") if use_test_root else cfg["dataset_root"])
+    if use_test_root:
+        ids = [c.case_id for c in all_cases]
+    else:
+        splits = load_or_create_splits(
+            project_root() / "data",
+            all_cases,
+            seed=cfg.get("split_seed", 42),
+            ratio=tuple(cfg.get("split_ratio", [0.8, 0.1, 0.1])),
+        )
+        ids = splits.get(args.split, [])
     index = index_cases(all_cases)
     out_root = project_root() / cfg.get("output_root", "outputs")
     items = []
