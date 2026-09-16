@@ -1,0 +1,533 @@
+{
+  "type_to_prefix": {
+    "amp": {
+      "U": 4,
+      "PA": 1,
+      "A": 1,
+      "LM": 1
+    },
+    "amp_3pin": {
+      "U": 8
+    },
+    "amp_5pin": {
+      "U": 8
+    },
+    "ant": {
+      "TLV": 4,
+      "OPA": 5,
+      "TAS": 1,
+      "LME": 3,
+      "LM": 1,
+      "TLE": 5,
+      "R": 3,
+      "U": 1
+    },
+    "battary": {},
+    "bjt": {
+      "Q": 49,
+      "U": 2
+    },
+    "bjt_npn": {
+      "Q": 2
+    },
+    "bjt_pnp": {
+      "Q": 2
+    },
+    "block": {},
+    "box": {
+      "U": 896,
+      "USB": 38,
+      "PA": 2,
+      "XOU": 1,
+      "IDEM": 1,
+      "US": 1,
+      "OUT": 4,
+      "XD": 3,
+      "CN": 8,
+      "IC": 5,
+      "JP": 8,
+      "LD": 2,
+      "O": 3,
+      "X": 3,
+      "XB": 1,
+      "IP": 1,
+      "XSC": 1,
+      "TP": 1,
+      "INTVCC": 1,
+      "PT": 1,
+      "SG": 1,
+      "XOSC": 1,
+      "Y": 1,
+      "USBC": 1,
+      "USH": 2,
+      "INT": 1,
+      "UT": 1,
+      "CH": 2,
+      "XL": 1,
+      "IR": 1
+    },
+    "buzzer": {},
+    "c": {
+      "C": 1873,
+      "CRB": 1,
+      "CVC": 5,
+      "CCLAMP": 2,
+      "COMP": 1,
+      "CSPA": 1,
+      "CSPC": 1,
+      "CV": 1,
+      "CY": 1,
+      "CF": 1
+    },
+    "circle_header": {},
+    "crystal": {
+      "X": 1
+    },
+    "crystal_2pin": {
+      "X": 31,
+      "R": 1,
+      "C": 8,
+      "Y": 5
+    },
+    "crystal_3pin": {
+      "Y": 2,
+      "X": 3,
+      "OSCINX": 1
+    },
+    "crystal_4pin": {
+      "X": 6,
+      "C": 1,
+      "Y": 1
+    },
+    "d": {
+      "D": 204
+    },
+    "dc": {},
+    "esd": {},
+    "fuse": {
+      "F": 20
+    },
+    "gnd": {},
+    "jumper": {},
+    "l": {
+      "L": 127
+    },
+    "led": {
+      "D": 97,
+      "LED": 101
+    },
+    "m3螺丝": {},
+    "mosfet": {
+      "Q": 59,
+      "U": 1
+    },
+    "mosfet_npn": {
+      "Q": 6
+    },
+    "mosfet_pnp": {
+      "U": 1
+    },
+    "motor": {},
+    "net_bidirection": {},
+    "net_input": {},
+    "net_output": {},
+    "net_short": {},
+    "opt": {},
+    "other": {},
+    "pin": {
+      "TP": 202
+    },
+    "r": {
+      "R": 1774,
+      "RT": 2,
+      "RVC": 3,
+      "RP": 2,
+      "RES": 1,
+      "RV": 1,
+      "RC": 1
+    },
+    "seg": {
+      "J": 1,
+      "A": 1
+    },
+    "switch": {
+      "SW": 140,
+      "S": 17,
+      "SCHEMATIC": 1
+    },
+    "testpoint": {
+      "TP": 43
+    },
+    "transfomer": {},
+    "v": {
+      "TP": 1
+    }
+  },
+  "prefix_to_type": {
+    "A": {
+      "amp": 1,
+      "seg": 1
+    },
+    "C": {
+      "c": 1873,
+      "crystal_2pin": 8,
+      "crystal_4pin": 1
+    },
+    "CCLAMP": {
+      "c": 2
+    },
+    "CF": {
+      "c": 1
+    },
+    "CH": {
+      "box": 2
+    },
+    "CN": {
+      "box": 8
+    },
+    "COMP": {
+      "c": 1
+    },
+    "CRB": {
+      "c": 1
+    },
+    "CSPA": {
+      "c": 1
+    },
+    "CSPC": {
+      "c": 1
+    },
+    "CV": {
+      "c": 1
+    },
+    "CVC": {
+      "c": 5
+    },
+    "CY": {
+      "c": 1
+    },
+    "D": {
+      "d": 204,
+      "led": 97
+    },
+    "F": {
+      "fuse": 20
+    },
+    "IC": {
+      "box": 5
+    },
+    "IDEM": {
+      "box": 1
+    },
+    "INT": {
+      "box": 1
+    },
+    "INTVCC": {
+      "box": 1
+    },
+    "IP": {
+      "box": 1
+    },
+    "IR": {
+      "box": 1
+    },
+    "J": {
+      "seg": 1
+    },
+    "JP": {
+      "box": 8
+    },
+    "L": {
+      "l": 127
+    },
+    "LD": {
+      "box": 2
+    },
+    "LED": {
+      "led": 101
+    },
+    "LM": {
+      "ant": 1,
+      "amp": 1
+    },
+    "LME": {
+      "ant": 3
+    },
+    "O": {
+      "box": 3
+    },
+    "OPA": {
+      "ant": 5
+    },
+    "OSCINX": {
+      "crystal_3pin": 1
+    },
+    "OUT": {
+      "box": 4
+    },
+    "PA": {
+      "box": 2,
+      "amp": 1
+    },
+    "PT": {
+      "box": 1
+    },
+    "Q": {
+      "mosfet": 59,
+      "bjt": 49,
+      "bjt_pnp": 2,
+      "mosfet_npn": 6,
+      "bjt_npn": 2
+    },
+    "R": {
+      "r": 1774,
+      "crystal_2pin": 1,
+      "ant": 3
+    },
+    "RC": {
+      "r": 1
+    },
+    "RES": {
+      "r": 1
+    },
+    "RP": {
+      "r": 2
+    },
+    "RT": {
+      "r": 2
+    },
+    "RV": {
+      "r": 1
+    },
+    "RVC": {
+      "r": 3
+    },
+    "S": {
+      "switch": 17
+    },
+    "SCHEMATIC": {
+      "switch": 1
+    },
+    "SG": {
+      "box": 1
+    },
+    "SW": {
+      "switch": 140
+    },
+    "TAS": {
+      "ant": 1
+    },
+    "TLE": {
+      "ant": 5
+    },
+    "TLV": {
+      "ant": 4
+    },
+    "TP": {
+      "testpoint": 43,
+      "pin": 202,
+      "box": 1,
+      "v": 1
+    },
+    "U": {
+      "box": 896,
+      "amp_5pin": 8,
+      "mosfet_pnp": 1,
+      "mosfet": 1,
+      "amp_3pin": 8,
+      "amp": 4,
+      "bjt": 2,
+      "ant": 1
+    },
+    "US": {
+      "box": 1
+    },
+    "USB": {
+      "box": 38
+    },
+    "USBC": {
+      "box": 1
+    },
+    "USH": {
+      "box": 2
+    },
+    "UT": {
+      "box": 1
+    },
+    "X": {
+      "crystal_2pin": 31,
+      "crystal_3pin": 3,
+      "crystal_4pin": 6,
+      "box": 3,
+      "crystal": 1
+    },
+    "XB": {
+      "box": 1
+    },
+    "XD": {
+      "box": 3
+    },
+    "XL": {
+      "box": 1
+    },
+    "XOSC": {
+      "box": 1
+    },
+    "XOU": {
+      "box": 1
+    },
+    "XSC": {
+      "box": 1
+    },
+    "Y": {
+      "crystal_3pin": 2,
+      "crystal_2pin": 5,
+      "box": 1,
+      "crystal_4pin": 1
+    }
+  },
+  "canonical_prefix": {
+    "r": [
+      "R",
+      "RVC"
+    ],
+    "box": [
+      "U",
+      "USB",
+      "CN",
+      "JP",
+      "IC",
+      "OUT",
+      "XD",
+      "O",
+      "X"
+    ],
+    "c": [
+      "C",
+      "CVC"
+    ],
+    "d": [
+      "D"
+    ],
+    "l": [
+      "L"
+    ],
+    "mosfet": [
+      "Q"
+    ],
+    "led": [
+      "LED",
+      "D"
+    ],
+    "fuse": [
+      "F"
+    ],
+    "crystal_2pin": [
+      "X",
+      "C",
+      "Y"
+    ],
+    "ant": [
+      "OPA",
+      "TLE",
+      "TLV",
+      "LME",
+      "R"
+    ],
+    "testpoint": [
+      "TP"
+    ],
+    "pin": [
+      "TP"
+    ],
+    "switch": [
+      "SW",
+      "S"
+    ],
+    "crystal_3pin": [
+      "X"
+    ],
+    "amp_5pin": [
+      "U"
+    ],
+    "crystal_4pin": [
+      "X"
+    ],
+    "mosfet_pnp": [],
+    "amp_3pin": [
+      "U"
+    ],
+    "bjt": [
+      "Q"
+    ],
+    "amp": [
+      "U"
+    ],
+    "crystal": [],
+    "seg": [],
+    "bjt_pnp": [],
+    "v": [],
+    "mosfet_npn": [
+      "Q"
+    ],
+    "bjt_npn": [],
+    "opt": [],
+    "net_output": [],
+    "circle_header": [],
+    "gnd": [],
+    "esd": [],
+    "buzzer": [],
+    "jumper": [],
+    "net_input": [],
+    "other": [],
+    "motor": [],
+    "battary": [],
+    "dc": [],
+    "m3螺丝": [],
+    "net_bidirection": [],
+    "block": [],
+    "transfomer": [],
+    "net_short": []
+  },
+  "empty_count": {
+    "gnd": 3001,
+    "v": 1281,
+    "dc": 6,
+    "box": 322,
+    "r": 317,
+    "c": 734,
+    "block": 13,
+    "amp_5pin": 3,
+    "buzzer": 81,
+    "l": 90,
+    "net_input": 509,
+    "other": 86,
+    "ant": 26,
+    "mosfet": 5,
+    "m3螺丝": 58,
+    "battary": 25,
+    "net_short": 163,
+    "esd": 6,
+    "amp": 26,
+    "led": 10,
+    "switch": 3,
+    "pin": 25,
+    "bjt": 13,
+    "amp_3pin": 2,
+    "net_output": 72,
+    "motor": 8,
+    "circle_header": 8,
+    "jumper": 9,
+    "net_bidirection": 13,
+    "d": 3,
+    "crystal_2pin": 5,
+    "seg": 5,
+    "fuse": 6,
+    "transfomer": 5,
+    "opt": 3
+  },
+  "stats": {
+    "named_components": 5847,
+    "empty_components": 6942
+  }
+}
