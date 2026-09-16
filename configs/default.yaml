@@ -1,5 +1,5 @@
-dataset_root: "../赛题六公开数据集/200_train_cases"
-test_root: "../赛题六公开数据集/10_GTcase"
+dataset_root: "data/赛题六公开数据集/290_train_cases"
+test_root: "data/赛题六公开数据集/10_GTcase"
 output_root: "outputs"
 split_seed: 42
 split_ratio: [0.8, 0.1, 0.1]
