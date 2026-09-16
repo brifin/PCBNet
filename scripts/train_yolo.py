@@ -29,7 +29,7 @@ def _resolve_model(name: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-yaml", default="")
-    parser.add_argument("--device", default="")
+    parser.add_argument("--device", default="[0,1,2,3,4,5]")
     parser.add_argument("--smoke", action="store_true", help="1 epoch / imgsz 640 sanity run")
     parser.add_argument("--config", default=str(ROOT / "configs" / "default.yaml"))
     args = parser.parse_args()
@@ -67,10 +67,11 @@ def main() -> int:
         "project": str(project),
         "name": "smoke" if args.smoke else "train",
         "exist_ok": True,
-        "patience": 20,
+        "patience": 10,
         "workers": 0,
         "plots": False,
         "amp": False,  # 跳过 AMP 检查（会联网下载 yolo26n.pt，无外网服务器会卡住）
+        "device": eval(args.device) if args.device else None,
     }
     if args.device:
         kwargs["device"] = args.device

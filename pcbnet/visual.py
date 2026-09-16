@@ -47,7 +47,7 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins):
     kernel = np.ones((3, 3), dtype=np.uint8)
     skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
 
-    cv2.imwrite(join(save_dir, "pred_unet.png"), skel_vis)
+    cv2.imwrite(join(save_dir, "pred_wire.png"), skel_vis)
 
 
 def flip_gt_y(gt: dict, h_img: int) -> dict:
@@ -109,9 +109,14 @@ def run_gt_visualize(img_path, img):
         cv2.rectangle(vis_gt_comp, (x1, y1), (x2, y2), (255, 0, 0), 1)
 
         txt_type = cinfo.get("type", "")
-        pos_type = (x1, max(y1 - 2, 2))
-        cv2.putText(vis_gt_comp, txt_type, pos_type,
+        cv2.putText(vis_gt_comp, txt_type, (x1, max(y1 - 2, 2)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+
+        txt_name = cinfo.get("Name") if cinfo.get("Name") else " "
+        txt_value = cinfo.get("value") if cinfo.get("value") else " " 
+        txt_nv = f"{txt_name} {txt_value}"
+        cv2.putText(vis_gt_comp, txt_nv, (x1, max(y1 - 12, 2)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
     pins_gt = gt.get("pins", {})
     for cid, pin_dict in pins_gt.items():

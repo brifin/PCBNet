@@ -1,5 +1,6 @@
-dataset_root: "data/赛题六公开数据集/290_train_cases"
-test_root: "data/赛题六公开数据集/10_GTcase"
+dataset_root: "data/Dataset200/200_train_cases"
+test_root: "data/Dataset200/10_GTcase"
+
 output_root: "outputs"
 split_seed: 42
 split_ratio: [0.8, 0.1, 0.1]
@@ -26,10 +27,10 @@ models:
 
 train:
   yolo:
-    model: yolo11s.pt
+    model: yolo26x.pt
     epochs: 80
     imgsz: 1280
-    batch: 4
+    batch: 8
   unet:
     epochs: 20
     size: 512
