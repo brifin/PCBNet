@@ -52,6 +52,59 @@ VALID_PREFIX = set(PREFIX_TYPE) | {"K"}
 TYPE_OVERRIDE_PREFIX = {"R", "C", "L", "U", "IC", "Q", "D", "Y", "X", "J", "P", "CN", "TP", "F", "BT"}
 
 
+# ----------------------------------------------------------------------------
+# Knowledge base (data-driven type <-> key prefix, from data/key_type_kb.json)
+# ----------------------------------------------------------------------------
+
+_KB_CACHE = None
+
+
+def _load_kb() -> dict:
+    global _KB_CACHE
+    if _KB_CACHE is None:
+        try:
+            from .knowledge_base import load_key_type_kb
+
+            _KB_CACHE = load_key_type_kb()
+        except Exception:
+            _KB_CACHE = {}
+    return _KB_CACHE
+
+
+def _canonical_prefixes(ctype: str) -> list[str]:
+    """Canonical key prefixes for a component type (KB first, hand-coded fallback)."""
+    kb = _load_kb()
+    prefs = kb.get("canonical_prefix", {}).get(ctype, [])
+    if prefs:
+        return prefs
+    return [p for p, t in PREFIX_TYPE.items() if t == ctype]
+
+
+def _type_for_prefix(prefix: str) -> str:
+    """Dominant type for a key prefix (KB first, hand-coded fallback)."""
+    kb = _load_kb()
+    dist = kb.get("prefix_to_type", {}).get(prefix, {})
+    if dist:
+        return max(dist, key=dist.get)
+    return PREFIX_TYPE.get(prefix, "")
+
+
+_BOX_NAMES_CACHE = None
+
+
+def _known_box_names() -> set:
+    """Whitelist of box-type model names (annotations + cpntLibrary)."""
+    global _BOX_NAMES_CACHE
+    if _BOX_NAMES_CACHE is None:
+        try:
+            from .knowledge_base import known_box_names
+
+            _BOX_NAMES_CACHE = known_box_names()
+        except Exception:
+            _BOX_NAMES_CACHE = set()
+    return _BOX_NAMES_CACHE
+
+
 def _strip_token(text: str) -> str:
     return re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", (text or "").strip())
 
@@ -249,12 +302,38 @@ def _prepare_texts(raw: list[dict]) -> list[dict]:
 # ----------------------------------------------------------------------------
 
 def _prefix_ok_for_type(pref: str, ctype: str) -> bool:
-    expect = PREFIX_TYPE.get(pref, "")
-    if pref == "K":
-        return ctype in {"switch", "other", "net_input"}
-    if not expect:
-        return True
-    return ctype in {expect, "other", "box"} or ctype == expect
+    """A component's key prefix must be one of its type's valid formats (from the KB).
+
+    YOLO detects the type first; the OCR'd designator text is only accepted if its
+    prefix matches the type's canonical prefixes (e.g. switch only accepts SW/S, so a
+    'K1' text is rejected here and later corrected to 'SW1')."""
+    prefs = _canonical_prefixes(ctype)
+    return bool(prefs) and pref in prefs
+
+
+def _correct_key_format(text: str, ctype: str) -> str | None:
+    """Apply the type -> key-format prior to a matched text.
+
+    Extracts a `prefix+number` designator. If the text's prefix is missing or not
+    among the type's valid prefixes, replace it with the type's most common prefix,
+    keeping the number from the text (e.g. '84' near a box -> 'U84'; 'P4' near a
+    resistor -> 'R4'). Returns None when the text carries no number info, so the
+    caller falls back to free numbering (∅)."""
+    prefs = _canonical_prefixes(ctype)
+    if not prefs:
+        return None  # type has no named format -> always ∅ (free numbering)
+    raw = _strip_token(text)
+    if not raw:
+        return None
+    m = re.match(r"^([A-Za-z]*)[.\s-]*(\d{1,3})$", raw)
+    if not m:
+        return None  # no number info -> free numbering
+    prefix, number = m.group(1).upper(), m.group(2)
+    if PACKAGE_RE.match(number.zfill(4)):
+        return None
+    if prefix and prefix in prefs:
+        return prefix + number  # already valid format
+    return prefs[0] + number  # wrong/missing prefix -> most common format
 
 
 def _bind_designators(comps: list[dict], texts: list[dict]) -> None:
@@ -324,6 +403,50 @@ def _bind_leftover_designators(comps: list[dict], texts: list[dict], assigned: s
                 best["used"] = True
                 assigned.add(des)
 
+    # Third pass (sub-A): correct a wrong-prefix designator (e.g. 'K4' near a switch
+    # -> 'SW4'). These carry an explicit number, so they take priority over bare
+    # numbers (which are usually pin labels, not designators).
+    for comp in comps:
+        if comp.get("designator"):
+            continue
+        best, best_d = None, 70.0
+        for t in texts:
+            if t.get("used") or t["cls"] != "designator":
+                continue
+            des = _correct_key_format(t["content"], comp["type"])
+            if not des or des in assigned:
+                continue
+            d = _bbox_gap(comp["img_bbox"], t["bbox"])
+            if d < best_d:
+                best, best_d = (des, t), d
+        if best is not None:
+            des, t = best
+            comp["designator"] = des
+            t["used"] = True
+            assigned.add(des)
+
+    # Third pass (sub-B): bare-number OCR (letter prefix dropped) -> prepend the
+    # type's most common prefix (e.g. '84' -> 'U84'). Only for components still
+    # without a designator. No number info -> stays ∅ (free numbering from 1).
+    for comp in comps:
+        if comp.get("designator"):
+            continue
+        best, best_d = None, 70.0
+        for t in texts:
+            if t.get("used") or t["cls"] != "pinnum":
+                continue
+            des = _correct_key_format(t["content"], comp["type"])
+            if not des or des in assigned:
+                continue
+            d = _bbox_gap(comp["img_bbox"], t["bbox"])
+            if d < best_d:
+                best, best_d = (des, t), d
+        if best is not None:
+            des, t = best
+            comp["designator"] = des
+            t["used"] = True
+            assigned.add(des)
+
 
 def _assign_values(comps: list[dict], texts: list[dict]) -> None:
     """One-to-one value binding for R/C/L. IC names are not written onto the
@@ -353,10 +476,17 @@ def _assign_values(comps: list[dict], texts: list[dict]) -> None:
         used_t.add(k)
 
 
-def _as_ic_partname(text: str) -> str | None:
-    """Chip PNs used as contest keys when the sheet has no U-number (e.g. LME49723)."""
+def _as_ic_partname(text: str, known: set[str] | None = None) -> str | None:
+    """Chip PNs used as contest keys when the sheet has no U-number (e.g. LME49723).
+
+    Prefers known box names from the KB (whitelist), so unrelated OCR text is not
+    bound to a box component; falls back to the part-number regex shape."""
     raw = _strip_token(text)
-    if not raw or len(raw) < 5:
+    if not raw:
+        return None
+    if known and raw in known:
+        return raw
+    if len(raw) < 5:
         return None
     if not re.fullmatch(r"[A-Za-z]{2,6}\d{3,6}[A-Za-z0-9]*", raw):
         return None
@@ -369,23 +499,32 @@ def _as_ic_partname(text: str) -> str | None:
 
 
 def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
-    """Chip PN near an IC, used only as a fallback key (not written as `Name`)."""
+    """Chip PN (box Name) near an IC, verified against the box-name KB whitelist.
+
+    Only a text whose content (or first token) is a known box name in
+    box_name_kb.json is accepted, so unrelated OCR text is not bound to the box."""
     if comp["type"] != "box":
         return None
+    known = _known_box_names()
+
+    def _score(t: dict, pn: str) -> float:
+        d = _bbox_gap(comp["img_bbox"], t["bbox"])
+        cx, cy = _center(comp["img_bbox"])
+        tcx, tcy = _center(t["bbox"])
+        return min(d, math.hypot(cx - tcx, cy - tcy))
+
     best, best_d = None, 220.0
     for t in texts:
         if t.get("used"):
             continue
         content = (t.get("content") or "").strip()
-        pn = _as_ic_partname(content.split()[0] if content else "")
-        if not pn:
-            continue
-        d = _bbox_gap(comp["img_bbox"], t["bbox"])
-        cx, cy = _center(comp["img_bbox"])
-        tcx, tcy = _center(t["bbox"])
-        d = min(d, math.hypot(cx - tcx, cy - tcy))
-        if d < best_d:
-            best, best_d = pn, d
+        for token in (content.split()[0], content):
+            pn = _strip_token(token)
+            if pn in known:
+                d = _score(t, pn)
+                if d < best_d:
+                    best, best_d = pn, d
+                break
     return best
 
 
@@ -419,21 +558,82 @@ def _snap_to_wire(pt: tuple[float, float], vision: VisionOut, eps: float) -> tup
     return best
 
 
+def _order_pins_ccw(pins: list[PinBox], cx: float) -> list[PinBox]:
+    """Counterclockwise: left edge top->bottom, then right edge bottom->top."""
+    left = sorted([p for p in pins if p.xy[0] <= cx], key=lambda p: p.xy[1])
+    right = sorted([p for p in pins if p.xy[0] > cx], key=lambda p: -p.xy[1])
+    return left + right
+
+
+def _box_library_pins(ic_name: str | None, n_pins: int) -> list[tuple[str, str]] | None:
+    """Return [(number, name), ...] from cpntLibrary for a box IC, or None.
+
+    Pins are returned in ascending numeric EDA order (library `number`), which is the
+    counterclockwise order for most IC symbols. Non-numeric numbers sort last."""
+    if not ic_name:
+        return None
+    try:
+        from .pin_library import lookup_pins
+    except Exception:
+        return None
+    lib = lookup_pins(ic_name)
+    if not lib:
+        return None
+
+    def _key(n: str) -> tuple:
+        return (0, int(n)) if n.isdigit() else (1, n)
+
+    ordered = sorted(lib.items(), key=lambda kv: _key(kv[0]))
+    return ordered[:n_pins]
+
+
 def _pins_for_component(
     comp: dict,
     det_pins: list[PinBox],
     texts: list[dict],
     vision: VisionOut,
     snap_px: float,
+    ic_name: str | None = None,
 ) -> list[tuple[str, str, tuple[float, float]]]:
-    """Return [(pin_number, pinname, xy)] using detected tips if available."""
+    """Return [(pin_number, pinname, xy)] using detected tips if available.
+
+    box 类优先用 cpntLibrary 查 pinname（按名字查号），查不到则 OCR/弱先验
+    （左 1 逆时针）；非 box 空编号引脚 pin key 用 pin_1/pin_2…（只比端点坐标）。
+    """
     x1, y1, x2, y2 = comp["img_bbox"]
     m = 14.0
     owned = [p for p in det_pins if (x1 - m) <= p.xy[0] <= (x2 + m) and (y1 - m) <= p.xy[1] <= (y2 + m)]
     out: list[tuple[str, str, tuple[float, float]]] = []
+    if comp["type"] == "box":
+        cx = (x1 + x2) / 2.0
+        if owned:
+            owned = _order_pins_ccw(owned, cx)
+        else:
+            n = max(1, min(8, int(round((y2 - y1) / 24)) or 4))
+            owned = []
+            for i in range(n):
+                owned.append(PinBox(xy=(x1, y1 + (y2 - y1) * (i + 0.5) / n)))
+                owned.append(PinBox(xy=(x2, y1 + (y2 - y1) * (i + 0.5) / n)))
+            owned = _order_pins_ccw(owned, cx)
+        lib = _box_library_pins(ic_name, len(owned))
+        seen: set[str] = set()
+        for i, p in enumerate(owned):
+            xy = _snap_to_wire(p.xy, vision, snap_px)
+            if lib and i < len(lib):
+                number, pinname = lib[i]
+                if number in seen:
+                    number = str(i + 1)
+            else:
+                number = p.number or _nearest_pinnum(p.xy, texts) or str(i + 1)
+                if number in seen:
+                    number = str(i + 1)
+                pinname = p.name or _nearest_pinname(p.xy, texts, comp) or number
+            seen.add(number)
+            out.append((number, pinname, xy))
+        return out
     if owned:
         seq = 1
-        seen: set[str] = set()
+        seen = set()
         for p in owned:
             xy = _snap_to_wire(p.xy, vision, snap_px)
             number = p.number or _nearest_pinnum(p.xy, texts) or str(seq)
@@ -610,16 +810,12 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
         ic_pn = _nearby_ic_partname(comp, texts) if comp["type"] == "box" else None
         if ic_pn:
             for t in texts:
-                if _as_ic_partname((t.get("content") or "").split()[0] if t.get("content") else "") == ic_pn and not t.get("used"):
+                if not t.get("used") and _strip_token((t.get("content") or "").split()[0] if t.get("content") else "") == ic_pn:
                     t["used"] = True
                     break
-        # Trust R/C/U/... prefixes to fix a wrong detector class; never remap K/S
-        # (GT often types those as `other`, and overwriting would zero the match).
+        # key/name 服从 YOLO 检测出的 type：位号在绑定时已经过 _prefix_ok_for_type
+        # 校验（前缀必须是该 type 的合法格式），此处直接用，不再反推覆盖 type。
         if des:
-            pref = _prefix_of(des)
-            mapped = PREFIX_TYPE.get(pref)
-            if mapped and pref in TYPE_OVERRIDE_PREFIX:
-                comp["type"] = mapped
             used_keys[des] = used_keys.get(des, 0) + 1
             key = des if used_keys[des] == 1 else f"{des}_{used_keys[des]}"
         else:
@@ -629,14 +825,14 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
         comp["key"] = key
 
         out["components"][key] = {
-            "type": comp["type"],
             "Name": ic_pn or key,
+            "type": comp["type"],
             "value": comp.get("value"),
             "bbox": image_bbox_to_contest(comp["img_bbox"], height),
         }
         out["pins"][key] = {}
         seen_pk: set[str] = set()
-        for number, pinname, xy in _pins_for_component(comp, vision.pins, texts, vision, snap_px):
+        for number, pinname, xy in _pins_for_component(comp, vision.pins, texts, vision, snap_px, ic_name=ic_pn):
             pk = f"pin_{number}"
             if pk in seen_pk:
                 continue
