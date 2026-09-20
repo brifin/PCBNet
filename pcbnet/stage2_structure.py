@@ -17,6 +17,7 @@ from .coords import contest_point, image_bbox_to_contest
 from .gt_adapter import load_category_map
 from .schema import empty_contest_json
 from .stage1_vision import PinBox, VisionOut
+from .visual import run_wire_visualize
 
 POWER_NETS = {"VCC", "GND", "VDD", "VSS", "VPP", "VEE", "AGND", "DGND", "3V3", "5V"}
 
@@ -866,4 +867,5 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
         edges = {f"edge_{j}": seg for j, seg in enumerate(segs, start=1)}
         out["nets"][f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": edges}
 
+    run_wire_visualize(out, vision.img, vision.image_path)
     return out

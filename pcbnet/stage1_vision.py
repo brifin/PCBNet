@@ -47,6 +47,8 @@ class VisionOut:
     pins: list[PinBox] = field(default_factory=list)
     skeleton: np.ndarray | None = None
     wire_segments: list[tuple[tuple[float, float], tuple[float, float]]] = field(default_factory=list)
+    img: np.ndarray | None = None
+    image_path: str | Path | None = None
 
 
 # Non-component detection classes (handled separately from components).
@@ -444,52 +446,96 @@ def _cover_frac(inner: list[float], outer: list[float]) -> float:
 # Power/label classes are inherently text-like and excluded from that filter.
 _TEXTLIKE_EXEMPT = {"net_label", "gnd", "vcc"}
 
-
 def _clean_components(
     comps: list[DetBox],
     text_boxes: list[list[float]],
     text_cover_thr: float = 0.7,
     dedup_iou: float = 0.55,
     contain_thr: float = 0.8,
-    comp_score_thr: float = 0.0,      # ✅ 新增：元器件最低置信阈值
-    text_box_score_thr: float = 0.0,   # ✅ 新增：YOLO文本框最低置信阈值
+    cross_class_iou_thr: float = 0.65,
+    comp_score_thr: float = 0.0,
+    text_box_score_thr: float = 0.0,
 ) -> list[DetBox]:
-    """Remove component boxes that are really printed text, and de-duplicate
-    heavily overlapping / nested same-type boxes (keep the higher score)."""
-
-    # ========== 新增1：过滤低置信元器件框 ==========
+    """
+    规则更新：
+    1. 剔除被文字大面积覆盖的器件框
+    2. 【修复】相同label分组预处理：只要一个框大面积包含另一个，删除面积更小的框
+    3. 不同label：bbox高度重合(IOU >= cross_class_iou_thr)，只保留置信度最高的框
+    """
+    # ========== 过滤低置信元器件框 ==========
     comps = [c for c in comps if c.score >= comp_score_thr]
     if not comps:
         return []
-
-    # ========== 新增2：过滤低置信YOLO文本框 ==========
+    # ========== 过滤低置信YOLO文本框 ==========
     filtered_text_boxes: list[list[float]] = []
     for tb in text_boxes:
         if tb[4] >= text_box_score_thr:
             filtered_text_boxes.append(tb)
     text_boxes = filtered_text_boxes
 
-    # 1) suppress symbol components almost entirely covered by a single text box
+    # 1) 剔除几乎完全被文本覆盖的器件框（豁免_net_label,gnd,vcc）
     kept: list[DetBox] = []
     for c in comps:
         if c.label not in _TEXTLIKE_EXEMPT and text_boxes:
-            if max((_cover_frac(c.bbox, tb) for tb in text_boxes), default=0.0) >= text_cover_thr:
+            max_cover = max((_cover_frac(c.bbox, tb) for tb in text_boxes), default=0.0)
+            if max_cover >= text_cover_thr:
                 continue
         kept.append(c)
-    # 2) de-duplicate same-label overlapping / nested boxes, keep higher score
-    kept.sort(key=lambda d: d.score, reverse=True)
+    if not kept:
+        return []
+
+    def box_area(bbox):
+        return (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+
+    # ======================
+    # StepA: 同label分组预处理，剔除互相包含的小框
+    # ======================
+    from collections import defaultdict
+    label_groups = defaultdict(list)
+    for box in kept:
+        label_groups[box.label].append(box)
+
+    deduped_same_label = []
+    for label, group_boxes in label_groups.items():
+        # 同label组：按面积降序排序，大框在前
+        group_boxes.sort(key=lambda b: box_area(b.bbox), reverse=True)
+        group_final = []
+        for box in group_boxes:
+            dup = False
+            for exist in group_final:
+                # 判断：box被exist包含 OR exist被box包含
+                cover_box_in_exist = _cover_frac(box.bbox, exist.bbox)
+                cover_exist_in_box = _cover_frac(exist.bbox, box.bbox)
+                iou_val = _bbox_iou(box.bbox, exist.bbox)
+                if iou_val >= dedup_iou or cover_box_in_exist >= contain_thr or cover_exist_in_box >= contain_thr:
+                    dup = True
+                    break
+            if not dup:
+                group_final.append(box)
+        deduped_same_label.extend(group_final)
+
+    # ======================
+    # StepB: 全局按score降序，处理跨类别高IOU冲突
+    # ======================
+    deduped_same_label.sort(key=lambda d: d.score, reverse=True)
+
     final: list[DetBox] = []
-    for c in kept:
+    for c in deduped_same_label:
         dup = False
         for f in final:
-            if c.label != f.label:
+            iou_val = _bbox_iou(c.bbox, f.bbox)
+            if c.label == f.label:
+                # 同label已经预处理完，这里直接跳过同类判断
                 continue
-            if _bbox_iou(c.bbox, f.bbox) >= dedup_iou or _cover_frac(c.bbox, f.bbox) >= contain_thr:
-                dup = True
-                break
+            else:
+                # 不同label，高度重合，丢弃低分框
+                if iou_val >= cross_class_iou_thr:
+                    dup = True
+                    break
         if not dup:
             final.append(c)
     return final
+
 
 
 def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox]]:
@@ -577,4 +623,4 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
     run_vision_visualize(image_path, img, comps, texts, skel, pins)
     run_gt_visualize(image_path, img)
 
-    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs)
+    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs, img=img, image_path=image_path)

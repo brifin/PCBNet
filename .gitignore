@@ -1,5 +1,5 @@
 .venv
-yolo11n.pt
+*.pt
 weights
 outputs
 __pycache__/

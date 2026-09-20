@@ -1,3 +1,5 @@
+from typing import Any
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,12 +44,12 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins):
     plt.close(fig1)
 
     # ========== 图3：wire骨架二值图 ==========
-    skel_vis = (skel > 0).astype(np.uint8) * 255
+    # skel_vis = (skel > 0).astype(np.uint8) * 255
 
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
+    # kernel = np.ones((3, 3), dtype=np.uint8)
+    # skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
 
-    cv2.imwrite(join(save_dir, "pred_wire.png"), skel_vis)
+    # cv2.imwrite(join(save_dir, "pred_wire.png"), skel_vis)
 
 
 def flip_gt_y(gt: dict, h_img: int) -> dict:
@@ -137,22 +139,58 @@ def run_gt_visualize(img_path, img):
     plt.savefig(join(save_dir, "gt_components.png"), bbox_inches="tight", dpi=150)
     plt.close(fig1)
 
-    # ====================== 图2：GT net edges 二值骨架图 ======================
-    gt_skel = np.zeros((h_img, w_img), dtype=np.uint8)
+    # ====================== 图2：GT nets（连线 + 点）======================
+    gt_net_viz = np.ones((h_img, w_img, 3), dtype=np.uint8) * 255
     nets = gt.get("nets", {})
-
+    np.random.seed(42)  # 固定随机种子，每次相同net颜色不变
     for net_id, net_info in nets.items():
+        # 为当前net随机生成BGR颜色，避开纯白
+        color = np.random.randint(0, 200, size=3, dtype=int).tolist()
         edges = net_info.get("edges", {})
         for eid, pts in edges.items():
+            # 画连线
             for i in range(len(pts) - 1):
                 p0 = pts[i]
                 p1 = pts[i + 1]
                 x0, y0 = int(p0["x"]), int(p0["y"])
                 x1, y1 = int(p1["x"]), int(p1["y"])
-                cv2.line(gt_skel, (x0, y0), (x1, y1), 255, thickness=1)
+                cv2.line(gt_net_viz, (x0, y0), (x1, y1), color, thickness=1)
+            # 遍历这条edge上所有点，绘制圆点标记
+            for pt in pts:
+                x, y = int(pt["x"]), int(pt["y"])
+                cv2.circle(gt_net_viz, (x, y), radius=2, color=color, thickness=-1)
 
-    skel_vis = (gt_skel > 0).astype(np.uint8) * 255
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
-    cv2.imwrite(join(save_dir, "gt_wire.png"), skel_vis)
+    # 保存可视化图
+    cv2.imwrite(join(save_dir, "gt_wire.png"), gt_net_viz)
 
+
+def run_wire_visualize(out: dict[str, Any], img: np.ndarray, img_path: Path):
+    h_img, w_img = img.shape[:2]
+    save_dir = f"outputs/viz/{img_path.parent.name}"
+    os.makedirs(save_dir, exist_ok=True)
+
+    pred_net_viz = np.ones((h_img, w_img, 3), dtype=np.uint8) * 255
+    nets = out.get("nets", {})
+    np.random.seed(42)
+
+    def contest_pt_to_img(pt: dict[str, float]) -> tuple[int, int]:
+        x = pt["x"]
+        y_contest = pt["y"]
+        y_img = h_img - y_contest
+        return int(round(x)), int(round(y_img))
+
+    for net_id, net_info in nets.items():
+        color = np.random.randint(0, 200, size=3, dtype=int).tolist()
+        edges = net_info.get("edges", {})
+        for eid, seg in edges.items():
+            p0_dict, p1_dict = seg[0], seg[1]
+            x0, y0 = contest_pt_to_img(p0_dict)
+            x1, y1 = contest_pt_to_img(p1_dict)
+            cv2.line(pred_net_viz, (x0, y0), (x1, y1), color, thickness=1)
+            cv2.circle(pred_net_viz, (x0, y0), radius=2, color=color, thickness=-1)
+            cv2.circle(pred_net_viz, (x1, y1), radius=2, color=color, thickness=-1)
+        # if edges:
+        #     first_seg = next(iter(edges.values()))
+        #     fx, fy = contest_pt_to_img(first_seg[0])
+        #     cv2.putText(pred_net_viz, net_id, (fx+3, fy-3), cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
+    cv2.imwrite(join(save_dir, "pred_wire.png"), pred_net_viz)
