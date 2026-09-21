@@ -1,5 +1,5 @@
 dataset_root: "data/Dataset200/200_train_cases"
-test_root: "data/Dataset200/10_GTcase"
+test_root: "data/Dataset200/10gt"
 
 output_root: "outputs"
 split_seed: 42

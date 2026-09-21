@@ -1,0 +1,48 @@
+{
+  "components": {
+    "X2": {
+      "Name": "X2",
+      "type": "crystal_4pin",
+      "value": "8MHz",
+      "bbox": [
+        383.25,
+        211.875,
+        805.75,
+        634.375
+      ]
+    }
+  },
+  "pins": {
+    "X2": {
+      "pin_1": {
+        "pinname": "OSC1",
+        "point": {
+          "x": 277.625,
+          "y": 317.5
+        }
+      },
+      "pin_2": {
+        "pinname": "OSC2",
+        "point": {
+          "x": 911.375,
+          "y": 317.5
+        }
+      },
+      "pin_3": {
+        "pinname": "GND",
+        "point": {
+          "x": 911.375,
+          "y": 528.75
+        }
+      },
+      "pin_4": {
+        "pinname": "GND",
+        "point": {
+          "x": 277.625,
+          "y": 528.75
+        }
+      }
+    }
+  },
+  "nets": {}
+}

@@ -45,14 +45,14 @@ def main() -> int:
         return 1
     cfg = load_config(args.config)
     train_cfg = ((cfg.get("train") or {}).get("yolo") or {})
-    data = args.data_yaml or str(project_root() / "outputs" / "labels" / "dataset.yaml")
+    data = args.data_yaml or str(project_root() / cfg.get("output_root", "outputs") / "labels" / "dataset.yaml")
     if not Path(data).exists():
         print(f"缺少 {data}，先运行: py scripts\\prepare_labels.py --splits train,val")
         return 1
     epochs = 1 if args.smoke else int(train_cfg.get("epochs", 50))
     imgsz = 640 if args.smoke else int(train_cfg.get("imgsz", 1280))
     batch = 2 if args.smoke else int(train_cfg.get("batch", 4))
-    project = project_root() / "outputs" / "models" / "yolo"
+    project = project_root() / cfg.get("output_root", "outputs") / "models" / "yolo"
     project.mkdir(parents=True, exist_ok=True)
     model_name = _resolve_model(train_cfg.get("model") or "yolo11n.pt")
     if not Path(model_name).exists() and Path(model_name).name == "yolo11n.pt":
