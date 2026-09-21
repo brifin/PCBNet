@@ -53,7 +53,7 @@ TYPE_OVERRIDE_PREFIX = {"R", "C", "L", "U", "IC", "Q", "D", "Y", "X", "J", "P", 
 
 
 # ----------------------------------------------------------------------------
-# Knowledge base (data-driven type <-> key prefix, from data/key_type_kb.json)
+# Knowledge base (type <-> key prefix, from 10gt/type_list.md)
 # ----------------------------------------------------------------------------
 
 _KB_CACHE = None
@@ -93,7 +93,7 @@ _BOX_NAMES_CACHE = None
 
 
 def _known_box_names() -> set:
-    """Whitelist of box-type model names (annotations + cpntLibrary)."""
+    """Whitelist of box-type model names (BoxICLibrary_200cases.json)."""
     global _BOX_NAMES_CACHE
     if _BOX_NAMES_CACHE is None:
         try:
@@ -502,7 +502,7 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
     """Chip PN (box Name) near an IC, verified against the box-name KB whitelist.
 
     Only a text whose content (or first token) is a known box name in
-    box_name_kb.json is accepted, so unrelated OCR text is not bound to the box."""
+    BoxICLibrary_200cases.json is accepted, so unrelated OCR text is not bound to the box."""
     if comp["type"] != "box":
         return None
     known = _known_box_names()
@@ -566,7 +566,7 @@ def _order_pins_ccw(pins: list[PinBox], cx: float) -> list[PinBox]:
 
 
 def _box_library_pins(ic_name: str | None, n_pins: int) -> list[tuple[str, str]] | None:
-    """Return [(number, name), ...] from cpntLibrary for a box IC, or None.
+    """Return [(number, name), ...] from BoxICLibrary_200cases.json for a box IC, or None.
 
     Pins are returned in ascending numeric EDA order (library `number`), which is the
     counterclockwise order for most IC symbols. Non-numeric numbers sort last."""
@@ -597,7 +597,7 @@ def _pins_for_component(
 ) -> list[tuple[str, str, tuple[float, float]]]:
     """Return [(pin_number, pinname, xy)] using detected tips if available.
 
-    box 类优先用 cpntLibrary 查 pinname（按名字查号），查不到则 OCR/弱先验
+    box 类优先用 BoxICLibrary_200cases.json 查 pinname（按名字查号），查不到则 OCR/弱先验
     （左 1 逆时针）；非 box 空编号引脚 pin key 用 pin_1/pin_2…（只比端点坐标）。
     """
     x1, y1, x2, y2 = comp["img_bbox"]
@@ -632,17 +632,11 @@ def _pins_for_component(
             out.append((number, pinname, xy))
         return out
     if owned:
-        seq = 1
-        seen = set()
-        for p in owned:
+        # 非 box 引脚无特殊名称：pin key/name 统一 pin_1/pin_2…（从 1 开始），
+        # 不做 OCR 名称匹配（避免把周围文字塞进 pin 名），只比端点坐标。
+        for seq, p in enumerate(owned, start=1):
             xy = _snap_to_wire(p.xy, vision, snap_px)
-            number = p.number or _nearest_pinnum(p.xy, texts) or str(seq)
-            if number in seen:
-                number = str(seq)
-            seen.add(number)
-            pinname = p.name or _nearest_pinname(p.xy, texts, comp) or number
-            out.append((number, pinname, xy))
-            seq += 1
+            out.append((str(seq), str(seq), xy))
         return out
     for number, xy in _geometry_pins(comp["img_bbox"], comp["type"]):
         out.append((number, number, _snap_to_wire(xy, vision, snap_px)))

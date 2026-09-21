@@ -40,8 +40,9 @@ def scan_dataset(dataset_root: str | Path) -> list[Case]:
     if not root.exists():
         return cases
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
-        # 赛题公开数据集标注：*_target.json（测试）或 *_target_named.json（训练）
-        cvjson = _first(d.glob("*_target*.json"))
+        # 赛题公开数据集标注：*_target.json（测试）或 *_target_named.json（训练）；
+        # 10gt 用 <id>.json 命名，回退到 *.json。
+        cvjson = _first(d.glob("*_target*.json")) or _first(d.glob("*.json"))
         image = _first(p for p in d.iterdir() if p.suffix.lower() in IMAGE_EXTS)
         if cvjson is None or image is None:
             continue
