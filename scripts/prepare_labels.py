@@ -55,7 +55,7 @@ def main() -> int:
     names = load_yolo_classes()
     cmap = load_category_map()
     coarse = load_coarse_map()
-    out = project_root() / "outputs" / "labels"
+    out = project_root() / cfg.get("output_root", "outputs") / "labels"
     index = index_cases(cases)
     if args.verify_only:
         errors = verify_labels(out, wanted, names)
