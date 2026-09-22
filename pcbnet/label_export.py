@@ -160,6 +160,8 @@ def export_split(
     other_id = cls_ids.get("other", 0)
     text_id = cls_ids.get("text")
     pin_id = cls_ids.get("pin_tip")
+    wire_ep_id = cls_ids.get("wire_endpoint")
+    n_wire_ep = 0
     coarse_map = coarse_map or load_coarse_map()
     hist: Counter[str] = Counter()
     rows = []
@@ -198,6 +200,7 @@ def export_split(
         # 赛题数据无 text 标注，text 类无训练标签（n_text 恒 0）
         n_text = 0
         n_pin = 0
+        pin_locations = []  # 新增：保存所有pin点坐标（图像坐标系）
         if pin_id is not None:
             for pins in (data.get("pins") or {}).values():
                 for pin in (pins or {}).values():
@@ -206,6 +209,7 @@ def export_split(
                         px, py = float(pt["x"]), ih - float(pt["y"])
                     except (KeyError, TypeError, ValueError):
                         continue
+                    pin_locations.append((px, py)) # 存入pin坐标列表
                     tb = _tip_box((px, py))
                     if not tb:
                         continue
@@ -213,6 +217,52 @@ def export_split(
                     if line:
                         lines.append(line)
                         n_pin += 1
+
+        # ============新增：nets edges端点 YOLO label============
+        if wire_ep_id is not None:
+            seen_points = []
+            dist_thresh = 5.0 # 距离小于5像素视为同一点
+            for net in (data.get("nets") or {}).values():
+                edges_dict = net.get("edges") or {}
+                for edge_points in edges_dict.values():
+                    for p in edge_points:
+                        try:
+                            raw_x = float(p["x"])
+                            raw_y = float(p["y"])
+                        except (KeyError, TypeError, ValueError):
+                            continue
+                        px = raw_x
+                        py = ih - raw_y
+
+                        pin_overlap = False
+                        for (sx, sy) in pin_locations:
+                            dx = px - sx
+                            dy = py - sy
+                            if dx*dx + dy*dy < dist_thresh * dist_thresh:
+                                pin_overlap = True
+                                break
+                        if pin_overlap:
+                            continue
+
+                        # simple deduplicate
+                        dup = False
+                        for (sx, sy) in seen_points:
+                            dx = px - sx
+                            dy = py - sy
+                            if dx*dx + dy*dy < dist_thresh*dist_thresh:
+                                dup = True
+                                break
+                        if dup:
+                            continue
+                        seen_points.append((px, py))
+                        ep_box = _tip_box((px, py), half=6.0)
+                        if not ep_box:
+                            continue
+                        ep_line = yolo_line(ep_box, iw, ih, wire_ep_id)
+                        if ep_line:
+                            lines.append(ep_line)
+                            n_wire_ep += 1
+
         (lbl_dir / f"{cid}.txt").write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
         # 导线 mask：赛题 nets.edges 是左下角坐标，翻转到图像坐标画线
         mask = np.zeros((ih, iw), np.uint8)
@@ -229,6 +279,7 @@ def export_split(
                 "boxes": len(lines),
                 "text_boxes": n_text,
                 "pin_boxes": n_pin,
+                "wire_ep_boxes": n_wire_ep,
                 "skipped": n_skip,
                 "mask_fg": int((mask > 0).sum()),
                 "width": iw,

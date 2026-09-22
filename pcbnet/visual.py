@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 import json
 
-def run_vision_visualize(img_path, img, comps, texts, skel, pins):
+def run_vision_visualize(img_path, img, comps, texts, skel, pins, endpoints):
     img_path = Path(img_path)
     save_dir = f"outputs/viz/{img_path.parent.name}"
     os.makedirs(save_dir, exist_ok=True)
@@ -24,6 +24,7 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins):
         cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (255, 0, 0), 1)
         cv2.putText(vis_comp, cmap.get(comp.label, comp.label), (x1, max(y1 - 5, 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+        
     for t in texts:
         x1, y1, x2, y2 = map(int, t.bbox)
         cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (0, 0, 255), 1)
@@ -33,6 +34,11 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins):
         x, y = pin.xy
         cx, cy = int(round(x)), int(round(y))
         cv2.circle(vis_comp, (cx, cy), radius=2, color=(255, 0, 255), thickness=-1)
+
+    for ep in endpoints:
+        x, y = ep.xy
+        cx, cy = int(round(x)), int(round(y))
+        cv2.circle(vis_comp, (cx, cy), radius=2, color=(255, 255, 0), thickness=-1)
 
     vis_comp_rgb = cv2.cvtColor(vis_comp, cv2.COLOR_BGR2RGB)
     fig1 = plt.figure(figsize=(12, 8))
@@ -44,12 +50,12 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins):
     plt.close(fig1)
 
     # ========== 图3：wire骨架二值图 ==========
-    # skel_vis = (skel > 0).astype(np.uint8) * 255
+    skel_vis = (skel > 0).astype(np.uint8) * 255
 
-    # kernel = np.ones((3, 3), dtype=np.uint8)
-    # skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
+    kernel = np.ones((3, 3), dtype=np.uint8)
+    skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
 
-    # cv2.imwrite(join(save_dir, "pred_wire.png"), skel_vis)
+    cv2.imwrite(join(save_dir, "pred_unet.png"), skel_vis)
 
 
 def flip_gt_y(gt: dict, h_img: int) -> dict:
@@ -164,19 +170,215 @@ def run_gt_visualize(img_path, img):
     cv2.imwrite(join(save_dir, "gt_wire.png"), gt_net_viz)
 
 
-def run_wire_visualize(out: dict[str, Any], img: np.ndarray, img_path: Path):
+def visualize_mask(img: np.ndarray, mask: np.ndarray, img_path: str | Path):
+    """
+    可视化原图 + mask二值图 + mask叠加在原图上的效果
+    """
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.figure(figsize=(16, 6))
+
+    # subplot1 原图
+    plt.subplot(1, 3, 1)
+    plt.title("原图")
+    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    plt.axis("off")
+
+    # subplot2 mask 二值图
+    plt.subplot(1, 3, 2)
+    plt.title("Wire Mask (白色=导线前景)")
+    plt.imshow(mask, cmap="gray")
+    plt.axis("off")
+
+    # subplot3 mask叠加到原图（绿色高亮mask区域）
+    overlay = img.copy()
+    green = np.zeros_like(img)
+    green[:, :, 1] = mask
+    overlay = cv2.addWeighted(overlay, 0.7, green, 0.4, 0)
+    plt.subplot(1, 3, 3)
+    plt.title("Mask Overlay 叠加图")
+    plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    plt.axis("off")
+
+    plt.tight_layout()
+
+    save_dir = f"outputs/viz/{Path(img_path).parent.name}"
+    plt.savefig(join(save_dir, "mask.png"))
+    plt.close()
+    
+
+def visualize_skeleton(mask: np.ndarray, skeleton: np.ndarray, img=None, pins=None, endpoints=None):
+    """
+    mask, skeleton可视化
+    :param mask: 二值导线mask (255=前景)
+    :param skeleton: Zhang-Suen细化后的单像素骨架
+    :param img: 原图BGR(可选，用来叠加对比)
+    :param pins: pin点列表（可选）
+    :param endpoints: 折线端点列表（可选）
+    """
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    fig = plt.figure(figsize=(18, 6))
+
+    # 2. 单像素骨架
+    plt.subplot(1, 2, 1)
+    plt.title("Skeleton (Zhang-Suen)")
+    plt.imshow(skeleton, cmap="gray")
+    plt.axis("off")
+
+    # 3. 骨架叠加原图（红色线条为骨架）
+    plt.subplot(1, 2, 2)
+    if img is not None:
+        overlay = img.copy()
+        red = np.zeros_like(img)
+        red[:, :, 2] = skeleton  # 红色通道绘制骨架
+        overlay = cv2.addWeighted(overlay, 0.7, red, 0.9, 0)
+        # 画pin(蓝色圆点)、endpoint(绿色圆点)
+        if pins is not None:
+            for p in pins:
+                x, y = int(p.xy[0]), int(p.xy[1])
+                cv2.circle(overlay, (x, y), 4, (255,0,0), -1)
+        if endpoints is not None:
+            for e in endpoints:
+                x, y = int(e.xy[0]), int(p.xy[1])
+                cv2.circle(overlay, (x, y), 4, (0,255,0), -1)
+        plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    else:
+        plt.imshow(skeleton, cmap="gray")
+    plt.title("Skeleton Overlay on Image")
+    plt.axis("off")
+
+    plt.tight_layout()
+    plt.savefig("test.jpg")
+    plt.close()
+
+
+def visualize_nodes_obstacle(img: np.ndarray, obstacle: np.ndarray, nodes: list, img_path: str | Path, title_prefix=""):
+    """
+    可视化：原图 | obstacle掩码(白色=障碍物) | obstacle叠加原图 + nodes标记
+    nodes: _prepare_nodes输出的节点列表，每个节点包含 id, type, x, y
+    obstacle: bool数组，True=障碍物区域
+    """
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    h, w = img.shape[:2]
+
+    # 转uint8可视化掩码
+    obstacle_uint8 = (obstacle.astype(np.uint8)) * 255
+
+    # 叠加图：在原图上画障碍物半透明 + nodes
+    overlay_img = img.copy()
+    # 障碍物区域涂上浅蓝色
+    blue_mask = np.zeros_like(img)
+    blue_mask[obstacle, 0] = 255
+    overlay_img = cv2.addWeighted(overlay_img, 0.8, blue_mask, 0.3, 0)
+
+    # 绘制节点
+    for nd in nodes:
+        x, y = int(round(nd["x"])), int(round(nd["y"]))
+        if not (0 <= x < w and 0 <= y < h):
+            continue
+        if nd["type"] == "pin":
+            # pin: 红色实心圆
+            cv2.circle(overlay_img, (x, y), 5, (0, 0, 255), -1)
+            cv2.putText(overlay_img, f"{nd['id']}", (x+6, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255),1)
+        elif nd["type"] == "endpoint":
+            # endpoint: 绿色实心圆
+            cv2.circle(overlay_img, (x, y), 5, (0, 255, 0), -1)
+            cv2.putText(overlay_img, f"{nd['id']}", (x+6, y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,255,0),1)
+
+    fig = plt.figure(figsize=(12, 6))
+
+    # subplot2 obstacle掩码
+    plt.subplot(1,2,1)
+    plt.title("Obstacle Mask (白色=器件障碍物)")
+    plt.imshow(obstacle_uint8, cmap="gray")
+    plt.axis("off")
+
+    # subplot3 叠加图（障碍物+所有nodes，附带node id文字）
+    plt.subplot(1,2,2)
+    plt.title("Obstacle + Nodes (pin红 / endpoint绿)")
+    plt.imshow(cv2.cvtColor(overlay_img, cv2.COLOR_BGR2RGB))
+    plt.axis("off")
+
+    plt.tight_layout()
+    save_dir = f"outputs/viz/{Path(img_path).parent.name}"
+    plt.savefig(join(save_dir, "pre_edge.png"))
+    plt.close()
+
+
+
+def visualize_grid(grid, x_centers, y_centers, element_list, img, img_path: str | Path):
+    h,w = img.shape[:2]
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+
+    fig, ax = plt.subplots(figsize=(14,10), dpi=150)
+    ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), alpha=0.6)
+    ny, nx = grid.shape
+
+    # ========= 绘制网格横竖线（网格单元格边界） =========
+    # 计算单元格中间分隔线（相邻两个中心的中点）
+    x_edges = []
+    for i in range(nx-1):
+        mid = (x_centers[i] + x_centers[i+1]) / 2.0
+        x_edges.append(mid)
+    y_edges = []
+    for i in range(ny-1):
+        mid = (y_centers[i] + y_centers[i+1]) / 2.0
+        y_edges.append(mid)
+    # 竖线
+    for x in x_edges:
+        ax.axvline(x=x, color="#AAAAAA", lw=3, linestyle="--")
+    # 横线
+    for y in y_edges:
+        ax.axhline(y=y, color="#AAAAAA", lw=3, linestyle="--")
+
+    # 绘制器件包围盒（浅蓝色虚线）
+    for idx, (typ, obj) in enumerate(element_list):
+        if typ == "comp":
+            x1, y1, x2, y2 = obj.bbox
+            rect = plt.Rectangle((x1, y1), x2-x1, y2-y1, fill=False, linestyle="--", color="skyblue", lw=2)
+            ax.add_patch(rect)
+
+    # 绘制网格中心点 + index + 坐标gx,gy
+    for yi in range(ny):
+        gy = y_centers[yi]
+        for xi in range(nx):
+            gx = x_centers[xi]
+            idx = grid[yi,xi]
+            if idx == -1:
+                continue
+            typ, obj = element_list[idx]
+            if typ == "node":
+                ax.plot(gx,gy, 'ro', markersize=6)
+                label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                ax.text(gx+4, gy, label_text, color="red", fontsize=10)
+            else:
+                ax.plot(gx,gy, 'bs', markersize=4)
+                label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                ax.text(gx+4, gy, label_text, color="blue", fontsize=10)
+
+    ax.set_title("Grid Visualization: grid lines + center coordinates")
+    # ax.axis("off")
+    plt.tight_layout()
+
+    save_dir = Path("outputs/viz") / Path(img_path).parent.name
+    save_dir.mkdir(parents=True, exist_ok=True)
+    out_path = save_dir / "grid.png"
+    plt.savefig(out_path, bbox_inches="tight", pad_inches=0.02)
+    plt.close()
+
+
+def run_wire_visualize(nets: dict[str, Any], img: np.ndarray, img_path: Path):
     h_img, w_img = img.shape[:2]
     save_dir = f"outputs/viz/{img_path.parent.name}"
     os.makedirs(save_dir, exist_ok=True)
 
     pred_net_viz = np.ones((h_img, w_img, 3), dtype=np.uint8) * 255
-    nets = out.get("nets", {})
     np.random.seed(42)
 
     def contest_pt_to_img(pt: dict[str, float]) -> tuple[int, int]:
         x = pt["x"]
-        y_contest = pt["y"]
-        y_img = h_img - y_contest
+        y_img = pt["y"]
+        # y_img = h_img - y_img
         return int(round(x)), int(round(y_img))
 
     for net_id, net_info in nets.items():

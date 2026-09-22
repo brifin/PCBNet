@@ -861,5 +861,5 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
         edges = {f"edge_{j}": seg for j, seg in enumerate(segs, start=1)}
         out["nets"][f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": edges}
 
-    run_wire_visualize(out, vision.img, vision.image_path)
+    # run_wire_visualize(out, vision.img, vision.image_path)
     return out

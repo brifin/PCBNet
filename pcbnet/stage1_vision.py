@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any 
-from .visual import run_vision_visualize, run_gt_visualize
+from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize
+from .topo_graph import extract_wire_nets
 from tqdm import tqdm
 
 import cv2
@@ -54,7 +55,7 @@ class VisionOut:
 # Non-component detection classes (handled separately from components).
 TEXT_LABEL = "text"
 PIN_LABEL = "pin_tip"
-
+ENDPOINT_LABEL = "wire_endpoint"
 
 def _component_labels() -> set[str]:
     try:
@@ -538,11 +539,12 @@ def _clean_components(
 
 
 
-def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox]]:
+def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox], list[PinBox]]:
     comp_labels = _component_labels()
     comps: list[DetBox] = []
     text_boxes: list[list[float]] = []
     pins: list[PinBox] = []
+    endpoints: list[PinBox] = []
     for d in dets:
         if d.label == TEXT_LABEL:
             text_boxes.append(d.bbox + [d.score])
@@ -550,9 +552,13 @@ def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float
             cx = (d.bbox[0] + d.bbox[2]) / 2.0
             cy = (d.bbox[1] + d.bbox[3]) / 2.0
             pins.append(PinBox(xy=(cx, cy), score=d.score))
+        elif d.label == ENDPOINT_LABEL:
+            cx = (d.bbox[0] + d.bbox[2]) / 2.0
+            cy = (d.bbox[1] + d.bbox[3]) / 2.0
+            endpoints.append(PinBox(xy=(cx, cy), score=d.score))
         elif not comp_labels or d.label in comp_labels:
             comps.append(d)
-    return comps, text_boxes, pins
+    return comps, text_boxes, pins, endpoints
 
 
 def _load_cached_ocr(image_path: str | Path, cfg: dict[str, Any]) -> list[TextBox] | None:
@@ -588,7 +594,7 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
     lang = str(ocr_cfg.get("lang") or "en")
 
     dets = _try_yolo(img, models.get("yolo_weights") or "")
-    comps, text_boxes, pins = _split_detections(dets)
+    comps, text_boxes, pins, endpoints = _split_detections(dets)
     comps = _clean_components(comps, text_boxes)
 
     if not comps:
@@ -620,7 +626,10 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
         skel, segs = wired
 
     # 可视化
-    run_vision_visualize(image_path, img, comps, texts, skel, pins)
+    run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
     run_gt_visualize(image_path, img)
+
+    out = extract_wire_nets(img, image_path, pins, comps, endpoints)
+    run_wire_visualize(out, img, image_path)
 
     return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs, img=img, image_path=image_path)
