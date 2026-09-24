@@ -6,13 +6,32 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 from os.path import join
 from .visual import visualize_mask, visualize_skeleton, visualize_nodes_obstacle, visualize_grid
+import math
 
-# -------------------------- 1. 导线提取与骨架化 --------------------------
-def _get_wire_mask(
+
+class DSU:
+    """并查集，用于网络合并"""
+    def __init__(self, n):
+        self.parent = list(range(n))
+
+    def find(self, x):
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def union(self, x, y):
+        xr = self.find(x)
+        yr = self.find(y)
+        if xr != yr:
+            self.parent[yr] = xr
+
+
+# -------------------------- 1. 导线提取与骨架化 --------------------------e
+def _get_wire_mask_v1(
     img: np.ndarray,
+    comps: list,
     diff_thresh: int = 15,
-    blur_ksize: int = 7,
-    exclude_red: bool = False
+    blur_ksize: int = 7
 ) -> np.ndarray:
     """
     通用非背景前景提取：自适应背景差分法
@@ -22,7 +41,6 @@ def _get_wire_mask(
     Args:
         diff_thresh: 前景差异阈值，值越大越严格，背景干净可调小，背景脏可调大
         blur_ksize: 背景估计模糊核大小（奇数），越大背景越平滑，建议取图像宽的1/20
-        exclude_red: 是否过滤红色区域（用于排除红色丝印文字，只保留导线）
     """
     # 1. 大核模糊估计背景层（抹平导线、文字等细节，只剩底色）
     bg = cv2.GaussianBlur(img, (blur_ksize, blur_ksize), 0)
@@ -36,20 +54,40 @@ def _get_wire_mask(
     
     # 3. 阈值分割得到非背景掩码
     mask = (diff > diff_thresh).astype(np.uint8) * 255
-    
-    # 4. 可选：过滤红色丝印文字（你的图里KEY、阻值等红色标注）
-    if exclude_red and len(img.shape) == 3:
-        b, g, r = cv2.split(img)
-        # 红色判定：红通道显著高于绿蓝通道
-        red_area = (r > 110) & (r - g > 20) & (r - b > 20)
-        mask[red_area] = 0
-    
+
     # 5. 形态学优化：开运算去噪点，闭运算修复导线断线
     kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open)
     
     kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close)
+
+    return mask
+
+    
+def _get_wire_mask_v2(
+    img, comp
+) -> np.ndarray:
+    # 转灰度
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # 计算平均灰度
+    mean_val = gray.mean() * 0.8
+    mask = (gray <= mean_val).astype(np.uint8)
+
+    # ===== 对mask中值=1的区域做膨胀（向外扩散像素）=====
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask = cv2.dilate(mask, kernel, iterations=1)
+
+    # ========== comp里所有bbox区域置0 ==========
+    h, w = mask.shape
+    for item in comp:
+        x1, y1, x2, y2 = item.bbox
+        # 边界裁剪，防止越界
+        x1 = max(0, int(x1))
+        y1 = max(0, int(y1))
+        x2 = min(w - 1, int(x2))
+        y2 = min(h - 1, int(y2))
+        mask[y1:y2, x1:x2] = 0
 
     return mask
 
@@ -206,6 +244,99 @@ def _build_obstacle_mask(
         obstacle[y1:y2, x1:x2] = False
 
     return obstacle
+
+
+
+import math
+
+class DSU:
+    """并查集，用于网络合并"""
+    def __init__(self, n):
+        self.parent = list(range(n))
+
+    def find(self, x):
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def union(self, x, y):
+        xr = self.find(x)
+        yr = self.find(y)
+        if xr != yr:
+            self.parent[yr] = xr
+
+
+def merge_close_nets(grid_edges, element_list, dist_thresh: float = 3.0):
+    """
+    合并端点空间邻近的网络；合并时新增一条seg连接触发合并的两点
+    :param grid_edges: 原始网络列表，List[List[seg]], seg=[idx0, idx1]
+    :param element_list: element_list，和_build_nets共用，用来取坐标；会追加新节点
+    :param dist_thresh: 距离阈值，两点距离小于该值则合并两个net
+    :return: merged_grid_edges: 合并后的grid_edges，格式和输入完全一致
+    """
+    # 1. 收集每个net的全部端点坐标 + 归属net_id，同时记录该点对应的element index
+    net_endpoints = []  # net_endpoints[net_id] = list[(x,y, elem_idx)]
+    for net_segs in grid_edges:
+        pts = []
+        for seg in net_segs:
+            idx_s, idx_e = seg[0], seg[1]
+            _, s_obj = element_list[idx_s]
+            _, e_obj = element_list[idx_e]
+            pts.append((float(s_obj["x"]), float(s_obj["y"]), idx_s))
+            pts.append((float(e_obj["x"]), float(e_obj["y"]), idx_e))
+        net_endpoints.append(pts)
+
+    num_nets = len(grid_edges)
+    dsu = DSU(num_nets)
+    # 记录：哪两个net合并，以及用哪两个element index相连
+    merge_links = []  # list[(net_a, net_b, elem_idx_a, elem_idx_b)]
+
+    # 2. 两两比对所有net之间端点距离，满足阈值则合并，并记录连接对
+    for net_a in range(num_nets):
+        pts_a = net_endpoints[net_a]
+        for net_b in range(net_a + 1, num_nets):
+            pts_b = net_endpoints[net_b]
+            connected = False
+            link_idx_a = None
+            link_idx_b = None
+            for (x1, y1, idx1) in pts_a:
+                for (x2, y2, idx2) in pts_b:
+                    dx = x1 - x2
+                    dy = y1 - y2
+                    dist = math.hypot(dx, dy)
+                    if dist < dist_thresh:
+                        connected = True
+                        link_idx_a = idx1
+                        link_idx_b = idx2
+                        break
+                if connected:
+                    break
+            if connected:
+                dsu.union(net_a, net_b)
+                merge_links.append((net_a, net_b, link_idx_a, link_idx_b))
+
+    # 3. 分组：原始net -> root
+    groups = {}
+    for net_id, net_segs in enumerate(grid_edges):
+        root = dsu.find(net_id)
+        if root not in groups:
+            groups[root] = {"segs": [], "add_links": []}
+        groups[root]["segs"].extend(net_segs)
+
+    # 4. 把所有合并连接关系，追加进对应组的add_links
+    for net_a, net_b, ia, ib in merge_links:
+        root_a = dsu.find(net_a)
+        groups[root_a]["add_links"].append([ia, ib])
+
+    # 5. 组装最终merged_grid_edges，每个group = 原始seg + 新增连接seg
+    merged_grid_edges = []
+    for g in groups.values():
+        all_segs = g["segs"] + g["add_links"]
+        merged_grid_edges.append(all_segs)
+
+    return merged_grid_edges
+
+
 
 # -------------------------- 6. 连通分量分组 -> 生成Net --------------------------
 def _build_nets(grid_edges, element_list):
@@ -397,7 +528,7 @@ def dfs_grid(grid, element_list, wire_mask, x_centers, y_centers):
         typ, obj = element_list[idx]
         return typ, obj, idx
 
-    def is_wire_connect(start_x, start_y, end_x, end_y, thres=0.9):
+    def is_wire_connect(start_x, start_y, end_x, end_y, thres=0.95):
         start_x = int(round(start_x))
         start_y = int(round(start_y))
         end_x = int(round(end_x))
@@ -410,11 +541,11 @@ def dfs_grid(grid, element_list, wire_mask, x_centers, y_centers):
 
         if end_y - start_y > end_x - start_x:
             mid_x = ( end_x + start_x ) // 2
-            if (wire_mask[start_y:end_y, mid_x] != 0).sum() > ( end_y - start_y ) * thres:
+            if (wire_mask[start_y:end_y, mid_x-1:mid_x+2] != 0).sum() > 3 * ( end_y - start_y ) * thres:
                 return True
         else:
             mid_y = ( end_y + start_y ) // 2
-            if (wire_mask[mid_y, start_x:end_x] != 0).sum() > ( end_x - start_x ) * thres:
+            if (wire_mask[mid_y-1:mid_y+2, start_x:end_x] != 0).sum() > 3 * ( end_x - start_x ) * thres:
                 return True
             
         return False
@@ -422,7 +553,7 @@ def dfs_grid(grid, element_list, wire_mask, x_centers, y_centers):
     # DFS递归函数
     def dfs(yi, xi, last_idx=None, last_move=None):
 
-        if visited_grid[yi, xi]:
+        if visited_grid[yi, xi] :
             return
         
         visited_grid[yi, xi] = True
@@ -455,6 +586,8 @@ def dfs_grid(grid, element_list, wire_mask, x_centers, y_centers):
                     for dy, dx in dirs:
                         nyi = yi + dy
                         nxi = xi + dx
+                        # if elem_idx == 3 and dy == -1:
+                        #     import pdb; pdb.set_trace()
                         if 0 <= nyi < ny and 0 <= nxi < nx and not visited_grid[nyi, nxi] and is_wire_connect(x_centers[xi], y_centers[yi], x_centers[nxi], y_centers[nyi]):
                             dfs(nyi, nxi, elem_idx, (dy, dx))
 
@@ -515,7 +648,7 @@ def extract_wire_nets(
         结构化网络字典，net独立编号，edge独立编号，点带x/y坐标
     """
     # 1. 导线提取与骨架化
-    wire_mask = _get_wire_mask(img)
+    wire_mask = _get_wire_mask_v2(img, comps)
     visualize_mask(img, wire_mask, img_path)
     
     # 2. 节点统一编码 + 去重
@@ -543,7 +676,10 @@ def extract_wire_nets(
     # 5. 追踪所有边
     # edges = _trace_edges(wire_mask, nodes, obstacle)    
 
+    # 6. 后处理：合并实际上连通的不同 net
+    merged_grid_edges = merge_close_nets(edges, element_list)
+
     # 6. 连通分量分组 -> 输出网络结构
-    nets = _build_nets(edges, element_list)
+    nets = _build_nets(merged_grid_edges, element_list)
 
     return nets

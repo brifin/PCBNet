@@ -50,12 +50,12 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins, endpoints):
     plt.close(fig1)
 
     # ========== 图3：wire骨架二值图 ==========
-    skel_vis = (skel > 0).astype(np.uint8) * 255
+    # skel_vis = (skel > 0).astype(np.uint8) * 255
 
-    kernel = np.ones((3, 3), dtype=np.uint8)
-    skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
+    # kernel = np.ones((3, 3), dtype=np.uint8)
+    # skel_vis = cv2.dilate(skel_vis, kernel, iterations=1)
 
-    cv2.imwrite(join(save_dir, "pred_unet.png"), skel_vis)
+    # cv2.imwrite(join(save_dir, "pred_unet.png"), skel_vis)
 
 
 def flip_gt_y(gt: dict, h_img: int) -> dict:
@@ -175,29 +175,32 @@ def visualize_mask(img: np.ndarray, mask: np.ndarray, img_path: str | Path):
     可视化原图 + mask二值图 + mask叠加在原图上的效果
     """
     plt.rcParams['font.sans-serif'] = ['SimHei']
-    plt.figure(figsize=(16, 6))
+    # plt.figure(figsize=(6, 6))
+    h, w = mask.shape
+    plt.figure(figsize=(w / 100, h / 100), dpi=100)
+
 
     # subplot1 原图
-    plt.subplot(1, 3, 1)
-    plt.title("原图")
-    plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    plt.axis("off")
+    # plt.subplot(1, 3, 1)
+    # plt.title("原图")
+    # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    # plt.axis("off")
 
     # subplot2 mask 二值图
-    plt.subplot(1, 3, 2)
-    plt.title("Wire Mask (白色=导线前景)")
+    # plt.subplot(1, 3, 2)
+    # plt.title("Wire Mask (白色=导线前景)")
     plt.imshow(mask, cmap="gray")
     plt.axis("off")
 
     # subplot3 mask叠加到原图（绿色高亮mask区域）
-    overlay = img.copy()
-    green = np.zeros_like(img)
-    green[:, :, 1] = mask
-    overlay = cv2.addWeighted(overlay, 0.7, green, 0.4, 0)
-    plt.subplot(1, 3, 3)
-    plt.title("Mask Overlay 叠加图")
-    plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
-    plt.axis("off")
+    # overlay = img.copy()
+    # green = np.zeros_like(img)
+    # green[:, :, 1] = mask
+    # overlay = cv2.addWeighted(overlay, 0.7, green, 0.4, 0)
+    # plt.subplot(1, 3, 3)
+    # plt.title("Mask Overlay 叠加图")
+    # plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    # plt.axis("off")
 
     plt.tight_layout()
 
@@ -349,11 +352,13 @@ def visualize_grid(grid, x_centers, y_centers, element_list, img, img_path: str 
             typ, obj = element_list[idx]
             if typ == "node":
                 ax.plot(gx,gy, 'ro', markersize=6)
-                label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                # label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                label_text = f"{idx}"
                 ax.text(gx+4, gy, label_text, color="red", fontsize=10)
             else:
                 ax.plot(gx,gy, 'bs', markersize=4)
-                label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                # label_text = f"{idx}|({gx:.1f},{gy:.1f})"
+                label_text = f"{idx}"
                 ax.text(gx+4, gy, label_text, color="blue", fontsize=10)
 
     ax.set_title("Grid Visualization: grid lines + center coordinates")
