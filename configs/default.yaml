@@ -7,8 +7,8 @@ split_ratio: [0.85, 0.05, 0.1]
 
 thresholds:
   bbox_px: 20.0
-  pin_px: 5.0
-  line_px: 5.0
+  pin_px: 10.0
+  line_px: 10.0
   pin_wire_eps: 5.0
   rdp_eps: 2.5
 
@@ -47,6 +47,7 @@ vision:
   max_components: 400
   max_segments: 4000
   pin_snap_px: 5.0        # tip snaps to a wire endpoint within this distance
+  pin_dedup_px: 5.0       # 距离 ≤ 此值的重复引脚只保留置信度最高者
 
 use_llm: false
 
