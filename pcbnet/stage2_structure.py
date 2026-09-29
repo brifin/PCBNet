@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import math
 import re
+import json
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from .coords import contest_point, image_bbox_to_contest
@@ -108,6 +110,32 @@ def _known_box_names() -> set:
 
 def _strip_token(text: str) -> str:
     return re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", (text or "").strip())
+
+
+_TYPE_PRIOR_CACHE: dict[str, dict] | None = None
+
+
+def _load_type_priors() -> dict[str, dict]:
+    """惰性加载 data/type_priors.json（type -> {pin_count, text_count, ...}）。"""
+    global _TYPE_PRIOR_CACHE
+    if _TYPE_PRIOR_CACHE is None:
+        p = Path(__file__).resolve().parent.parent / "data" / "type_priors.json"
+        try:
+            _TYPE_PRIOR_CACHE = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            _TYPE_PRIOR_CACHE = {}
+    return _TYPE_PRIOR_CACHE
+
+
+def _type_pin_prior(ctype: str) -> int | None:
+    """返回该 type 的先验引脚数（众数），box 或无先验返回 None。"""
+    if ctype == "box":
+        return None
+    rec = _load_type_priors().get(ctype)
+    if not rec:
+        return None
+    n = rec.get("pin_count")
+    return int(n) if n is not None else None
 
 
 def _as_designator(text: str) -> str | None:
@@ -218,6 +246,14 @@ def _hungarian(cost: list[list[float]]) -> list[tuple[int, int]]:
 # Text classification
 # ----------------------------------------------------------------------------
 
+# 有 value 的 type（统计训练 300 + 测试 10 全部数据，value != null 的 type 全集）：
+#   c / r / v / gnd / l / crystal_2pin / crystal_3pin / crystal_4pin / led / circle_header / crystal
+# 其中 gnd/v 的 value 是电源网络名（GND、3.3V、+5V…），由 build_structure 的 net_label 逻辑写入 value，
+# 不在此处参与 _assign_values（否则会把附近电容/电阻的 value 文本错绑到 gnd/v 符号上）。
+_VALUE_TYPES = {"r", "c", "l", "v", "crystal", "crystal_2pin", "crystal_3pin", "crystal_4pin",
+                "led", "circle_header"}
+
+
 def _looks_value(txt: str) -> bool:
     t = (txt or "").strip().lstrip("=>~")
     if not t or _as_designator(t):
@@ -227,11 +263,11 @@ def _looks_value(txt: str) -> bool:
     # Net-style tokens (KEY1, SCL) are not values even if they contain a digit.
     if re.fullmatch(r"[A-Z]{2,}\d*", t):
         return False
-    if re.fullmatch(r"\d+(\.\d+)?\s*[kKmMuUnNpPµμ]?[FfHhΩRW]", t):
+    if re.fullmatch(r"[+-]?\d+(\.\d+)?\s*[kKmMuUnNpPµμ]?[FfHhΩRWVv]", t):
         return True
-    if re.fullmatch(r"\d+(\.\d+)?[kKmMuUnNpP]", t):
+    if re.fullmatch(r"[+-]?\d+(\.\d+)?[kKmMuUnNpP]", t):
         return True
-    if re.search(r"\d+(\.\d+)?\s*[kKmMuUnNpPµμFfHhΩRW]/?", t):
+    if re.search(r"[+-]?\d+(\.\d+)?\s*[kKmMuUnNpPµμFfHhΩRWVv]/?", t):
         return True
     return False
 
@@ -450,11 +486,14 @@ def _bind_leftover_designators(comps: list[dict], texts: list[dict], assigned: s
 
 
 def _assign_values(comps: list[dict], texts: list[dict]) -> None:
-    """One-to-one value binding for R/C/L. IC names are not written onto the
-    contest record: local GT names are empty ~75% of the time, and a filled
-    name zeros an otherwise correct U5/R29-style match."""
+    """One-to-one value binding for types that carry a value (r/c/l/v/crystal*/led/...)。
+
+    IC names are not written onto the contest record: local GT names are empty
+    ~75% of the time, and a filled name zeros an otherwise correct U5/R29-style match.
+    """
     val_idx = [i for i, t in enumerate(texts) if not t.get("used") and t["cls"] == "value" and _looks_value(t["content"])]
-    targets = [c for c in comps if c["type"] in {"r", "c", "l"}]
+    # 有 value 的 type（即使部分有值也视为有，如 v 的 3.3V、crystal 的 12MHz）
+    targets = [c for c in comps if c["type"] in _VALUE_TYPES]
     if not targets or not val_idx:
         return
     BIG = 1e6
@@ -529,6 +568,24 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
     return best
 
 
+def _nearby_partname(comp: dict, texts: list[dict]) -> str | None:
+    """元件附近型号文字：box 用 BoxICLibrary 白名单，二极管(d) 用 1Nxxxx 型号正则。"""
+    if comp["type"] == "box":
+        return _nearby_ic_partname(comp, texts)
+    if comp["type"] == "d":
+        best, best_d = None, 120.0
+        for t in texts:
+            if t.get("used"):
+                continue
+            content = _strip_token((t.get("content") or "").strip())
+            if re.fullmatch(r"1N\d{2,}[A-Za-z]*", content, re.I):
+                d = _bbox_gap(comp["img_bbox"], t["bbox"])
+                if d < best_d:
+                    best, best_d = content, d
+        return best
+    return None
+
+
 # ----------------------------------------------------------------------------
 # Pins
 # ----------------------------------------------------------------------------
@@ -566,6 +623,24 @@ def _order_pins_ccw(pins: list[PinBox], cx: float) -> list[PinBox]:
     return left + right
 
 
+def _dedup_pins(pins: list[PinBox], eps: float) -> list[PinBox]:
+    """去掉坐标过近（≤ eps px）的重复引脚，保留置信度最高者。
+
+    YOLO 有时在同一位置（很近）检出两个 pin_tip，或匹配错乱导致同一引脚重复；
+    这会让非 box 元件多出 pin_1/pin_2 两个几乎重叠的端点，进而拉低 PinF1。
+    按置信度降序贪心：每个 pin 若与已保留的任一 pin 距离 ≤ eps 则丢弃。
+    """
+    if not pins:
+        return []
+    ordered = sorted(pins, key=lambda p: getattr(p, "score", 0.0), reverse=True)
+    keep: list[PinBox] = []
+    for p in ordered:
+        if any(_dist(p.xy, k.xy) <= eps for k in keep):
+            continue
+        keep.append(p)
+    return keep
+
+
 def _box_library_pins(ic_name: str | None, n_pins: int) -> list[tuple[str, str]] | None:
     """Return [(number, name), ...] from BoxICLibrary_200cases.json for a box IC, or None.
 
@@ -595,6 +670,7 @@ def _pins_for_component(
     vision: VisionOut,
     snap_px: float,
     ic_name: str | None = None,
+    pin_dedup_px: float = 5.0,
 ) -> list[tuple[str, str, tuple[float, float]]]:
     """Return [(pin_number, pinname, xy)] using detected tips if available.
 
@@ -602,39 +678,87 @@ def _pins_for_component(
     （左 1 逆时针）；非 box 空编号引脚 pin key 用 pin_1/pin_2…（只比端点坐标）。
     """
     x1, y1, x2, y2 = comp["img_bbox"]
-    m = 14.0
+    # box 引脚伸出方形框外更远（实测最多 ~22px），扩大搜索范围避免漏检
+    m = 32.0 if comp["type"] == "box" else 14.0
     owned = [p for p in det_pins if (x1 - m) <= p.xy[0] <= (x2 + m) and (y1 - m) <= p.xy[1] <= (y2 + m)]
+    # 去重：YOLO 可能在同一位置（很近）检测到两个 pin_tip，导致同一引脚重复标注。
+    # 按坐标距离 ≤ pin_dedup_px 的引脚只保留置信度最高的一个。
+    owned = _dedup_pins(owned, pin_dedup_px)
     out: list[tuple[str, str, tuple[float, float]]] = []
     if comp["type"] == "box":
-        cx = (x1 + x2) / 2.0
-        if owned:
-            owned = _order_pins_ccw(owned, cx)
-        else:
+        if not owned:
+            # 无检出引脚：几何 fallback + 库顺序（保留原行为）
+            cx = (x1 + x2) / 2.0
             n = max(1, min(8, int(round((y2 - y1) / 24)) or 4))
             owned = []
             for i in range(n):
                 owned.append(PinBox(xy=(x1, y1 + (y2 - y1) * (i + 0.5) / n)))
                 owned.append(PinBox(xy=(x2, y1 + (y2 - y1) * (i + 0.5) / n)))
             owned = _order_pins_ccw(owned, cx)
-        lib = _box_library_pins(ic_name, len(owned))
-        seen: set[str] = set()
-        for i, p in enumerate(owned):
+            lib = _box_library_pins(ic_name, len(owned))
+            seen = set()
+            for i, p in enumerate(owned):
+                xy = _snap_to_wire(p.xy, vision, snap_px)
+                number, pinname = (lib[i] if lib and i < len(lib) else (str(i + 1), str(i + 1)))
+                if number in seen:
+                    number = str(i + 1)
+                seen.add(number)
+                out.append((number, pinname, xy))
+            return out
+
+        # 新规则（box 引脚）：key 为 pin_<number>，number 是引脚编号，pinname 是引脚名称。
+        # 1. 先匹配 pinname（元件框内部文字），再匹配 number（引脚附近数字）
+        # 2. 优先使用图中信息（OCR 文字）；只有图中信息缺失时才对照 BoxICLibrary
+        # 3. number 缺失且 pinname 对应多个 number 时，按几何顺序分配 number
+        try:
+            from .pin_library import lookup_pins
+        except Exception:
+            lookup_pins = lambda *a, **k: {}  # type: ignore[assignment]
+        lib = lookup_pins(ic_name) if ic_name else {}   # {number: name}
+        # name -> [numbers]（数值升序），用于同名多编号的几何顺序分配
+        name_to_nums: dict[str, list[str]] = defaultdict(list)
+        for num in sorted(lib, key=lambda n: (0, int(n)) if n.isdigit() else (1, n)):
+            name_to_nums[lib[num]].append(num)
+
+        cx = (x1 + x2) / 2.0
+        owned = _order_pins_ccw(owned, cx)  # 逆时针几何顺序
+
+        # 第一遍：先 pinname（图中文字），后 number（图中数字）
+        items = []
+        for p in owned:
             xy = _snap_to_wire(p.xy, vision, snap_px)
-            if lib and i < len(lib):
-                number, pinname = lib[i]
-                if number in seen:
-                    number = str(i + 1)
-            else:
-                number = p.number or _nearest_pinnum(p.xy, texts) or str(i + 1)
-                if number in seen:
-                    number = str(i + 1)
-                pinname = p.name or _nearest_pinname(p.xy, texts, comp) or number
+            pinname = p.name or _nearest_pinname(p.xy, texts, comp)  # 图中文字（引脚名）
+            number = p.number or _nearest_pinnum(p.xy, texts)         # 图中数字（引脚编号）
+            items.append({"pinname": pinname, "number": number, "xy": xy})
+
+        # 第二遍：图中信息优先；缺失时才对照 BoxICLibrary
+        name_assigned: dict[str, int] = defaultdict(int)
+        seen: set[str] = set()
+        for item in items:
+            pinname, number, xy = item["pinname"], item["number"], item["xy"]
+            if number is None and pinname and pinname in name_to_nums:
+                # 图中 number 缺失：用 pinname 反查库（同名多编号按几何顺序分配）
+                nums = name_to_nums[pinname]
+                idx = name_assigned[pinname]
+                number = nums[idx] if idx < len(nums) else nums[-1]
+                name_assigned[pinname] += 1
+            elif pinname is None and number and number in lib:
+                # 图中 pinname 缺失：用 number 查库 pinname
+                pinname = lib[number]
+            if number is None:
+                number = str(len(seen) + 1)
+            while number in seen:
+                number = str(int(number) + 1) if number.isdigit() else f"{number}_{len(seen)+1}"
             seen.add(number)
-            out.append((number, pinname, xy))
+            out.append((number, pinname or number, xy))
         return out
     if owned:
         # 非 box 引脚无特殊名称：pin key/name 统一 pin_1/pin_2…（从 1 开始），
         # 不做 OCR 名称匹配（避免把周围文字塞进 pin 名），只比端点坐标。
+        # 用 type 先验（众数引脚数）限制引脚数量：多检时按置信度保留 top-N。
+        prior = _type_pin_prior(comp["type"])
+        if prior is not None and len(owned) > prior:
+            owned = sorted(owned, key=lambda p: getattr(p, "score", 0.0), reverse=True)[:prior]
         for seq, p in enumerate(owned, start=1):
             xy = _snap_to_wire(p.xy, vision, snap_px)
             out.append((str(seq), str(seq), xy))
@@ -645,7 +769,7 @@ def _pins_for_component(
 
 
 def _nearest_pinnum(pt: tuple[float, float], texts: list[dict]) -> str | None:
-    best, best_d = None, 22.0
+    best, best_d = None, 60.0
     for t in texts:
         if t.get("used") or t["cls"] not in {"pinnum", "value"}:
             continue
@@ -659,7 +783,23 @@ def _nearest_pinnum(pt: tuple[float, float], texts: list[dict]) -> str | None:
 def _nearest_pinname(pt: tuple[float, float], texts: list[dict], comp: dict) -> str | None:
     if comp["type"] != "box":
         return None
-    best, best_d = None, 40.0
+    x1, y1, x2, y2 = comp["img_bbox"]
+    m = 30.0  # 元件框扩展余量：pinname 文字大部分在框内
+    # 先框内搜索（避免误匹配框外文字）
+    best, best_d = None, 1e9
+    for t in texts:
+        if t.get("used") or t["cls"] not in {"name", "other"}:
+            continue
+        c = _center(t["bbox"])
+        if not (x1 - m <= c[0] <= x2 + m and y1 - m <= c[1] <= y2 + m):
+            continue
+        d = _dist(pt, c)
+        if d < best_d and re.search(r"[A-Za-z]", t["content"]):
+            best, best_d = t["content"].strip(), d
+    if best is not None:
+        return best
+    # 框内没找到：放宽到引脚点附近 100px 兜底（覆盖少部分框外的 pinname）
+    best_d = 100.0
     for t in texts:
         if t.get("used") or t["cls"] not in {"name", "other"}:
             continue
@@ -760,6 +900,57 @@ def _merge_flywires(out: dict, comps: list[dict], union) -> None:
                 union(refs[0], r)
 
 
+def _build_nets_from_wire_nets(
+    out: dict,
+    vision: VisionOut,
+    pin_nodes: list[dict],
+    height: float,
+    match_tol: float = 12.0,
+) -> None:
+    """用 topo_graph.extract_wire_nets 的结果生成最终 nets（替代旧 union-find）。
+
+    extract_wire_nets 输出形如
+        {net_j: {"all_pins": [{"x","y","type"}], "all_node_idxs": {...},
+                 "edges": {"edge_i": [{"x","y"}, {"x","y"}]}}}
+    其中 all_pins 是连通在同一网络上的引脚节点（image 坐标）。这里把每个引脚坐标
+    最近邻匹配到 pin_nodes 的 ref（component.pin_number）得到 hyperGraph；edges 转 contest 坐标。
+    net key 统一 nets_<n>，edge 统一 edge_<n>（顺序不判分）。
+    """
+    wire_nets = getattr(vision, "wire_nets", None) or {}
+    if not wire_nets:
+        return
+
+    coords = [p["xy"] for p in pin_nodes]
+    refs_all = [p["ref"] for p in pin_nodes]
+
+    net_no = 0
+    for net_key in sorted(wire_nets.keys()):
+        net = wire_nets[net_key]
+        all_pins = net.get("all_pins") or []
+        seen: set[str] = set()
+        refs: list[str] = []
+        for pin in all_pins:
+            px, py = float(pin["x"]), float(pin["y"])
+            best_i, best_d = -1, match_tol
+            for i, (cx, cy) in enumerate(coords):
+                d = _dist((px, py), (cx, cy))
+                if d < best_d:
+                    best_d, best_i = d, i
+            if best_i >= 0:
+                ref = refs_all[best_i]
+                if ref not in seen:
+                    seen.add(ref)
+                    refs.append(ref)
+        if not refs:
+            continue  # 纯端点网络（未匹配到元件引脚）不输出
+
+        net_no += 1
+        edges: dict = {}
+        for j, (_ek, seg) in enumerate(sorted(net.get("edges", {}).items()), start=1):
+            edges[f"edge_{j}"] = [contest_point(float(pt["x"]), float(pt["y"]), height) for pt in seg]
+        out["nets"][f"net_{net_no}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": edges}
+
+
 # ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
@@ -771,6 +962,7 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     vcfg = cfg.get("vision") or {}
     eps = float(thr.get("pin_wire_eps", 5.0))
     snap_px = float(vcfg.get("pin_snap_px", 5.0))
+    pin_dedup_px = float(vcfg.get("pin_dedup_px", 5.0))
     height = float(vision.height)
     out = empty_contest_json()
 
@@ -786,6 +978,8 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     _bind_designators(comps, texts)
     _assign_values(comps, texts)
     # net_label / power text near label-type components
+    # gnd/v 的 value 即电源网络名（GND、3.3V、+5V…），在这里顺带写入 value，
+    # 否则 "GND" 会被 _classify_text 归为 other，_assign_values 永远匹配不到。
     for comp in comps:
         if comp["type"] in {"net_input", "testpoint", "gnd", "v"} and not comp.get("designator"):
             cx, cy = _center(comp["img_bbox"])
@@ -793,7 +987,10 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
                 if t.get("used") or t["cls"] not in {"name", "other", "value"}:
                     continue
                 if _dist((cx, cy), _center(t["bbox"])) < 40:
-                    comp["net_label"] = t["content"].strip()
+                    label = t["content"].strip()
+                    comp["net_label"] = label
+                    if comp["type"] in {"gnd", "v"} and not comp.get("value"):
+                        comp["value"] = label
                     break
 
     used_keys: dict[str, int] = {}
@@ -801,8 +998,8 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     pin_nodes: list[dict] = []
     for i, comp in enumerate(comps):
         des = comp.get("designator")
-        # box 类型：Name 用附近 IC 型号名（其余类型 Name == key）
-        ic_pn = _nearby_ic_partname(comp, texts) if comp["type"] == "box" else None
+        # box/二极管类型：Name 用附近型号名（其余类型 Name == key）
+        ic_pn = _nearby_partname(comp, texts) if comp["type"] in {"box", "d"} else None
         if ic_pn:
             for t in texts:
                 if not t.get("used") and _strip_token((t.get("content") or "").split()[0] if t.get("content") else "") == ic_pn:
@@ -827,7 +1024,7 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
         }
         out["pins"][key] = {}
         seen_pk: set[str] = set()
-        for number, pinname, xy in _pins_for_component(comp, vision.pins, texts, vision, snap_px, ic_name=ic_pn):
+        for number, pinname, xy in _pins_for_component(comp, vision.pins, texts, vision, snap_px, ic_name=ic_pn, pin_dedup_px=pin_dedup_px):
             pk = f"pin_{number}"
             if pk in seen_pk:
                 continue
@@ -838,6 +1035,11 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
     parent, find, union = _union_find([p["ref"] for p in pin_nodes])
     _connect_pins(pin_nodes, vision, eps, union)
     _merge_flywires(out, comps, union)
+
+    # 优先用 topo_graph.extract_wire_nets 的重建结果生成 nets；为空则退回旧的 union-find 分段
+    if getattr(vision, "wire_nets", None):
+        _build_nets_from_wire_nets(out, vision, pin_nodes, height)
+        return out
 
     groups: dict[str, list[dict]] = defaultdict(list)
     for p in pin_nodes:
@@ -859,7 +1061,7 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
                 p = contest_point(pts[ref][0], pts[ref][1], height)
                 segs.append([p, p])
         edges = {f"edge_{j}": seg for j, seg in enumerate(segs, start=1)}
-        out["nets"][f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": edges}
+        out["nets"][f"net_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": edges}
 
     # run_wire_visualize(out, vision.img, vision.image_path)
     return out

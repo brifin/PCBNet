@@ -97,15 +97,23 @@ def _need_text(ctype: str) -> str | None:
     return None
 
 
-def _component_ok(pred: dict, gt: dict, bbox_thr: float) -> bool:
+def _component_ok(key: str, pred: dict, gt: dict, bbox_thr: float, relax_name: bool = False) -> bool:
     if pred.get("type") != gt.get("type"):
         return False
     if not _bbox_ok(pred.get("bbox") or [0, 0, 0, 0], gt.get("bbox") or [0, 0, 0, 0], bbox_thr):
         return False
-    field = _need_text(gt.get("type") or "")
-    if field:
-        return str(pred.get(field) or "") == str(gt.get(field) or "")
-    return True
+    if str(key).startswith("∅"):
+        # ∅ 元件：只比较 type + bbox + value（是否存在），Name/key 不比较
+        gt_has = gt.get("value") not in (None, "")
+        pred_has = pred.get("value") not in (None, "")
+        return gt_has == pred_has
+    if relax_name:
+        # 命名元件 bbox 宽松匹配（key 前缀合法但编号不同）：不比较 Name，只比 value
+        return str(pred.get("value") or "") == str(gt.get("value") or "")
+    # 非 ∅ 元件：Name 与 value 均严格匹配
+    if str(pred.get("Name") or "") != str(gt.get("Name") or ""):
+        return False
+    return str(pred.get("value") or "") == str(gt.get("value") or "")
 
 
 def apply_empty_gt_text_policy(pred: dict[str, Any], gt: dict[str, Any]) -> dict[str, Any]:
@@ -190,6 +198,155 @@ def align_prediction(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float =
     return out
 
 
+def _align_empty_keys(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> dict[str, Any]:
+    """∅<编号> 元件的 key 不做对比，只按 type+bbox 匈牙利匹配（评测标准 §2.3）。
+
+    把 pred 的 ∅ key 重映射到 GT 的 ∅ key，并同步 remap pins / nets.hyperGraph 里的
+    component key 引用；命名元件（R5/U1/…）key 严格匹配，不受此函数影响。
+    """
+    import copy
+
+    p_comp = pred.get("components") or {}
+    g_comp = gt.get("components") or {}
+    p_empty = {k: v for k, v in p_comp.items() if str(k).startswith("∅")}
+    g_empty = {k: v for k, v in g_comp.items() if str(k).startswith("∅")}
+    if not p_empty or not g_empty:
+        return pred
+
+    p_keys = list(p_empty)
+    g_keys = list(g_empty)
+    cost: list[list[float]] = []
+    for gk in g_keys:
+        gc = g_empty[gk]
+        row: list[float] = []
+        for pk in p_keys:
+            pc = p_empty[pk]
+            if pc.get("type") != gc.get("type") or not _bbox_ok(pc.get("bbox") or [0, 0, 0, 0], gc.get("bbox") or [0, 0, 0, 0], bbox_thr):
+                row.append(1e6)
+                continue
+            pc_, gc_ = bbox_center(pc.get("bbox") or [0, 0, 0, 0]), bbox_center(gc.get("bbox") or [0, 0, 0, 0])
+            row.append(math.hypot(pc_[0] - gc_[0], pc_[1] - gc_[1]))
+        cost.append(row)
+
+    mapping: dict[str, str] = {}
+    for i, j in _hungarian(cost):
+        if i < len(g_keys) and j < len(p_keys) and cost[i][j] < 1e5:
+            mapping[p_keys[j]] = g_keys[i]
+
+    def remap_ref(ref: str) -> str:
+        if "." not in ref:
+            return mapping.get(ref, ref)
+        ck, rest = ref.split(".", 1)
+        return f"{mapping.get(ck, ck)}.{rest}"
+
+    out = copy.deepcopy(pred)
+    new_comps, new_pins = {}, {}
+    for pk, comp in p_comp.items():
+        nk = mapping.get(pk, pk)
+        new_comps[nk] = copy.deepcopy(comp)
+        new_pins[nk] = copy.deepcopy((pred.get("pins") or {}).get(pk) or {})
+    new_nets = {}
+    for i, (_nk, net) in enumerate((pred.get("nets") or {}).items(), start=1):
+        refs = [remap_ref(x) for x in _parse_hypergraph(net.get("hyperGraph", ""))]
+        new_nets[f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": copy.deepcopy(net.get("edges") or {})}
+    out["components"], out["pins"], out["nets"] = new_comps, new_pins, new_nets
+    out["_empty_key_map"] = mapping
+    return out
+
+
+_PREFIX_CACHE: dict[str, set[str]] | None = None
+
+
+def _canonical_prefixes(ctype: str) -> set[str]:
+    """type 的合法 key 前缀集合（来自 type_list.md 的 canonical_prefix）。"""
+    global _PREFIX_CACHE
+    if _PREFIX_CACHE is None:
+        try:
+            from .knowledge_base import load_key_type_kb
+
+            kb = load_key_type_kb()
+            _PREFIX_CACHE = {t: set(p) for t, p in (kb.get("canonical_prefix") or {}).items() if p}
+        except Exception:
+            _PREFIX_CACHE = {}
+    return _PREFIX_CACHE.get(ctype, set())
+
+
+def _key_prefix(key: str) -> str:
+    m = re.match(r"^([A-Za-z]{1,3})", key or "")
+    return m.group(1).upper() if m else ""
+
+
+def _align_named_keys(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> tuple[dict[str, Any], set[str]]:
+    """命名元件 key 匹配不到时，按 bbox 宽松匹配（评测标准扩展）。
+
+    GT 命名元件（非 ∅）在 pred 中无同名 key 时，在 pred 的命名元件里找 type 相同、
+    bbox 匹配、value 一致、且 key 前缀满足 type_list 规范者，建立 key 映射并 remap。
+    返回 (remap 后的 pred, 走宽松匹配的 GT key 集合)。
+    """
+    import copy
+
+    p_comp = pred.get("components") or {}
+    g_comp = gt.get("components") or {}
+
+    g_named_missing = {k: v for k, v in g_comp.items() if not str(k).startswith("∅") and k not in p_comp}
+    p_named_extra = {k: v for k, v in p_comp.items() if not str(k).startswith("∅") and k not in g_comp}
+    if not g_named_missing or not p_named_extra:
+        return pred, set()
+
+    g_keys = list(g_named_missing)
+    p_keys = list(p_named_extra)
+    cost: list[list[float]] = []
+    for gk in g_keys:
+        gc = g_named_missing[gk]
+        row: list[float] = []
+        for pk in p_keys:
+            pc = p_named_extra[pk]
+            if pc.get("type") != gc.get("type"):
+                row.append(1e6)
+                continue
+            if not _bbox_ok(pc.get("bbox") or [0, 0, 0, 0], gc.get("bbox") or [0, 0, 0, 0], bbox_thr):
+                row.append(1e6)
+                continue
+            if str(pc.get("value") or "") != str(gc.get("value") or ""):
+                row.append(1e6)
+                continue
+            # pred key 前缀必须满足该 type 的 type_list 规范
+            if _key_prefix(pk) not in _canonical_prefixes(gc.get("type")):
+                row.append(1e6)
+                continue
+            pc_, gc_ = bbox_center(pc.get("bbox") or [0, 0, 0, 0]), bbox_center(gc.get("bbox") or [0, 0, 0, 0])
+            row.append(math.hypot(pc_[0] - gc_[0], pc_[1] - gc_[1]))
+        cost.append(row)
+
+    mapping: dict[str, str] = {}
+    for i, j in _hungarian(cost):
+        if i < len(g_keys) and j < len(p_keys) and cost[i][j] < 1e5:
+            mapping[p_keys[j]] = g_keys[i]
+
+    if not mapping:
+        return pred, set()
+
+    def remap_ref(ref: str) -> str:
+        if "." not in ref:
+            return mapping.get(ref, ref)
+        ck, rest = ref.split(".", 1)
+        return f"{mapping.get(ck, ck)}.{rest}"
+
+    out = copy.deepcopy(pred)
+    new_comps, new_pins = {}, {}
+    for pk, comp in p_comp.items():
+        nk = mapping.get(pk, pk)
+        new_comps[nk] = copy.deepcopy(comp)
+        new_pins[nk] = copy.deepcopy((pred.get("pins") or {}).get(pk) or {})
+    new_nets = {}
+    for i, (_nk, net) in enumerate((pred.get("nets") or {}).items(), start=1):
+        refs = [remap_ref(x) for x in _parse_hypergraph(net.get("hyperGraph", ""))]
+        new_nets[f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": copy.deepcopy(net.get("edges") or {})}
+    out["components"], out["pins"], out["nets"] = new_comps, new_pins, new_nets
+    relaxed = set(mapping.values())
+    return out, relaxed
+
+
 def score_case(
     pred: dict[str, Any],
     gt: dict[str, Any],
@@ -199,6 +356,10 @@ def score_case(
     weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     weights = weights or {"component": 0.30, "pin": 0.25, "net_hypergraph": 0.35, "net_line": 0.10}
+    # 评测标准 §2.3：∅ 元件 key 不对比，按 type+bbox 匈牙利对齐后再算
+    pred = _align_empty_keys(pred, gt, bbox_thr)
+    # 命名元件 key 匹配不到时，按 bbox+type+value+key 前缀 宽松匹配
+    pred, relaxed_named = _align_named_keys(pred, gt, bbox_thr)
     p_comp, g_comp = pred.get("components") or {}, gt.get("components") or {}
     p_pins, g_pins = pred.get("pins") or {}, gt.get("pins") or {}
     p_nets, g_nets = pred.get("nets") or {}, gt.get("nets") or {}
@@ -210,7 +371,7 @@ def score_case(
             fn += 1
             key_fail += 1
             continue
-        if _component_ok(p_comp[key], gc, bbox_thr):
+        if _component_ok(key, p_comp[key], gc, bbox_thr, relax_name=key in relaxed_named):
             tp += 1
         else:
             fn += 1
@@ -223,20 +384,37 @@ def score_case(
     ptp = pfp = pfn = 0
     for ck, gpins in g_pins.items():
         ppins = p_pins.get(ck) or {}
-        for pk, gpin in gpins.items():
-            pnum = _pin_number_from_key(pk)
-            pred_pin = ppins.get(pk) or ppins.get(f"pin_{pnum}")
-            if pred_pin is None:
-                pfn += 1
-                continue
-            if _pin_ok(pred_pin, gpin, pin_thr):
-                ptp += 1
-            else:
-                pfn += 1
-                pfp += 1
-        for pk in ppins:
-            if pk not in gpins and f"pin_{_pin_number_from_key(pk)}" not in gpins:
-                pfp += 1
+        is_box = str((g_comp.get(ck) or {}).get("type") or "") == "box"
+        if is_box:
+            # box 类：pin key（pin_<pin_id>）+ pinname + point 严格匹配
+            for pk, gpin in gpins.items():
+                pred_pin = ppins.get(pk)
+                if pred_pin is None:
+                    pfn += 1
+                    continue
+                if _pin_ok(pred_pin, gpin, pin_thr):
+                    ptp += 1
+                else:
+                    pfn += 1
+                    pfp += 1
+            for pk in ppins:
+                if pk not in gpins:
+                    pfp += 1
+        else:
+            # 非 box 类：pin key/name 顺序随机，只看端点坐标，匈牙利匹配
+            g_keys_list = list(gpins.keys())
+            p_keys_list = list(ppins.keys())
+            gpts = [gpins[k].get("point") or {"x": 0, "y": 0} for k in g_keys_list]
+            ppts = [ppins[k].get("point") or {"x": 0, "y": 0} for k in p_keys_list]
+            matched = 0
+            if gpts and ppts:
+                cost = [[point_dist(g, p) for p in ppts] for g in gpts]
+                for gi, pi in _hungarian(cost):
+                    if gi < len(gpts) and pi < len(ppts) and cost[gi][pi] <= pin_thr:
+                        matched += 1
+            ptp += matched
+            pfn += len(gpts) - matched
+            pfp += max(0, len(ppts) - matched)
     pin_f1 = _f1(ptp, pfp, pfn)
 
     g_sets = {nk: _parse_hypergraph(nv.get("hyperGraph", "")) for nk, nv in g_nets.items()}
