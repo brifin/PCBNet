@@ -10,10 +10,12 @@ dependencies = [
     "paddleocr>=2.10.0",
     "pillow>=12.3.0",
     "pyyaml>=6.0.3",
+    "rembg[cpu,gpu]>=2.0.84",
     "scikit-image>=0.26.0",
     "scipy>=1.18.1",
     "torch>=2.14.0",
     "ultralytics>=8.4.142",
+    "vtracer>=0.6.15",
 ]
 
 [[tool.uv.index]]

@@ -1,0 +1,126 @@
+{
+  "0070_∅33": {
+    "comp_name": "0070_∅33",
+    "num_pins": 4,
+    "pins": {
+      "pin_24": {
+        "pinname": "P_20",
+        "absolute": {
+          "x": 218.0,
+          "y": 540.0
+        },
+        "relative": {
+          "x": 102.0,
+          "y": 173.0
+        }
+      },
+      "pin_26": {
+        "pinname": "P_27",
+        "absolute": {
+          "x": 113.0,
+          "y": 496.0
+        },
+        "relative": {
+          "x": -3.0,
+          "y": 129.0
+        }
+      },
+      "pin_28": {
+        "pinname": "P_7",
+        "absolute": {
+          "x": 291.0,
+          "y": 452.0
+        },
+        "relative": {
+          "x": 175.0,
+          "y": 85.0
+        }
+      },
+      "pin_30": {
+        "pinname": "P_8",
+        "absolute": {
+          "x": 113.0,
+          "y": 403.0
+        },
+        "relative": {
+          "x": -3.0,
+          "y": 36.0
+        }
+      }
+    },
+    "padding": {
+      "left": 0,
+      "down": 0,
+      "right": 0,
+      "up": 0
+    }
+  },
+  "0076_∅360": {
+    "comp_name": "0076_∅360",
+    "num_pins": 2,
+    "pins": {
+      "pin_355": {
+        "pinname": "P_130",
+        "absolute": {
+          "x": 1957.0,
+          "y": 1267.0
+        },
+        "relative": {
+          "x": 7.0,
+          "y": 84.0
+        }
+      },
+      "pin_357": {
+        "pinname": "P_65",
+        "absolute": {
+          "x": 2095.0,
+          "y": 1242.0
+        },
+        "relative": {
+          "x": 145.0,
+          "y": 59.0
+        }
+      }
+    },
+    "padding": {
+      "left": 10,
+      "down": 0,
+      "right": 10,
+      "up": 0
+    }
+  },
+  "0206_∅2": {
+    "comp_name": "0206_∅2",
+    "num_pins": 2,
+    "pins": {
+      "pin_1": {
+        "pinname": "1",
+        "absolute": {
+          "x": 1659.0,
+          "y": 169.0
+        },
+        "relative": {
+          "x": 0.0,
+          "y": 13.0
+        }
+      },
+      "pin_2": {
+        "pinname": "2",
+        "absolute": {
+          "x": 1659.0,
+          "y": 198.0
+        },
+        "relative": {
+          "x": 0.0,
+          "y": 42.0
+        }
+      }
+    },
+    "padding": {
+      "left": 3,
+      "down": 0,
+      "right": 3,
+      "up": 0
+    }
+  }
+}
