@@ -303,12 +303,12 @@ for case_name in tqdm(os.listdir(data_dir)):
             }
         }
         # ========== 6. 保存引脚JSON ==========
-        upsert_comp_json("/data1/chenjh/PCBNet/data/base_comps/pins.json", save_dict)
+        upsert_comp_json("/data/luoxuan/PCBNet/data/base_comps/pins.json", save_dict)
         # ========== 7. 按新裁剪框截取PNG ==========
         crop_img = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
         # ========== 8. 保存文件 & SVG处理 ==========
         # 创建分类目录
-        type_dir = os.path.join("/data1/chenjh/PCBNet/data/base_comps", comp_type)
+        type_dir = os.path.join("/data/luoxuan/PCBNet/data/base_comps", comp_type)
         os.makedirs(type_dir, exist_ok=True)
         OUTPUT_TRANSPARENT_PNG = os.path.join(type_dir, f"{target_comp_name}.png")
         OUTPUT_SVG = f"{type_dir}/svg.svg"
