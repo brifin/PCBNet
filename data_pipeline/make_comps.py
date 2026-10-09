@@ -6,12 +6,12 @@ data_dir = "data/Dataset200/200_train_cases"
 output_root = "outputs/components"
 pins_output_path = os.path.join(output_root, "pins.json")
 # 处理模式切换：
-#   'crop'      — 按bbox裁剪元件小图（原功能，含padding外扩）并绘制pin点
+#   'crop'      — 按bbox裁剪元件小图（原功能，含padding外扩）并绘制pin点 + bbox框
 #   'draw_bbox' — 在原图上绘制bbox+pin点，保存完整标注图
 PROCESS_MODE = 'crop'
-padding = 20  # 裁剪外扩像素值，draw模式下会同时绘制padding边界
+padding = 30  # 裁剪外扩像素值，draw模式下会同时绘制padding边界
 pin_radius = 3  # 引脚圆点半径
-draw_pins = False # 是否画出pin点
+draw = True # 是否绘制：引脚点 + bbox框（替换原来draw_pins）
 # ==================================================
 # 初始化引脚信息字典
 all_pins_info = {}
@@ -92,12 +92,31 @@ for case_name in os.listdir(data_dir):
                 "absolute": {"x": px, "y": py},
                 "relative": {"x": rel_x, "y": rel_y}
             })
-
         if PROCESS_MODE == 'crop':
-            # 模式1：裁剪元件小图 + 在小图上绘制引脚点
+            # 模式1：裁剪元件小图 + 在小图上绘制引脚点 + bbox框
             crop_img = img.crop((x1, y1, x2, y2))
-            if draw_pins:
+            if draw:
                 draw_crop = ImageDraw.Draw(crop_img)
+                # 1. 原始元件本体bbox（红色框，裁剪图相对坐标）
+                rel_orig_x1 = orig_x1 - x1
+                rel_orig_y1 = orig_y1 - y1
+                rel_orig_x2 = orig_x2 - x1
+                rel_orig_y2 = orig_y2 - y1
+                draw_crop.rectangle(
+                    [rel_orig_x1, rel_orig_y1, rel_orig_x2, rel_orig_y2],
+                    outline="red",
+                    width=2
+                )
+                # 2. padding外扩裁剪边界（蓝色框，裁剪图相对坐标，就是整张crop图边缘）
+                # 裁剪图的范围就是 [0,0, x2-x1, y2-y1]，可以选择性绘制
+                crop_w = x2 - x1
+                crop_h = y2 - y1
+                draw_crop.rectangle(
+                    [0, 0, crop_w, crop_h],
+                    outline="blue",
+                    width=1
+                )
+                # 3. 绘制引脚圆点+文字
                 for p in pin_list:
                     rx, ry = p["relative"]["x"], p["relative"]["y"]
                     # 画圆点
@@ -108,7 +127,6 @@ for case_name in os.listdir(data_dir):
                     # 绘制引脚名字，偏移一点避免盖住圆点
                     draw_crop.text((rx + 4, ry - 4), p["pinname"], fill="red")
             crop_img.save(save_path)
-
         elif PROCESS_MODE == 'draw_bbox':
             # 模式2：在原图绘制bbox + 引脚点
             draw_img = img.copy()
@@ -134,7 +152,6 @@ for case_name in os.listdir(data_dir):
                 )
                 draw.text((ax + 4, ay - 4), p["pinname"], fill="red")
             draw_img.save(save_path)
-
         # 同名元件只保留第一份引脚信息
         if comp_name not in all_pins_info:
             all_pins_info[comp_name] = {
