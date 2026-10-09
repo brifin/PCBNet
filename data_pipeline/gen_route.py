@@ -10,9 +10,9 @@ from PIL import Image, ImageDraw
 
 # ===================== 配置区 =====================
 
-BASE_DIR = Path("/data1/chenjh/PCBNet/data/base_comps")
+BASE_DIR = Path("/data/luoxuan/PCBNet/data/base_comps")
 PINS_JSON_PATH = BASE_DIR / "pins.json"
-OUTPUT_DIR = Path("/data1/chenjh/PCBNet/data/Synthetic_Data")
+OUTPUT_DIR = Path("/data/luoxuan/PCBNet/data/Synthetic_Data")
 
 NUM_CASES = 10
 

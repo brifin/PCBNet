@@ -5,3 +5,9 @@ outputs
 __pycache__/
 data/base_comps/*/*_vis.png
 data/Synthetic_Data/*
+# 本地环境/工具（不提交）
+.venv_ocr/
+scripts_extra/
+data/Dataset200/10GT/
+data/Dataset200/text_bbox/
+data/Dataset200/audit_value_report.md
