@@ -2,19 +2,29 @@ import os
 os.environ["ORT_DISABLE_CUDA"] = "1"
 import json
 from PIL import Image, ImageDraw
-from rembg import remove
-import vtracer
 from tqdm import tqdm
 from pathlib import Path
 
+# rembg / vtracer 可选导入：默认 USE_THRESHOLD_BG=True 用不到 rembg，
+# vtracer 仅在注释掉的 SVG 代码里用到。在缺这些包的环境（如 .venv_ocr）
+# 下避免顶部 import 崩溃。
+try:
+    from rembg import remove
+except ImportError:
+    remove = None
+try:
+    import vtracer
+except ImportError:
+    vtracer = None
+
 # ==================== 单个提取配置 ====================
-target_comp_name = "0009_∅124"
+target_comp_name = "0138_U10.2"
 
 # ==================== 修复 bbox 相对坐标 ====================
 fix_bbox_left_padding     =  5
 fix_bbox_right_padding    =  5
-fix_bbox_down_padding     =  0
-fix_bbox_up_padding       =  0
+fix_bbox_down_padding     =  10
+fix_bbox_up_padding       =  10
 
 # ==================== 修复 pin 相对坐标 ====================
 fix_pin = {
@@ -25,6 +35,11 @@ fix_pin = {
 
 # 是否启动图形学去背景，否为 AI，精度更高速度更慢，优先推荐 True
 USE_THRESHOLD_BG = True
+
+# 是否擦除元件小图上的文字（位号/引脚号等，PaddleOCR 检测后置透明）
+REMOVE_TEXT = True
+# OCR 置信度阈值：低于此值的检测框不擦（避免把元件图形误当文字擦掉）
+TEXT_CONF_THR = 0.6
 
 # 引脚外扩边距：裁剪PNG时，在最外侧引脚外额外保留的像素，建议 1~5px
 CROP_MARGIN = 2
@@ -38,6 +53,107 @@ DRAW_PIN_AND_BBOX = True
 
 data_dir = "data/Dataset200/200_train_cases"
 output_root = "outputs/svg"
+
+_OCR_ENGINE = None
+
+def _get_ocr():
+    """懒加载 PaddleOCR（只检测文字框，用于定位后擦除）。兼容 2.x/3.x。"""
+    global _OCR_ENGINE
+    if _OCR_ENGINE is None:
+        from paddleocr import PaddleOCR
+        try:
+            # 3.x 参数
+            _OCR_ENGINE = PaddleOCR(
+                lang="en", device="gpu:0",
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+            )
+        except (TypeError, ValueError):
+            # 2.x 参数
+            _OCR_ENGINE = PaddleOCR(lang="en", use_gpu=True, use_angle_cls=True, show_log=False)
+    return _OCR_ENGINE
+
+
+def _ocr_boxes(ocr, arr):
+    """对图像跑 OCR，返回 [(poly, score), ...]，兼容 paddleocr 2.x/3.x。
+
+    3.x: ocr.predict(arr) -> r[0] = {'rec_polys': [...], 'rec_scores': [...]}
+    2.x: ocr.ocr(arr, cls=True) -> [[box, text, score], ...] 或 [None]
+    """
+    pairs = []
+    # 新版 3.x
+    if hasattr(ocr, "predict"):
+        try:
+            r = ocr.predict(arr)
+            page = r[0] if r else {}
+            polys = list(page.get("rec_polys") or [])
+            scores = list(page.get("rec_scores") or [])
+            return [(poly, score) for poly, score in zip(polys, scores) if score is not None]
+        except Exception:
+            pass
+    # 旧版 2.x
+    try:
+        result = ocr.ocr(arr, cls=True)
+        for page in result or []:
+            if not page:
+                continue
+            for item in page:
+                # item = [box(poly), text, score]
+                if isinstance(item, (list, tuple)) and len(item) >= 3:
+                    pairs.append((item[0], item[2]))
+    except Exception:
+        pass
+    return pairs
+
+
+def remove_text(img, conf_thr=TEXT_CONF_THR, pad=1, max_area_ratio=0.6):
+    """擦除元件小图上的文字（位号/引脚号等）。
+
+    PaddleOCR 检测文字框（置信度 >= conf_thr），把框内（外扩 pad 像素）
+    的 alpha 置 0。透明区域贴白底后再送检，避免透明背景干扰检测。
+
+    面积上限：检测框面积占整图比例 > max_area_ratio 时跳过——元件符号图形
+    常被 OCR 误检为一个大「文字」（占图 100%），若不限制会把整个元件擦掉。
+    :param img: PIL RGBA（已去背景）
+    """
+    import cv2
+    import numpy as np
+    ocr = _get_ocr()
+    # 透明贴白底供 OCR 检测
+    bg = Image.new("RGB", img.size, (255, 255, 255))
+    bg.paste(img, mask=img.split()[3])
+    arr = cv2.cvtColor(np.asarray(bg), cv2.COLOR_RGB2BGR)
+    boxes = _ocr_boxes(ocr, arr)
+    if not boxes:
+        return img
+    arr_rgba = np.asarray(img).copy()
+    h, w = arr_rgba.shape[:2]
+    total_area = float(h * w) or 1.0
+    n_erased = 0
+    for poly, score in boxes:
+        try:
+            if float(score) < conf_thr:
+                continue
+        except (TypeError, ValueError):
+            continue
+        xs = [float(p[0]) for p in poly]
+        ys = [float(p[1]) for p in poly]
+        x1 = max(0, int(min(xs)) - pad)
+        y1 = max(0, int(min(ys)) - pad)
+        x2 = min(w, int(max(xs)) + 1 + pad)
+        y2 = min(h, int(max(ys)) + 1 + pad)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        # 面积上限：过大的框是元件符号误检，跳过
+        if (x2 - x1) * (y2 - y1) > max_area_ratio * total_area:
+            continue
+        arr_rgba[y1:y2, x1:x2, 3] = 0  # alpha 置 0 = 擦除
+        n_erased += 1
+    if n_erased:
+        print(f"    [去文字] 擦除 {n_erased} 处")
+    return Image.fromarray(arr_rgba)
+
 
 def png2svg(img, use_threshold_bg=USE_THRESHOLD_BG, gray_threshold=230):
     """
@@ -58,6 +174,9 @@ def png2svg(img, use_threshold_bg=USE_THRESHOLD_BG, gray_threshold=230):
     else:
         # 原有rembg AI抠除背景
         img_nobg = remove(img)
+    # 去文字：OCR 检测位号/引脚号并擦除（alpha=0）
+    if REMOVE_TEXT:
+        img_nobg = remove_text(img_nobg)
     img_nobg.save(OUTPUT_TRANSPARENT_PNG)
     # ===== 后面保留你原来注释掉的vtracer矢量化代码不变 =====
     # 2. 将透明PNG矢量化为SVG
