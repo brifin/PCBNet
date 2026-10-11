@@ -65,6 +65,7 @@ COMP_TEXT_ATTEMPTS = 100
 COMP_TEXT_PROBABILITY = 0.6
 
 COMPONENT_HEIGHT_RATIO = {
+    # 原有
     "amp": 0.8,
     "led": 0.6,
     "m3螺丝": 0.8,
@@ -77,7 +78,29 @@ COMPONENT_HEIGHT_RATIO = {
     "switch": 0.2,
     "testpoint": 0.3,
     "transformer": 1.5,
-    "v": 0.2,
+    "v": 0.5,
+    "gnd": 0.5,
+    "buzzer": 0.5,
+    "crystal_2pin": 0.6,
+    "amp_3pin": 0.8,
+    "l": 0.2,
+    "c": 0.8,
+    "block": 0.4,
+    "ant": 0.8,
+    "esd": 0.8,
+    "crystal_4pin": 0.6,
+    "transfomer": 1.5, # 拼写错误变体
+    "jumper": 0.6,
+    "amp_5pin": 0.8,
+    "battary": 0.5,
+    "bjt": 0.8,
+    "fuse": 0.3,
+    "d": 0.6,
+    "bjt_npn": 0.8,
+    "circle_header": 0.6,
+    "dc": 0.6,
+    "bjt_pnp": 0.8,
+    "crystal_3pin": 0.6,
 }
 
 Point = Tuple[int, int]
