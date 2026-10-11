@@ -8,13 +8,13 @@ from tqdm import tqdm
 from pathlib import Path
 
 # ==================== 单个提取配置 ====================
-target_comp_name = "0009_∅124"
+target_comp_name = ""
 
 # ==================== 修复 bbox 相对坐标 ====================
 fix_bbox_left_padding     =  5
 fix_bbox_right_padding    =  5
-fix_bbox_down_padding     =  0
-fix_bbox_up_padding       =  0
+fix_bbox_down_padding     =  5
+fix_bbox_up_padding       =  5
 
 # ==================== 修复 pin 相对坐标 ====================
 fix_pin = {
