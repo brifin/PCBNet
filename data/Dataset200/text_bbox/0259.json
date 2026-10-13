@@ -1,0 +1,212 @@
+{
+  "case_id": "0259",
+  "width": 603,
+  "height": 387,
+  "components": {
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": [
+        96.0,
+        85.0,
+        120.0,
+        104.0
+      ],
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "0.05F",
+      "value_bbox": [
+        64.0,
+        102.0,
+        120.0,
+        123.0
+      ]
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        178.0,
+        166.0,
+        199.0,
+        184.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": "11k",
+      "value_bbox": [
+        172.0,
+        183.0,
+        200.0,
+        203.0
+      ]
+    },
+    "∅11": {
+      "name_text": "∅11",
+      "name_bbox": null,
+      "key_text": "∅11",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": [
+        166.0,
+        247.0,
+        187.0,
+        265.0
+      ],
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "0.005F",
+      "value_bbox": [
+        125.0,
+        263.0,
+        189.0,
+        286.0
+      ]
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        80.0,
+        23.0,
+        102.0,
+        41.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": "11k",
+      "value_bbox": [
+        77.0,
+        40.0,
+        106.0,
+        60.0
+      ]
+    },
+    "∅21": {
+      "name_text": "∅21",
+      "name_bbox": null,
+      "key_text": "∅21",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1_2": {
+      "name_text": "C1_2",
+      "name_bbox": [
+        298.0,
+        85.0,
+        320.0,
+        102.0
+      ],
+      "key_text": "C1_2",
+      "key_bbox": null,
+      "value_text": "0.05 F",
+      "value_bbox": [
+        296.0,
+        102.0,
+        351.0,
+        123.0
+      ]
+    },
+    "R5": {
+      "name_text": "R5",
+      "name_bbox": [
+        80.0,
+        281.0,
+        102.0,
+        298.0
+      ],
+      "key_text": "R5",
+      "key_bbox": null,
+      "value_text": "3.6k",
+      "value_bbox": [
+        74.0,
+        298.0,
+        108.0,
+        317.0
+      ]
+    },
+    "R5_2": {
+      "name_text": "R5_2",
+      "name_bbox": [
+        312.0,
+        280.0,
+        334.0,
+        298.0
+      ],
+      "key_text": "R5_2",
+      "key_bbox": null,
+      "value_text": "3.6k",
+      "value_bbox": [
+        306.0,
+        298.0,
+        339.0,
+        317.0
+      ]
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": [
+        197.0,
+        334.0,
+        218.0,
+        352.0
+      ],
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": "500k",
+      "value_bbox": [
+        189.0,
+        352.0,
+        225.0,
+        371.0
+      ]
+    },
+    "∅7": {
+      "name_text": "∅7",
+      "name_bbox": null,
+      "key_text": "∅7",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        194.0,
+        22.0,
+        216.0,
+        40.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": "100k",
+      "value_bbox": [
+        187.0,
+        40.0,
+        223.0,
+        59.0
+      ]
+    },
+    "R1_2": {
+      "name_text": "R1_2",
+      "name_bbox": [
+        311.0,
+        22.0,
+        335.0,
+        43.0
+      ],
+      "key_text": "R1_2",
+      "key_bbox": null,
+      "value_text": "11k",
+      "value_bbox": [
+        309.0,
+        41.0,
+        338.0,
+        60.0
+      ]
+    }
+  },
+  "pins": {}
+}

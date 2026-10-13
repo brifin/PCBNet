@@ -1,0 +1,206 @@
+{
+  "case_id": "0059",
+  "width": 938,
+  "height": 509,
+  "components": {
+    "U1": {
+      "name_text": "U1",
+      "name_bbox": null,
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "Q1": {
+      "name_text": "Q1",
+      "name_bbox": null,
+      "key_text": "Q1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "Q2": {
+      "name_text": "Q2",
+      "name_bbox": null,
+      "key_text": "Q2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        168.0,
+        38.0,
+        204.0,
+        67.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅58": {
+      "name_text": "∅58",
+      "name_bbox": null,
+      "key_text": "∅58",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅65": {
+      "name_text": "∅65",
+      "name_bbox": null,
+      "key_text": "∅65",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        168.0,
+        138.0,
+        206.0,
+        166.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": [
+        231.0,
+        96.0,
+        267.0,
+        126.0
+      ],
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": [
+        256.0,
+        197.0,
+        293.0,
+        226.0
+      ],
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅91": {
+      "name_text": "∅91",
+      "name_bbox": null,
+      "key_text": "∅91",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP1": {
+      "name_text": "TP1",
+      "name_bbox": null,
+      "key_text": "TP1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        647.0,
+        350.0,
+        685.0,
+        378.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP2": {
+      "name_text": "TP2",
+      "name_bbox": null,
+      "key_text": "TP2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_23": {
+        "pin_id": "23",
+        "pin_id_bbox": null,
+        "pin_name": "CO",
+        "pin_name_bbox": [
+          482.0,
+          277.0,
+          524.0,
+          306.0
+        ]
+      },
+      "pin_24": {
+        "pin_id": "24",
+        "pin_id_bbox": null,
+        "pin_name": "VSS",
+        "pin_name_bbox": [
+          314.0,
+          254.0,
+          367.0,
+          281.0
+        ]
+      },
+      "pin_25": {
+        "pin_id": "25",
+        "pin_id_bbox": null,
+        "pin_name": "VM",
+        "pin_name_bbox": [
+          617.0,
+          277.0,
+          659.0,
+          306.0
+        ]
+      },
+      "pin_26": {
+        "pin_id": "26",
+        "pin_id_bbox": null,
+        "pin_name": "DO",
+        "pin_name_bbox": [
+          365.0,
+          277.0,
+          408.0,
+          305.0
+        ]
+      },
+      "pin_C1": {
+        "pin_id": "C1",
+        "pin_id_bbox": null,
+        "pin_name": "VDD",
+        "pin_name_bbox": [
+          313.0,
+          70.0,
+          370.0,
+          95.0
+        ]
+      },
+      "pin_C2": {
+        "pin_id": "C2",
+        "pin_id_bbox": null,
+        "pin_name": "VC",
+        "pin_name_bbox": [
+          313.0,
+          169.0,
+          354.0,
+          197.0
+        ]
+      }
+    }
+  }
+}

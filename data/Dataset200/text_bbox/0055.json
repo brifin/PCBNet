@@ -1,0 +1,156 @@
+{
+  "case_id": "0055",
+  "width": 775,
+  "height": 425,
+  "components": {
+    "U1": {
+      "name_text": "LM2941",
+      "name_bbox": [
+        284.0,
+        220.0,
+        361.0,
+        241.0
+      ],
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        521.0,
+        302.0,
+        553.0,
+        329.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        518.0,
+        197.0,
+        551.0,
+        223.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP1": {
+      "name_text": "TP1",
+      "name_bbox": null,
+      "key_text": "TP1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅56": {
+      "name_text": "∅56",
+      "name_bbox": null,
+      "key_text": "∅56",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP2": {
+      "name_text": "TP2",
+      "name_bbox": null,
+      "key_text": "TP2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅65": {
+      "name_text": "∅65",
+      "name_bbox": null,
+      "key_text": "∅65",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP3": {
+      "name_text": "TP3",
+      "name_bbox": null,
+      "key_text": "TP3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": null,
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "470 nF",
+      "value_bbox": [
+        380.0,
+        49.0,
+        447.0,
+        72.0
+      ]
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": null,
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "22μF",
+      "value_bbox": [
+        617.0,
+        250.0,
+        677.0,
+        280.0
+      ]
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_28": {
+        "pin_id": "28",
+        "pin_id_bbox": null,
+        "pin_name": "P_10",
+        "pin_name_bbox": null
+      },
+      "pin_31": {
+        "pin_id": "31",
+        "pin_id_bbox": null,
+        "pin_name": "P_4",
+        "pin_name_bbox": null
+      },
+      "pin_33": {
+        "pin_id": "33",
+        "pin_id_bbox": null,
+        "pin_name": "P_8",
+        "pin_name_bbox": null
+      },
+      "pin_ADJ": {
+        "pin_id": "ADJ",
+        "pin_id_bbox": [
+          402.0,
+          236.0,
+          447.0,
+          259.0
+        ],
+        "pin_name": "ADJ",
+        "pin_name_bbox": null
+      },
+      "pin_IN": {
+        "pin_id": "IN",
+        "pin_id_bbox": [
+          326.0,
+          106.0,
+          354.0,
+          133.0
+        ],
+        "pin_name": "IN",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

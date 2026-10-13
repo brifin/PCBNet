@@ -1,0 +1,278 @@
+{
+  "case_id": "0242",
+  "width": 2023,
+  "height": 908,
+  "components": {
+    "∅1": {
+      "name_text": "∅1",
+      "name_bbox": null,
+      "key_text": "∅1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅10": {
+      "name_text": "∅10",
+      "name_bbox": null,
+      "key_text": "∅10",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅13": {
+      "name_text": "∅13",
+      "name_bbox": null,
+      "key_text": "∅13",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅14": {
+      "name_text": "∅14",
+      "name_bbox": null,
+      "key_text": "∅14",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅15": {
+      "name_text": "∅15",
+      "name_bbox": null,
+      "key_text": "∅15",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅17": {
+      "name_text": "∅17",
+      "name_bbox": null,
+      "key_text": "∅17",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅2": {
+      "name_text": "∅2",
+      "name_bbox": null,
+      "key_text": "∅2",
+      "key_bbox": null,
+      "value_text": "4.7μF",
+      "value_bbox": [
+        1388.28375,
+        720.8356545961003,
+        1470.468125,
+        758.7743732590529
+      ]
+    },
+    "∅3": {
+      "name_text": "∅3",
+      "name_bbox": null,
+      "key_text": "∅3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅4": {
+      "name_text": "∅4",
+      "name_bbox": null,
+      "key_text": "∅4",
+      "key_bbox": null,
+      "value_text": "4.7μF",
+      "value_bbox": [
+        1387.019375,
+        403.4150417827298,
+        1470.468125,
+        445.1476323119777
+      ]
+    },
+    "∅5": {
+      "name_text": "∅5",
+      "name_bbox": null,
+      "key_text": "∅5",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅6": {
+      "name_text": "∅6",
+      "name_bbox": null,
+      "key_text": "∅6",
+      "key_bbox": null,
+      "value_text": "4.7μF",
+      "value_bbox": [
+        1388.28375,
+        561.4930362116992,
+        1470.468125,
+        598.1671309192201
+      ]
+    },
+    "∅7": {
+      "name_text": "∅7",
+      "name_bbox": null,
+      "key_text": "∅7",
+      "key_bbox": null,
+      "value_text": "2.2μF",
+      "value_bbox": [
+        725.75125,
+        650.016713091922,
+        804.1425,
+        687.9554317548747
+      ]
+    },
+    "∅9": {
+      "name_text": "∅9",
+      "name_bbox": null,
+      "key_text": "∅9",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "∅1": {
+      "pin_4.7μF": {
+        "pin_id": "4.7μF",
+        "pin_id_bbox": null,
+        "pin_name": "ENP",
+        "pin_name_bbox": [
+          926.786875,
+          326.27298050139274,
+          991.27,
+          361.6824512534819
+        ]
+      },
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": null,
+        "pin_name": "AGND",
+        "pin_name_bbox": [
+          972.304375,
+          747.3927576601671,
+          1058.2818750000001,
+          779.008356545961
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "ENN",
+        "pin_name_bbox": [
+          926.786875,
+          390.76880222841226,
+          993.79875,
+          426.1782729805014
+        ]
+      },
+      "pin_4.7μH": {
+        "pin_id": "4.7μH",
+        "pin_id_bbox": null,
+        "pin_name": "SW",
+        "pin_name_bbox": [
+          1131.6156250000001,
+          261.7771587743733,
+          1185.98375,
+          297.1866295264624
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "SCL",
+        "pin_name_bbox": [
+          926.786875,
+          455.2646239554318,
+          990.005625,
+          493.2033426183844
+        ]
+      },
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": null,
+        "pin_name": "CFLY1",
+        "pin_name_bbox": [
+          928.05125,
+          585.5208913649025,
+          1016.5575,
+          619.66573816156
+        ]
+      },
+      "pin_7": {
+        "pin_id": "7",
+        "pin_id_bbox": null,
+        "pin_name": "OUTN",
+        "pin_name_bbox": [
+          1164.489375,
+          657.6044568245126,
+          1249.2025,
+          691.7493036211699
+        ]
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": null,
+        "pin_name": "SDA",
+        "pin_name_bbox": [
+          926.786875,
+          521.025069637883,
+          992.5343750000001,
+          556.4345403899722
+        ]
+      },
+      "pin_9": {
+        "pin_id": "9",
+        "pin_id_bbox": null,
+        "pin_name": "OUTP",
+        "pin_name_bbox": [
+          1165.75375,
+          342.71309192200556,
+          1249.2025,
+          376.857938718663
+        ]
+      },
+      "pin_10": {
+        "pin_id": "10",
+        "pin_id_bbox": null,
+        "pin_name": "REG",
+        "pin_name_bbox": [
+          1180.92625,
+          496.99721448467966,
+          1247.9381250000001,
+          529.8774373259052
+        ]
+      },
+      "pin_11": {
+        "pin_id": "11",
+        "pin_id_bbox": null,
+        "pin_name": "PGND",
+        "pin_name_bbox": [
+          1117.7075,
+          747.3927576601671,
+          1202.420625,
+          779.008356545961
+        ]
+      },
+      "pin_12": {
+        "pin_id": "12",
+        "pin_id_bbox": null,
+        "pin_name": "VIN",
+        "pin_name_bbox": [
+          986.2125,
+          261.7771587743733,
+          1041.845,
+          297.1866295264624
+        ]
+      },
+      "pin_13": {
+        "pin_id": "13",
+        "pin_id_bbox": null,
+        "pin_name": "CFLY2",
+        "pin_name_bbox": [
+          928.05125,
+          682.8969359331477,
+          1019.0862500000001,
+          714.5125348189415
+        ]
+      }
+    }
+  }
+}

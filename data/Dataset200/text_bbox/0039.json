@@ -1,0 +1,284 @@
+{
+  "case_id": "0039",
+  "width": 1081,
+  "height": 604,
+  "components": {
+    "Q1": {
+      "name_text": "Q1",
+      "name_bbox": null,
+      "key_text": "Q1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "X1": {
+      "name_text": "X1",
+      "name_bbox": [
+        297.0,
+        227.0,
+        326.0,
+        247.0
+      ],
+      "key_text": "X1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "L1": {
+      "name_text": "L1",
+      "name_bbox": null,
+      "key_text": "L1",
+      "key_bbox": null,
+      "value_text": "4.7μH",
+      "value_bbox": [
+        642.0,
+        338.0,
+        694.0,
+        360.0
+      ]
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        147.0,
+        250.0,
+        176.0,
+        270.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": "5.6kΩ",
+      "value_bbox": [
+        136.0,
+        269.0,
+        200.0,
+        291.0
+      ]
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        791.0,
+        409.0,
+        816.0,
+        426.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": "1.5kΩ",
+      "value_bbox": [
+        776.0,
+        426.0,
+        842.0,
+        452.0
+      ]
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": [
+        645.0,
+        410.0,
+        671.0,
+        426.0
+      ],
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U2": {
+      "name_text": "U2",
+      "name_bbox": [
+        784.0,
+        281.0,
+        810.0,
+        297.0
+      ],
+      "key_text": "U2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "xSC1": {
+      "name_text": "xSC1",
+      "name_bbox": [
+        951.0,
+        275.0,
+        996.0,
+        294.0
+      ],
+      "key_text": "xSC1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C3": {
+      "name_text": "C3",
+      "name_bbox": [
+        501.0,
+        227.0,
+        531.0,
+        248.0
+      ],
+      "key_text": "C3",
+      "key_bbox": null,
+      "value_text": "200pF",
+      "value_bbox": [
+        500.0,
+        247.0,
+        556.0,
+        269.0
+      ]
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": [
+        502.0,
+        419.0,
+        531.0,
+        439.0
+      ],
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "0.01μF",
+      "value_bbox": [
+        500.0,
+        439.0,
+        561.0,
+        460.0
+      ]
+    },
+    "C4": {
+      "name_text": "C4",
+      "name_bbox": [
+        498.0,
+        314.0,
+        531.0,
+        338.0
+      ],
+      "key_text": "C4",
+      "key_bbox": null,
+      "value_text": "330pF",
+      "value_bbox": [
+        501.0,
+        338.0,
+        556.0,
+        360.0
+      ]
+    },
+    "∅110": {
+      "name_text": "∅110",
+      "name_bbox": null,
+      "key_text": "∅110",
+      "key_bbox": null,
+      "value_text": "VCC",
+      "value_bbox": [
+        872.0,
+        13.0,
+        918.0,
+        39.0
+      ]
+    },
+    "∅115": {
+      "name_text": "∅115",
+      "name_bbox": null,
+      "key_text": "∅115",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": [
+        243.0,
+        331.0,
+        269.0,
+        347.0
+      ],
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "20pF",
+      "value_bbox": [
+        241.0,
+        348.0,
+        288.0,
+        371.0
+      ]
+    },
+    "C5": {
+      "name_text": "C5",
+      "name_bbox": [
+        338.0,
+        322.0,
+        365.0,
+        340.0
+      ],
+      "key_text": "C5",
+      "key_bbox": null,
+      "value_text": "35pF",
+      "value_bbox": [
+        337.0,
+        341.0,
+        383.0,
+        360.0
+      ]
+    },
+    "R5": {
+      "name_text": "R5",
+      "name_bbox": [
+        155.0,
+        81.0,
+        186.0,
+        105.0
+      ],
+      "key_text": "R5",
+      "key_bbox": null,
+      "value_text": "50kΩ",
+      "value_bbox": [
+        155.0,
+        106.0,
+        203.0,
+        125.0
+      ]
+    }
+  },
+  "pins": {
+    "xSC1": {
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "Ext Trig",
+        "pin_name_bbox": [
+          997.0,
+          324.0,
+          1031.0,
+          338.0
+        ]
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": null,
+        "pin_name": "8",
+        "pin_name_bbox": null
+      },
+      "pin_86": {
+        "pin_id": "86",
+        "pin_id_bbox": null,
+        "pin_name": "P_16",
+        "pin_name_bbox": null
+      },
+      "pin_88": {
+        "pin_id": "88",
+        "pin_id_bbox": null,
+        "pin_name": "A",
+        "pin_name_bbox": null
+      },
+      "pin_90": {
+        "pin_id": "90",
+        "pin_id_bbox": null,
+        "pin_name": "P_6",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

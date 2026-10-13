@@ -1,0 +1,169 @@
+{
+  "case_id": "0224",
+  "width": 794,
+  "height": 411,
+  "components": {
+    "R5": {
+      "name_text": "R5",
+      "name_bbox": [
+        413.0,
+        306.0,
+        446.0,
+        330.0
+      ],
+      "key_text": "R5",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": [
+        224.0,
+        236.0,
+        258.0,
+        261.0
+      ],
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "0.005 F",
+      "value_bbox": [
+        168.0,
+        261.0,
+        254.0,
+        286.0
+      ]
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        235.0,
+        174.0,
+        268.0,
+        199.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        260.0,
+        37.0,
+        296.0,
+        65.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "LME49743": {
+      "name_text": "LME49743",
+      "name_bbox": [
+        582.0,
+        253.0,
+        687.0,
+        277.0
+      ],
+      "key_text": "LME49743",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅3": {
+      "name_text": "∅3",
+      "name_bbox": null,
+      "key_text": "∅3",
+      "key_bbox": null,
+      "value_text": "0.05 F",
+      "value_bbox": [
+        365.0,
+        113.0,
+        440.0,
+        137.0
+      ]
+    },
+    "R5_2": {
+      "name_text": "R5_2",
+      "name_bbox": [
+        96.0,
+        307.0,
+        130.0,
+        331.0
+      ],
+      "key_text": "R5_2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        399.0,
+        39.0,
+        433.0,
+        62.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅6": {
+      "name_text": "∅6",
+      "name_bbox": null,
+      "key_text": "∅6",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1_2": {
+      "name_text": "R1_2",
+      "name_bbox": [
+        126.0,
+        39.0,
+        157.0,
+        62.0
+      ],
+      "key_text": "R1_2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": [
+        160.0,
+        89.0,
+        192.0,
+        113.0
+      ],
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "0.05 F",
+      "value_bbox": [
+        115.0,
+        112.0,
+        191.0,
+        136.0
+      ]
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": [
+        263.0,
+        357.0,
+        297.0,
+        380.0
+      ],
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {}
+}

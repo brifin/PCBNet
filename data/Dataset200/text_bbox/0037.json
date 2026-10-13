@@ -1,0 +1,192 @@
+{
+  "case_id": "0037",
+  "width": 701,
+  "height": 675,
+  "components": {
+    "Q1": {
+      "name_text": "Q1",
+      "name_bbox": [
+        465.0,
+        285.0,
+        507.0,
+        326.0
+      ],
+      "key_text": "Q1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": null,
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "30p",
+      "value_bbox": [
+        364.0,
+        150.0,
+        422.0,
+        195.0
+      ]
+    },
+    "L1": {
+      "name_text": "L1",
+      "name_bbox": [
+        475.0,
+        119.0,
+        518.0,
+        153.0
+      ],
+      "key_text": "L1",
+      "key_bbox": null,
+      "value_text": "1.35uH",
+      "value_bbox": [
+        467.0,
+        162.0,
+        556.0,
+        198.0
+      ]
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": [
+        387.0,
+        493.0,
+        427.0,
+        529.0
+      ],
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "0.01u",
+      "value_bbox": [
+        365.0,
+        548.0,
+        441.0,
+        588.0
+      ]
+    },
+    "C4": {
+      "name_text": "C4",
+      "name_bbox": null,
+      "key_text": "C4",
+      "key_bbox": null,
+      "value_text": "30p",
+      "value_bbox": [
+        142.0,
+        285.0,
+        196.0,
+        326.0
+      ]
+    },
+    "C3": {
+      "name_text": "C3",
+      "name_bbox": [
+        587.0,
+        198.0,
+        626.0,
+        233.0
+      ],
+      "key_text": "C3",
+      "key_bbox": null,
+      "value_text": "100p",
+      "value_bbox": [
+        576.0,
+        288.0,
+        640.0,
+        328.0
+      ]
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        94.0,
+        474.0,
+        135.0,
+        509.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": "20k",
+      "value_bbox": [
+        94.0,
+        509.0,
+        142.0,
+        542.0
+      ]
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": null,
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": "62k",
+      "value_bbox": [
+        96.0,
+        141.0,
+        146.0,
+        175.0
+      ]
+    },
+    "Y1": {
+      "name_text": "Y1",
+      "name_bbox": [
+        257.0,
+        194.0,
+        299.0,
+        228.0
+      ],
+      "key_text": "Y1",
+      "key_bbox": null,
+      "value_text": "25MHz",
+      "value_bbox": [
+        227.0,
+        288.0,
+        320.0,
+        324.0
+      ]
+    },
+    "∅67": {
+      "name_text": "∅67",
+      "name_bbox": null,
+      "key_text": "∅67",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        553.0,
+        500.0,
+        592.0,
+        535.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP1": {
+      "name_text": "TP1",
+      "name_bbox": null,
+      "key_text": "TP1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅81": {
+      "name_text": "∅81",
+      "name_bbox": null,
+      "key_text": "∅81",
+      "key_bbox": null,
+      "value_text": "Vcc",
+      "value_bbox": [
+        609.0,
+        5.0,
+        667.0,
+        41.0
+      ]
+    }
+  },
+  "pins": {}
+}
