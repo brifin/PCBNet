@@ -56,6 +56,7 @@ def main() -> int:
     cmap = load_category_map()
     coarse = load_coarse_map()
     out = project_root() / cfg.get("output_root", "outputs") / "labels"
+    text_bbox_root = project_root() / cfg.get("text_bbox_root", "data/Dataset200/text_bbox")
     index = index_cases(cases)
     if args.verify_only:
         errors = verify_labels(out, wanted, names)
@@ -67,7 +68,9 @@ def main() -> int:
     for split in wanted:
         ids = splits.get(split, [])
         print(f"[export] {split} n={len(ids)}")
-        manifest["splits"][split] = export_split(index, ids, split, out, names, cmap, coarse)
+        manifest["splits"][split] = export_split(
+            index, ids, split, out, names, cmap, coarse, text_bbox_root=text_bbox_root
+        )
         for row in manifest["splits"][split]["cases"]:
             print(
                 f"  {row.get('case_id')} {row.get('status')} boxes={row.get('boxes')} "
