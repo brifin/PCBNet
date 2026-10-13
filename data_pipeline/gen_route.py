@@ -19,7 +19,7 @@ BASE_DIR = Path("/data/luoxuan/PCBNet/data/base_comps")
 PINS_JSON_PATH = BASE_DIR / "pins.json"
 OUTPUT_DIR = Path("/data/luoxuan/PCBNet/data/Synthetic_Data")
 
-NUM_CASES = 10 # 生成数量
+NUM_CASES = 300 # 生成数量
 
 # 网络随机性设置
 BOARD_W = 2000 # 宽

@@ -1,0 +1,947 @@
+{
+  "case_id": "0074",
+  "width": 1533,
+  "height": 1238,
+  "components": {
+    "U1": {
+      "name_text": "CYPD3121-40LQXIT",
+      "name_bbox": [
+        503.0,
+        561.0,
+        721.0,
+        581.0
+      ],
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U2": {
+      "name_text": "Type-C Receptacle",
+      "name_bbox": null,
+      "key_text": "U2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": null,
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": "1μF",
+      "value_bbox": [
+        168.0,
+        464.0,
+        203.0,
+        484.0
+      ]
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": null,
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "390pF",
+      "value_bbox": [
+        1200.0,
+        622.0,
+        1249.0,
+        641.0
+      ]
+    },
+    "C3": {
+      "name_text": "C3",
+      "name_bbox": null,
+      "key_text": "C3",
+      "key_bbox": null,
+      "value_text": "0.1μF",
+      "value_bbox": [
+        84.0,
+        462.0,
+        134.0,
+        486.0
+      ]
+    },
+    "C4": {
+      "name_text": "C4",
+      "name_bbox": null,
+      "key_text": "C4",
+      "key_bbox": null,
+      "value_text": "0.1μF",
+      "value_bbox": [
+        13.0,
+        462.0,
+        63.0,
+        486.0
+      ]
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": null,
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": "100Ω",
+      "value_bbox": [
+        1072.0,
+        466.0,
+        1116.0,
+        485.0
+      ]
+    },
+    "C5": {
+      "name_text": "C5",
+      "name_bbox": null,
+      "key_text": "C5",
+      "key_bbox": null,
+      "value_text": "0.1μF",
+      "value_bbox": [
+        226.0,
+        586.0,
+        275.0,
+        608.0
+      ]
+    },
+    "C6": {
+      "name_text": "C6",
+      "name_bbox": null,
+      "key_text": "C6",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C7": {
+      "name_text": "C7",
+      "name_bbox": null,
+      "key_text": "C7",
+      "key_bbox": null,
+      "value_text": "0.1μF",
+      "value_bbox": [
+        156.0,
+        586.0,
+        204.0,
+        608.0
+      ]
+    },
+    "C8": {
+      "name_text": "C8",
+      "name_bbox": null,
+      "key_text": "C8",
+      "key_bbox": null,
+      "value_text": "1μF",
+      "value_bbox": [
+        309.0,
+        587.0,
+        344.0,
+        607.0
+      ]
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": null,
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C9": {
+      "name_text": "C9",
+      "name_bbox": null,
+      "key_text": "C9",
+      "key_bbox": null,
+      "value_text": "10μF",
+      "value_bbox": [
+        956.0,
+        217.0,
+        998.0,
+        239.0
+      ]
+    },
+    "C10": {
+      "name_text": "C10",
+      "name_bbox": null,
+      "key_text": "C10",
+      "key_bbox": null,
+      "value_text": "0.1μF",
+      "value_bbox": [
+        914.0,
+        834.0,
+        959.0,
+        853.0
+      ]
+    },
+    "∅224": {
+      "name_text": "∅224",
+      "name_bbox": null,
+      "key_text": "∅224",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C11": {
+      "name_text": "C11",
+      "name_bbox": null,
+      "key_text": "C11",
+      "key_bbox": null,
+      "value_text": "1μF",
+      "value_bbox": [
+        473.0,
+        209.0,
+        507.0,
+        229.0
+      ]
+    },
+    "∅235": {
+      "name_text": "∅235",
+      "name_bbox": null,
+      "key_text": "∅235",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C12": {
+      "name_text": "C12",
+      "name_bbox": null,
+      "key_text": "C12",
+      "key_bbox": null,
+      "value_text": "1uF",
+      "value_bbox": [
+        501.0,
+        902.0,
+        533.0,
+        922.0
+      ]
+    },
+    "∅246": {
+      "name_text": "∅246",
+      "name_bbox": null,
+      "key_text": "∅246",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅251": {
+      "name_text": "∅251",
+      "name_bbox": null,
+      "key_text": "∅251",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅256": {
+      "name_text": "∅256",
+      "name_bbox": null,
+      "key_text": "∅256",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅260": {
+      "name_text": "∅260",
+      "name_bbox": null,
+      "key_text": "∅260",
+      "key_bbox": null,
+      "value_text": "VBUS",
+      "value_bbox": [
+        1132.0,
+        151.0,
+        1181.0,
+        170.0
+      ]
+    },
+    "∅265": {
+      "name_text": "∅265",
+      "name_bbox": null,
+      "key_text": "∅265",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅269": {
+      "name_text": "∅269",
+      "name_bbox": null,
+      "key_text": "∅269",
+      "key_bbox": null,
+      "value_text": "VBUS",
+      "value_bbox": [
+        304.0,
+        338.0,
+        353.0,
+        357.0
+      ]
+    },
+    "∅274": {
+      "name_text": "∅274",
+      "name_bbox": null,
+      "key_text": "∅274",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅278": {
+      "name_text": "∅278",
+      "name_bbox": null,
+      "key_text": "∅278",
+      "key_bbox": null,
+      "value_text": "VBATT",
+      "value_bbox": [
+        191.0,
+        412.0,
+        246.0,
+        430.0
+      ]
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": null,
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": "10MΩ",
+      "value_bbox": [
+        803.0,
+        111.0,
+        860.0,
+        129.0
+      ]
+    },
+    "U3": {
+      "name_text": "Type-A Receptacle",
+      "name_bbox": null,
+      "key_text": "U3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅295": {
+      "name_text": "∅295",
+      "name_bbox": null,
+      "key_text": "∅295",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U4": {
+      "name_text": "Discrete Ckts to support Legacy Charge Source",
+      "name_bbox": null,
+      "key_text": "U4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅306": {
+      "name_text": "∅306",
+      "name_bbox": null,
+      "key_text": "∅306",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "Q1": {
+      "name_text": "Q1",
+      "name_bbox": null,
+      "key_text": "Q1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅318": {
+      "name_text": "∅318",
+      "name_bbox": null,
+      "key_text": "∅318",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅323": {
+      "name_text": "∅323",
+      "name_bbox": null,
+      "key_text": "∅323",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": [
+          729.0,
+          266.0,
+          741.0,
+          280.0
+        ],
+        "pin_name": "VBUS_P_CTRLO VBUS_P_CTRL1",
+        "pin_name_bbox": [
+          538.0,
+          296.0,
+          793.0,
+          320.0
+        ]
+      },
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": [
+          600.0,
+          265.0,
+          614.0,
+          282.0
+        ],
+        "pin_name": "2",
+        "pin_name_bbox": null
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": [
+          800.0,
+          540.0,
+          817.0,
+          560.0
+        ],
+        "pin_name": "CC2",
+        "pin_name_bbox": [
+          757.0,
+          543.0,
+          796.0,
+          564.0
+        ]
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": [
+          407.0,
+          342.0,
+          421.0,
+          358.0
+        ],
+        "pin_name": "V5V",
+        "pin_name_bbox": [
+          427.0,
+          349.0,
+          464.0,
+          369.0
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": [
+          801.0,
+          568.0,
+          817.0,
+          588.0
+        ],
+        "pin_name": "CC1",
+        "pin_name_bbox": [
+          758.0,
+          579.0,
+          794.0,
+          599.0
+        ]
+      },
+      "pin_6_1": {
+        "pin_id": "6_1",
+        "pin_id_bbox": [
+          803.0,
+          628.0,
+          817.0,
+          644.0
+        ],
+        "pin_name": "VCONN",
+        "pin_name_bbox": [
+          734.0,
+          634.0,
+          796.0,
+          655.0
+        ]
+      },
+      "pin_6_2": {
+        "pin_id": "6_2",
+        "pin_id_bbox": null,
+        "pin_name": "I2C",
+        "pin_name_bbox": [
+          604.0,
+          844.0,
+          639.0,
+          866.0
+        ]
+      },
+      "pin_10": {
+        "pin_id": "10",
+        "pin_id_bbox": [
+          715.0,
+          885.0,
+          740.0,
+          906.0
+        ],
+        "pin_name": "I2C",
+        "pin_name_bbox": [
+          688.0,
+          846.0,
+          719.0,
+          865.0
+        ]
+      },
+      "pin_11": {
+        "pin_id": "11",
+        "pin_id_bbox": null,
+        "pin_name": "AUX_P/GPIO",
+        "pin_name_bbox": [
+          697.0,
+          740.0,
+          791.0,
+          758.0
+        ]
+      },
+      "pin_12": {
+        "pin_id": "12",
+        "pin_id_bbox": [
+          400.0,
+          654.0,
+          424.0,
+          673.0
+        ],
+        "pin_name": "GPIO/SBU1",
+        "pin_name_bbox": [
+          428.0,
+          664.0,
+          513.0,
+          681.0
+        ]
+      },
+      "pin_13": {
+        "pin_id": "13",
+        "pin_id_bbox": [
+          400.0,
+          691.0,
+          424.0,
+          710.0
+        ],
+        "pin_name": "GPIO/SBU2",
+        "pin_name_bbox": [
+          428.0,
+          700.0,
+          515.0,
+          718.0
+        ]
+      },
+      "pin_14": {
+        "pin_id": "14",
+        "pin_id_bbox": [
+          799.0,
+          766.0,
+          826.0,
+          786.0
+        ],
+        "pin_name": "AUX_N/GPIO",
+        "pin_name_bbox": [
+          697.0,
+          775.0,
+          792.0,
+          793.0
+        ]
+      },
+      "pin_17": {
+        "pin_id": "17",
+        "pin_id_bbox": [
+          400.0,
+          550.0,
+          425.0,
+          570.0
+        ],
+        "pin_name": "VDDD",
+        "pin_name_bbox": [
+          426.0,
+          560.0,
+          475.0,
+          579.0
+        ]
+      },
+      "pin_19": {
+        "pin_id": "19",
+        "pin_id_bbox": [
+          550.0,
+          885.0,
+          574.0,
+          904.0
+        ],
+        "pin_name": "VCCD",
+        "pin_name_bbox": [
+          526.0,
+          856.0,
+          577.0,
+          880.0
+        ]
+      },
+      "pin_24": {
+        "pin_id": "24",
+        "pin_id_bbox": null,
+        "pin_name": "GPIO",
+        "pin_name_bbox": [
+          428.0,
+          492.0,
+          472.0,
+          511.0
+        ]
+      },
+      "pin_25": {
+        "pin_id": "25",
+        "pin_id_bbox": null,
+        "pin_name": "GPIO",
+        "pin_name_bbox": null
+      },
+      "pin_27": {
+        "pin_id": "27",
+        "pin_id_bbox": null,
+        "pin_name": "GPIO",
+        "pin_name_bbox": null
+      },
+      "pin_28": {
+        "pin_id": "28",
+        "pin_id_bbox": null,
+        "pin_name": "GPIO",
+        "pin_name_bbox": null
+      },
+      "pin_34": {
+        "pin_id": "34",
+        "pin_id_bbox": [
+          399.0,
+          791.0,
+          425.0,
+          811.0
+        ],
+        "pin_name": "GPIO",
+        "pin_name_bbox": [
+          426.0,
+          801.0,
+          471.0,
+          822.0
+        ]
+      },
+      "pin_35": {
+        "pin_id": "35",
+        "pin_id_bbox": [
+          471.0,
+          884.0,
+          496.0,
+          906.0
+        ],
+        "pin_name": "GPIO",
+        "pin_name_bbox": [
+          452.0,
+          854.0,
+          497.0,
+          873.0
+        ]
+      },
+      "pin_36": {
+        "pin_id": "36",
+        "pin_id_bbox": [
+          400.0,
+          755.0,
+          424.0,
+          776.0
+        ],
+        "pin_name": "I2C_SDA/GPIO",
+        "pin_name_bbox": [
+          427.0,
+          769.0,
+          537.0,
+          789.0
+        ]
+      },
+      "pin_37": {
+        "pin_id": "37",
+        "pin_id_bbox": [
+          400.0,
+          722.0,
+          424.0,
+          744.0
+        ],
+        "pin_name": "I2C_SCL/GPIO",
+        "pin_name_bbox": [
+          426.0,
+          736.0,
+          535.0,
+          756.0
+        ]
+      },
+      "pin_38": {
+        "pin_id": "38",
+        "pin_id_bbox": null,
+        "pin_name": "GPIO",
+        "pin_name_bbox": null
+      },
+      "pin_39": {
+        "pin_id": "39",
+        "pin_id_bbox": [
+          442.0,
+          265.0,
+          468.0,
+          286.0
+        ],
+        "pin_name": "oC",
+        "pin_name_bbox": [
+          429.0,
+          300.0,
+          458.0,
+          319.0
+        ]
+      },
+      "pin_123": {
+        "pin_id": "123",
+        "pin_id_bbox": null,
+        "pin_name": "VDDIO",
+        "pin_name_bbox": [
+          425.0,
+          594.0,
+          480.0,
+          615.0
+        ]
+      },
+      "pin_124": {
+        "pin_id": "124",
+        "pin_id_bbox": null,
+        "pin_name": "XRES",
+        "pin_name_bbox": [
+          749.0,
+          810.0,
+          796.0,
+          829.0
+        ]
+      },
+      "pin_125": {
+        "pin_id": "125",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS",
+        "pin_name_bbox": [
+          428.0,
+          376.0,
+          475.0,
+          395.0
+        ]
+      },
+      "pin_126": {
+        "pin_id": "126",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS_C_CTRL1",
+        "pin_name_bbox": [
+          671.0,
+          353.0,
+          793.0,
+          373.0
+        ]
+      },
+      "pin_128": {
+        "pin_id": "128",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          755.0,
+          845.0,
+          794.0,
+          864.0
+        ]
+      },
+      "pin_129": {
+        "pin_id": "129",
+        "pin_id_bbox": null,
+        "pin_name": "VSYS",
+        "pin_name_bbox": [
+          425.0,
+          436.0,
+          473.0,
+          458.0
+        ]
+      },
+      "pin_130": {
+        "pin_id": "130",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS_C_CTRL0",
+        "pin_name_bbox": [
+          670.0,
+          477.0,
+          793.0,
+          497.0
+        ]
+      },
+      "pin_131": {
+        "pin_id": "131",
+        "pin_id_bbox": null,
+        "pin_name": "DMINUS",
+        "pin_name_bbox": [
+          728.0,
+          708.0,
+          791.0,
+          726.0
+        ]
+      },
+      "pin_132": {
+        "pin_id": "132",
+        "pin_id_bbox": null,
+        "pin_name": "P_58",
+        "pin_name_bbox": null
+      },
+      "pin_134": {
+        "pin_id": "134",
+        "pin_id_bbox": null,
+        "pin_name": "DPLUS",
+        "pin_name_bbox": [
+          736.0,
+          669.0,
+          794.0,
+          689.0
+        ]
+      },
+      "pin_135": {
+        "pin_id": "135",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS_P",
+        "pin_name_bbox": [
+          426.0,
+          402.0,
+          494.0,
+          426.0
+        ]
+      }
+    },
+    "U2": {
+      "pin_138": {
+        "pin_id": "138",
+        "pin_id_bbox": null,
+        "pin_name": "CC2",
+        "pin_name_bbox": [
+          1330.0,
+          552.0,
+          1367.0,
+          571.0
+        ]
+      },
+      "pin_139": {
+        "pin_id": "139",
+        "pin_id_bbox": null,
+        "pin_name": "Ss",
+        "pin_name_bbox": [
+          1330.0,
+          795.0,
+          1358.0,
+          816.0
+        ]
+      },
+      "pin_140": {
+        "pin_id": "140",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS",
+        "pin_name_bbox": [
+          1329.0,
+          424.0,
+          1379.0,
+          445.0
+        ]
+      },
+      "pin_141": {
+        "pin_id": "141",
+        "pin_id_bbox": null,
+        "pin_name": "DP",
+        "pin_name_bbox": [
+          1329.0,
+          817.0,
+          1358.0,
+          837.0
+        ]
+      },
+      "pin_142": {
+        "pin_id": "142",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          1331.0,
+          861.0,
+          1371.0,
+          880.0
+        ]
+      },
+      "pin_143": {
+        "pin_id": "143",
+        "pin_id_bbox": null,
+        "pin_name": "CC1",
+        "pin_name_bbox": [
+          1333.0,
+          580.0,
+          1370.0,
+          600.0
+        ]
+      },
+      "pin_144": {
+        "pin_id": "144",
+        "pin_id_bbox": null,
+        "pin_name": "DN",
+        "pin_name_bbox": [
+          1329.0,
+          836.0,
+          1359.0,
+          856.0
+        ]
+      }
+    },
+    "U3": {
+      "pin_286": {
+        "pin_id": "286",
+        "pin_id_bbox": null,
+        "pin_name": "DP",
+        "pin_name_bbox": [
+          1332.0,
+          1115.0,
+          1361.0,
+          1136.0
+        ]
+      },
+      "pin_287": {
+        "pin_id": "287",
+        "pin_id_bbox": null,
+        "pin_name": "DN",
+        "pin_name_bbox": [
+          1333.0,
+          1138.0,
+          1363.0,
+          1158.0
+        ]
+      },
+      "pin_288": {
+        "pin_id": "288",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          1336.0,
+          1159.0,
+          1376.0,
+          1177.0
+        ]
+      },
+      "pin_289": {
+        "pin_id": "289",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS",
+        "pin_name_bbox": [
+          1335.0,
+          956.0,
+          1383.0,
+          975.0
+        ]
+      }
+    },
+    "U4": {
+      "pin_297": {
+        "pin_id": "297",
+        "pin_id_bbox": null,
+        "pin_name": "P_57",
+        "pin_name_bbox": null
+      },
+      "pin_299": {
+        "pin_id": "299",
+        "pin_id_bbox": null,
+        "pin_name": "P_61",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

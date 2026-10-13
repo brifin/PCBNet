@@ -1,0 +1,186 @@
+{
+  "case_id": "0068",
+  "width": 894,
+  "height": 554,
+  "components": {
+    "U1": {
+      "name_text": "Enable Block",
+      "name_bbox": null,
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        680.0,
+        304.0,
+        706.0,
+        326.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        282.0,
+        170.0,
+        309.0,
+        191.0
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        666.0,
+        223.0,
+        707.0,
+        251.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": [
+        281.0,
+        246.0,
+        309.0,
+        268.0
+      ],
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅73": {
+      "name_text": "∅73",
+      "name_bbox": null,
+      "key_text": "∅73",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U2": {
+      "name_text": "Voltage Reference Block",
+      "name_bbox": null,
+      "key_text": "U2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅83": {
+      "name_text": "∅83",
+      "name_bbox": null,
+      "key_text": "∅83",
+      "key_bbox": null,
+      "value_text": "GND",
+      "value_bbox": [
+        429.0,
+        480.0,
+        466.0,
+        500.0
+      ]
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": null,
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": null,
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C3": {
+      "name_text": "C3",
+      "name_bbox": null,
+      "key_text": "C3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TP1": {
+      "name_text": "TP1",
+      "name_bbox": null,
+      "key_text": "TP1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_28": {
+        "pin_id": "28",
+        "pin_id_bbox": null,
+        "pin_name": "P_1",
+        "pin_name_bbox": null
+      },
+      "pin_30": {
+        "pin_id": "30",
+        "pin_id_bbox": null,
+        "pin_name": "P_10",
+        "pin_name_bbox": null
+      },
+      "pin_32": {
+        "pin_id": "32",
+        "pin_id_bbox": null,
+        "pin_name": "P_20",
+        "pin_name_bbox": null
+      },
+      "pin_34": {
+        "pin_id": "34",
+        "pin_id_bbox": null,
+        "pin_name": "P_6",
+        "pin_name_bbox": null
+      }
+    },
+    "U2": {
+      "pin_75": {
+        "pin_id": "75",
+        "pin_id_bbox": null,
+        "pin_name": "Voltage",
+        "pin_name_bbox": [
+          181.0,
+          116.0,
+          236.0,
+          137.0
+        ]
+      },
+      "pin_76": {
+        "pin_id": "76",
+        "pin_id_bbox": null,
+        "pin_name": "Block",
+        "pin_name_bbox": [
+          187.0,
+          151.0,
+          231.0,
+          173.0
+        ]
+      },
+      "pin_77": {
+        "pin_id": "77",
+        "pin_id_bbox": null,
+        "pin_name": "P_9",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

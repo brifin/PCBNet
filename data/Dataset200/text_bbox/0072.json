@@ -1,0 +1,289 @@
+{
+  "case_id": "0072",
+  "width": 1086,
+  "height": 528,
+  "components": {
+    "U1": {
+      "name_text": "HUSB601",
+      "name_bbox": [
+        744.0,
+        180.0,
+        845.0,
+        205.0
+      ],
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "D1": {
+      "name_text": "D1",
+      "name_bbox": null,
+      "key_text": "D1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "D2": {
+      "name_text": "D2",
+      "name_bbox": null,
+      "key_text": "D2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅40": {
+      "name_text": "∅40",
+      "name_bbox": null,
+      "key_text": "∅40",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "D3": {
+      "name_text": "D3",
+      "name_bbox": null,
+      "key_text": "D3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅52": {
+      "name_text": "∅52",
+      "name_bbox": null,
+      "key_text": "∅52",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅57": {
+      "name_text": "∅57",
+      "name_bbox": null,
+      "key_text": "∅57",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅62": {
+      "name_text": "∅62",
+      "name_bbox": null,
+      "key_text": "∅62",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        550.0,
+        346.0,
+        580.0,
+        368.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": null,
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": "100kΩ",
+      "value_bbox": [
+        545.0,
+        148.0,
+        610.0,
+        171.0
+      ]
+    },
+    "∅79": {
+      "name_text": "∅79",
+      "name_bbox": null,
+      "key_text": "∅79",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C1": {
+      "name_text": "C1",
+      "name_bbox": null,
+      "key_text": "C1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅91": {
+      "name_text": "∅91",
+      "name_bbox": null,
+      "key_text": "∅91",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": null,
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U2": {
+      "name_text": "USB CONNECTOR",
+      "name_bbox": null,
+      "key_text": "U2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C2": {
+      "name_text": "C2",
+      "name_bbox": null,
+      "key_text": "C2",
+      "key_bbox": null,
+      "value_text": "1μF",
+      "value_bbox": [
+        586.0,
+        237.0,
+        627.0,
+        265.0
+      ]
+    },
+    "C3": {
+      "name_text": "C3",
+      "name_bbox": null,
+      "key_text": "C3",
+      "key_bbox": null,
+      "value_text": "680μF",
+      "value_bbox": [
+        225.0,
+        125.0,
+        288.0,
+        151.0
+      ]
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": null,
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R5": {
+      "name_text": "R5",
+      "name_bbox": null,
+      "key_text": "R5",
+      "key_bbox": null,
+      "value_text": "1kΩ",
+      "value_bbox": [
+        395.0,
+        138.0,
+        438.0,
+        162.0
+      ]
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_2kΩ": {
+        "pin_id": "2kΩ",
+        "pin_id_bbox": null,
+        "pin_name": "VCC",
+        "pin_name_bbox": [
+          711.0,
+          227.0,
+          756.0,
+          251.0
+        ]
+      },
+      "pin_15": {
+        "pin_id": "15",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          832.0,
+          376.0,
+          882.0,
+          399.0
+        ]
+      },
+      "pin_16": {
+        "pin_id": "16",
+        "pin_id_bbox": null,
+        "pin_name": "DM",
+        "pin_name_bbox": [
+          843.0,
+          300.0,
+          883.0,
+          324.0
+        ]
+      },
+      "pin_17": {
+        "pin_id": "17",
+        "pin_id_bbox": null,
+        "pin_name": "DP",
+        "pin_name_bbox": [
+          849.0,
+          226.0,
+          883.0,
+          251.0
+        ]
+      },
+      "pin_18": {
+        "pin_id": "18",
+        "pin_id_bbox": null,
+        "pin_name": "FB",
+        "pin_name_bbox": [
+          711.0,
+          301.0,
+          740.0,
+          323.0
+        ]
+      }
+    },
+    "U2": {
+      "pin_100": {
+        "pin_id": "100",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS",
+        "pin_name_bbox": [
+          973.0,
+          95.0,
+          1031.0,
+          121.0
+        ]
+      },
+      "pin_101": {
+        "pin_id": "101",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          974.0,
+          376.0,
+          1023.0,
+          399.0
+        ]
+      },
+      "pin_102": {
+        "pin_id": "102",
+        "pin_id_bbox": null,
+        "pin_name": "DM",
+        "pin_name_bbox": [
+          973.0,
+          300.0,
+          1013.0,
+          324.0
+        ]
+      },
+      "pin_103": {
+        "pin_id": "103",
+        "pin_id_bbox": null,
+        "pin_name": "P_5",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

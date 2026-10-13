@@ -1,0 +1,144 @@
+{
+  "case_id": "0221",
+  "width": 1136,
+  "height": 417,
+  "components": {
+    "∅1": {
+      "name_text": "∅1",
+      "name_bbox": null,
+      "key_text": "∅1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅10": {
+      "name_text": "∅10",
+      "name_bbox": null,
+      "key_text": "∅10",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅11": {
+      "name_text": "∅11",
+      "name_bbox": null,
+      "key_text": "∅11",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅2": {
+      "name_text": "∅2",
+      "name_bbox": null,
+      "key_text": "∅2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅3": {
+      "name_text": "∅3",
+      "name_bbox": null,
+      "key_text": "∅3",
+      "key_bbox": null,
+      "value_text": "0.1 μF",
+      "value_bbox": [
+        868.0,
+        256.0,
+        932.0,
+        285.0
+      ]
+    },
+    "∅6": {
+      "name_text": "∅6",
+      "name_bbox": null,
+      "key_text": "∅6",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅7": {
+      "name_text": "∅7",
+      "name_bbox": null,
+      "key_text": "∅7",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅8": {
+      "name_text": "∅8",
+      "name_bbox": null,
+      "key_text": "∅8",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅9": {
+      "name_text": "∅9",
+      "name_bbox": null,
+      "key_text": "∅9",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "∅1": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          294.0,
+          203.0,
+          343.0,
+          227.0
+        ]
+      },
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": null,
+        "pin_name": "OUT",
+        "pin_name_bbox": [
+          293.0,
+          302.0,
+          343.0,
+          328.0
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "Vs",
+        "pin_name_bbox": [
+          599.0,
+          200.0,
+          629.0,
+          228.0
+        ]
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "HYSTSETO",
+        "pin_name_bbox": null
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "HYSTSET1",
+        "pin_name_bbox": null
+      },
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": null,
+        "pin_name": "SOH",
+        "pin_name_bbox": [
+          579.0,
+          304.0,
+          627.0,
+          327.0
+        ]
+      }
+    }
+  }
+}

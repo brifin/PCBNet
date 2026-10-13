@@ -1,0 +1,102 @@
+{
+  "case_id": "0246",
+  "width": 822,
+  "height": 336,
+  "components": {
+    "TLE2022": {
+      "name_text": "TLE2022",
+      "name_bbox": [
+        501.0,
+        305.0,
+        598.0,
+        333.0
+      ],
+      "key_text": "TLE2022",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅11": {
+      "name_text": "∅11",
+      "name_bbox": null,
+      "key_text": "∅11",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅13": {
+      "name_text": "∅13",
+      "name_bbox": null,
+      "key_text": "∅13",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "TLE2022_2": {
+      "name_text": "TLE2022_2",
+      "name_bbox": [
+        501.0,
+        144.0,
+        598.0,
+        169.0
+      ],
+      "key_text": "TLE2022_2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅3": {
+      "name_text": "∅3",
+      "name_bbox": null,
+      "key_text": "∅3",
+      "key_bbox": null,
+      "value_text": "10 kΩ",
+      "value_bbox": [
+        260.0,
+        64.0,
+        324.0,
+        87.0
+      ]
+    },
+    "∅4": {
+      "name_text": "∅4",
+      "name_bbox": null,
+      "key_text": "∅4",
+      "key_bbox": null,
+      "value_text": "10 kΩ",
+      "value_bbox": [
+        191.0,
+        208.0,
+        255.0,
+        231.0
+      ]
+    },
+    "∅6": {
+      "name_text": "∅6",
+      "name_bbox": null,
+      "key_text": "∅6",
+      "key_bbox": null,
+      "value_text": "10 kΩ",
+      "value_bbox": [
+        461.0,
+        5.0,
+        528.0,
+        32.0
+      ]
+    },
+    "∅7": {
+      "name_text": "∅7",
+      "name_bbox": null,
+      "key_text": "∅7",
+      "key_bbox": null,
+      "value_text": "10 kΩ",
+      "value_bbox": [
+        294.0,
+        166.0,
+        360.0,
+        189.0
+      ]
+    }
+  },
+  "pins": {}
+}

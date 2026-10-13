@@ -1,0 +1,2326 @@
+{
+  "case_id": "0204",
+  "width": 1920,
+  "height": 1360,
+  "components": {
+    "XB5352": {
+      "name_text": "XB5352电池保护",
+      "name_bbox": [
+        900.0,
+        198.05825242718447,
+        1092.0,
+        229.26743159752868
+      ],
+      "key_text": "XB5352",
+      "key_bbox": [
+        993.5999999999999,
+        147.6434245366284,
+        1035.6,
+        162.04766107678728
+      ],
+      "value_text": null,
+      "value_bbox": null
+    },
+    "USB2": {
+      "name_text": "5VRQ",
+      "name_bbox": null,
+      "key_text": "USB2",
+      "key_bbox": [
+        70.8,
+        62.418358340688435,
+        100.8,
+        75.62224183583406
+      ],
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅100": {
+      "name_text": "∅100",
+      "name_bbox": null,
+      "key_text": "∅100",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C4": {
+      "name_text": "C4",
+      "name_bbox": [
+        691.1999999999999,
+        158.44660194174756,
+        710.4,
+        172.85083848190644
+      ],
+      "key_text": "C4",
+      "key_bbox": null,
+      "value_text": "10uF",
+      "value_bbox": [
+        692.4,
+        170.45013239187995,
+        720.0,
+        184.85436893203882
+      ]
+    },
+    "R32": {
+      "name_text": "R32",
+      "name_bbox": [
+        332.4,
+        403.3186231244483,
+        356.4,
+        417.7228596646072
+      ],
+      "key_text": "R32",
+      "key_bbox": null,
+      "value_text": "470K",
+      "value_bbox": [
+        332.4,
+        415.32215357458074,
+        362.4,
+        429.7263901147396
+      ]
+    },
+    "∅103": {
+      "name_text": "∅103",
+      "name_bbox": null,
+      "key_text": "∅103",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅104": {
+      "name_text": "∅104",
+      "name_bbox": null,
+      "key_text": "∅104",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅105": {
+      "name_text": "∅105",
+      "name_bbox": null,
+      "key_text": "∅105",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅106": {
+      "name_text": "∅106",
+      "name_bbox": null,
+      "key_text": "∅106",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C23": {
+      "name_text": "C23",
+      "name_bbox": [
+        1216.8,
+        626.5842894969109,
+        1240.8,
+        640.9885260370697
+      ],
+      "key_text": "C23",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        1212.0,
+        655.3927625772286,
+        1245.6,
+        670.9973521624007
+      ]
+    },
+    "∅108": {
+      "name_text": "∅108",
+      "name_bbox": null,
+      "key_text": "∅108",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅109": {
+      "name_text": "∅109",
+      "name_bbox": null,
+      "key_text": "∅109",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C5": {
+      "name_text": "C5",
+      "name_bbox": [
+        604.8,
+        78.02294792586055,
+        625.1999999999999,
+        92.42718446601941
+      ],
+      "key_text": "C5",
+      "key_bbox": null,
+      "value_text": "10uF",
+      "value_bbox": [
+        604.8,
+        88.82612533097969,
+        634.8,
+        105.63106796116504
+      ]
+    },
+    "∅111": {
+      "name_text": "∅111",
+      "name_bbox": null,
+      "key_text": "∅111",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅112": {
+      "name_text": "∅112",
+      "name_bbox": null,
+      "key_text": "∅112",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅113": {
+      "name_text": "∅113",
+      "name_bbox": null,
+      "key_text": "∅113",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅114": {
+      "name_text": "∅114",
+      "name_bbox": null,
+      "key_text": "∅114",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "LED5": {
+      "name_text": "LED5",
+      "name_bbox": [
+        483.59999999999997,
+        658.9938217122683,
+        519.6,
+        675.7987643424536
+      ],
+      "key_text": "LED5",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅116": {
+      "name_text": "∅116",
+      "name_bbox": null,
+      "key_text": "∅116",
+      "key_bbox": null,
+      "value_text": "10K",
+      "value_bbox": [
+        673.1999999999999,
+        506.5489849955869,
+        698.4,
+        520.9532215357458
+      ]
+    },
+    "∅117": {
+      "name_text": "∅117",
+      "name_bbox": null,
+      "key_text": "∅117",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅118": {
+      "name_text": "∅118",
+      "name_bbox": null,
+      "key_text": "∅118",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C24": {
+      "name_text": "C24",
+      "name_bbox": [
+        1256.3999999999999,
+        626.5842894969109,
+        1280.3999999999999,
+        640.9885260370697
+      ],
+      "key_text": "C24",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        1252.8,
+        655.3927625772286,
+        1284.0,
+        669.7969991173875
+      ]
+    },
+    "R19": {
+      "name_text": "R19",
+      "name_bbox": [
+        355.2,
+        170.45013239187995,
+        379.2,
+        184.85436893203882
+      ],
+      "key_text": "R19",
+      "key_bbox": null,
+      "value_text": "51K",
+      "value_bbox": [
+        355.2,
+        182.45366284201236,
+        380.4,
+        195.65754633715798
+      ]
+    },
+    "C26": {
+      "name_text": "C26",
+      "name_bbox": [
+        1209.6,
+        110.43248014121801,
+        1238.3999999999999,
+        128.43777581641658
+      ],
+      "key_text": "C26",
+      "key_bbox": null,
+      "value_text": "1uF",
+      "value_bbox": [
+        1210.8,
+        123.63636363636363,
+        1233.6,
+        138.0406001765225
+      ]
+    },
+    "∅122": {
+      "name_text": "∅122",
+      "name_bbox": null,
+      "key_text": "∅122",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R34": {
+      "name_text": "R34",
+      "name_bbox": [
+        110.39999999999999,
+        518.5525154457193,
+        134.4,
+        532.9567519858782
+      ],
+      "key_text": "R34",
+      "key_bbox": null,
+      "value_text": "0",
+      "value_bbox": [
+        111.6,
+        543.7599293909973,
+        117.6,
+        550.9620476610768
+      ]
+    },
+    "∅124": {
+      "name_text": "∅124",
+      "name_bbox": null,
+      "key_text": "∅124",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C25": {
+      "name_text": "C25",
+      "name_bbox": [
+        1296.0,
+        626.5842894969109,
+        1320.0,
+        640.9885260370697
+      ],
+      "key_text": "C25",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        1292.3999999999999,
+        655.3927625772286,
+        1323.6,
+        669.7969991173875
+      ]
+    },
+    "C13": {
+      "name_text": "C13",
+      "name_bbox": [
+        1422.0,
+        318.09355692850835,
+        1446.0,
+        332.4977934686672
+      ],
+      "key_text": "C13",
+      "key_bbox": null,
+      "value_text": "30pF",
+      "value_bbox": [
+        1454.3999999999999,
+        319.29390997352164,
+        1483.2,
+        332.4977934686672
+      ]
+    },
+    "∅127": {
+      "name_text": "∅127",
+      "name_bbox": null,
+      "key_text": "∅127",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅128": {
+      "name_text": "∅128",
+      "name_bbox": null,
+      "key_text": "∅128",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅129": {
+      "name_text": "∅129",
+      "name_bbox": null,
+      "key_text": "∅129",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅13": {
+      "name_text": "∅13",
+      "name_bbox": null,
+      "key_text": "∅13",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C6": {
+      "name_text": "C6",
+      "name_bbox": null,
+      "key_text": "C6",
+      "key_bbox": null,
+      "value_text": "22uF",
+      "value_bbox": [
+        679.1999999999999,
+        90.02647837599294,
+        708.0,
+        103.23036187113857
+      ]
+    },
+    "C8": {
+      "name_text": "C8",
+      "name_bbox": [
+        1621.2,
+        106.83142100617829,
+        1640.3999999999999,
+        122.4360105913504
+      ],
+      "key_text": "C8",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        1618.8,
+        134.43954104148278,
+        1648.8,
+        148.84377758164166
+      ]
+    },
+    "∅133": {
+      "name_text": "∅133",
+      "name_bbox": null,
+      "key_text": "∅133",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅134": {
+      "name_text": "∅134",
+      "name_bbox": null,
+      "key_text": "∅134",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅136": {
+      "name_text": "∅136",
+      "name_bbox": null,
+      "key_text": "∅136",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C20": {
+      "name_text": "C20",
+      "name_bbox": [
+        274.8,
+        392.5154457193292,
+        298.8,
+        405.71932921447484
+      ],
+      "key_text": "C20",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅138": {
+      "name_text": "∅138",
+      "name_bbox": null,
+      "key_text": "∅138",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅139": {
+      "name_text": "∅139",
+      "name_bbox": null,
+      "key_text": "∅139",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R24": {
+      "name_text": "R24",
+      "name_bbox": [
+        104.39999999999999,
+        871.4563106796116,
+        128.4,
+        884.6601941747573
+      ],
+      "key_text": "R24",
+      "key_bbox": null,
+      "value_text": "10K",
+      "value_bbox": [
+        105.6,
+        895.4633715798764,
+        128.4,
+        908.667255075022
+      ]
+    },
+    "∅141": {
+      "name_text": "∅141",
+      "name_bbox": null,
+      "key_text": "∅141",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅142": {
+      "name_text": "∅142",
+      "name_bbox": null,
+      "key_text": "∅142",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅143": {
+      "name_text": "∅143",
+      "name_bbox": null,
+      "key_text": "∅143",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C14": {
+      "name_text": "C14",
+      "name_bbox": [
+        1666.8,
+        324.09532215357456,
+        1690.8,
+        338.49955869373343
+      ],
+      "key_text": "C14",
+      "key_bbox": null,
+      "value_text": "15pF",
+      "value_bbox": [
+        1707.6,
+        325.2956751985878,
+        1735.2,
+        338.49955869373343
+      ]
+    },
+    "∅145": {
+      "name_text": "EC11L1525E05",
+      "name_bbox": null,
+      "key_text": "∅145",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅146": {
+      "name_text": "∅146",
+      "name_bbox": null,
+      "key_text": "∅146",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U2": {
+      "name_text": "U2",
+      "name_bbox": [
+        778.8,
+        103.23036187113857,
+        794.4,
+        112.83318623124448
+      ],
+      "key_text": "U2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅148": {
+      "name_text": "∅148",
+      "name_bbox": null,
+      "key_text": "∅148",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R29": {
+      "name_text": "R29",
+      "name_bbox": [
+        571.1999999999999,
+        426.12533097969987,
+        595.1999999999999,
+        440.52956751985874
+      ],
+      "key_text": "R29",
+      "key_bbox": null,
+      "value_text": "20K",
+      "value_bbox": [
+        571.1999999999999,
+        448.9320388349514,
+        596.4,
+        463.3362753751103
+      ]
+    },
+    "∅150": {
+      "name_text": "∅150",
+      "name_bbox": null,
+      "key_text": "∅150",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C15": {
+      "name_text": "C15",
+      "name_bbox": [
+        1422.0,
+        386.513680494263,
+        1446.0,
+        400.91791703442186
+      ],
+      "key_text": "C15",
+      "key_bbox": null,
+      "value_text": "30pF",
+      "value_bbox": [
+        1455.6,
+        386.513680494263,
+        1483.2,
+        400.91791703442186
+      ]
+    },
+    "∅152": {
+      "name_text": "∅152",
+      "name_bbox": null,
+      "key_text": "∅152",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅153": {
+      "name_text": "∅153",
+      "name_bbox": null,
+      "key_text": "∅153",
+      "key_bbox": null,
+      "value_text": "1K",
+      "value_bbox": [
+        920.4,
+        111.63283318623124,
+        938.4,
+        127.23742277140335
+      ]
+    },
+    "∅154": {
+      "name_text": "∅154",
+      "name_bbox": null,
+      "key_text": "∅154",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅155": {
+      "name_text": "∅155",
+      "name_bbox": null,
+      "key_text": "∅155",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C21": {
+      "name_text": "C21",
+      "name_bbox": [
+        224.4,
+        306.090026478376,
+        248.39999999999998,
+        320.49426301853487
+      ],
+      "key_text": "C21",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        224.4,
+        319.29390997352164,
+        258.0,
+        332.4977934686672
+      ]
+    },
+    "C16": {
+      "name_text": "C16",
+      "name_bbox": [
+        1672.8,
+        392.5154457193292,
+        1699.2,
+        406.91968225948807
+      ],
+      "key_text": "C16",
+      "key_bbox": null,
+      "value_text": "15pF",
+      "value_bbox": [
+        1696.8,
+        392.5154457193292,
+        1730.3999999999999,
+        408.1200353045013
+      ]
+    },
+    "C19": {
+      "name_text": "C19",
+      "name_bbox": [
+        674.4,
+        523.3539276257723,
+        698.4,
+        537.7581641659311
+      ],
+      "key_text": "C19",
+      "key_bbox": null,
+      "value_text": "10pF/NC",
+      "value_bbox": [
+        675.6,
+        536.5578111209179,
+        720.0,
+        549.7616946160636
+      ]
+    },
+    "∅160": {
+      "name_text": "∅160",
+      "name_bbox": null,
+      "key_text": "∅160",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅161": {
+      "name_text": "∅161",
+      "name_bbox": null,
+      "key_text": "∅161",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U3": {
+      "name_text": "U3",
+      "name_bbox": [
+        822.0,
+        100.82965578111208,
+        841.1999999999999,
+        115.23389232127096
+      ],
+      "key_text": "U3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C18": {
+      "name_text": "C18",
+      "name_bbox": [
+        469.2,
+        324.09532215357456,
+        494.4,
+        337.2992056487202
+      ],
+      "key_text": "C18",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        458.4,
+        334.89849955869374,
+        492.0,
+        348.10238305383933
+      ]
+    },
+    "∅164": {
+      "name_text": "∅164",
+      "name_bbox": null,
+      "key_text": "∅164",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅165": {
+      "name_text": "∅165",
+      "name_bbox": null,
+      "key_text": "∅165",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C17": {
+      "name_text": "C17",
+      "name_bbox": [
+        470.4,
+        297.6875551632833,
+        493.2,
+        307.2903795233892
+      ],
+      "key_text": "C17",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        457.2,
+        304.88967343336276,
+        492.0,
+        320.49426301853487
+      ]
+    },
+    "∅167": {
+      "name_text": "∅167",
+      "name_bbox": null,
+      "key_text": "∅167",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅168": {
+      "name_text": "∅168",
+      "name_bbox": null,
+      "key_text": "∅168",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅169": {
+      "name_text": "∅169",
+      "name_bbox": null,
+      "key_text": "∅169",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅170": {
+      "name_text": "∅170",
+      "name_bbox": null,
+      "key_text": "∅170",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": [
+        458.4,
+        654.1924095322154,
+        476.4,
+        669.7969991173875
+      ],
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": "1K",
+      "value_bbox": [
+        458.4,
+        675.7987643424536,
+        476.4,
+        692.603706972639
+      ]
+    },
+    "∅172": {
+      "name_text": "∅172",
+      "name_bbox": null,
+      "key_text": "∅172",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "LED3": {
+      "name_text": "LED3",
+      "name_bbox": [
+        400.8,
+        146.44307149161517,
+        430.8,
+        160.84730803177405
+      ],
+      "key_text": "LED3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅174": {
+      "name_text": "∅174",
+      "name_bbox": null,
+      "key_text": "∅174",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅175": {
+      "name_text": "∅175",
+      "name_bbox": null,
+      "key_text": "∅175",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅176": {
+      "name_text": "∅176",
+      "name_bbox": null,
+      "key_text": "∅176",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U7": {
+      "name_text": "LCD Deiver: ST7735",
+      "name_bbox": [
+        165.6,
+        1196.7519858781993,
+        271.2,
+        1213.5569285083848
+      ],
+      "key_text": "U7",
+      "key_bbox": [
+        130.79999999999998,
+        1122.3300970873786,
+        150.0,
+        1136.7343336275374
+      ],
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅178": {
+      "name_text": "∅178",
+      "name_bbox": null,
+      "key_text": "∅178",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅179": {
+      "name_text": "∅179",
+      "name_bbox": null,
+      "key_text": "∅179",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅180": {
+      "name_text": "∅180",
+      "name_bbox": null,
+      "key_text": "∅180",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅181": {
+      "name_text": "∅181",
+      "name_bbox": null,
+      "key_text": "∅181",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅182": {
+      "name_text": "∅182",
+      "name_bbox": null,
+      "key_text": "∅182",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅183": {
+      "name_text": "∅183",
+      "name_bbox": null,
+      "key_text": "∅183",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅184": {
+      "name_text": "∅184",
+      "name_bbox": null,
+      "key_text": "∅184",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅185": {
+      "name_text": "∅185",
+      "name_bbox": null,
+      "key_text": "∅185",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅186": {
+      "name_text": "∅186",
+      "name_bbox": null,
+      "key_text": "∅186",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "X1": {
+      "name_text": "X1",
+      "name_bbox": [
+        1466.3999999999999,
+        351.7034421888791,
+        1484.3999999999999,
+        367.3080317740512
+      ],
+      "key_text": "X1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R22": {
+      "name_text": "R22",
+      "name_bbox": [
+        297.59999999999997,
+        843.8481906443071,
+        321.59999999999997,
+        857.0520741394528
+      ],
+      "key_text": "R22",
+      "key_bbox": null,
+      "value_text": "1K",
+      "value_bbox": [
+        300.0,
+        855.8517210944395,
+        315.59999999999997,
+        866.6548984995586
+      ]
+    },
+    "∅24": {
+      "name_text": "∅24",
+      "name_bbox": null,
+      "key_text": "∅24",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅27": {
+      "name_text": "∅27",
+      "name_bbox": null,
+      "key_text": "∅27",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "U15": {
+      "name_text": "U15",
+      "name_bbox": null,
+      "key_text": "U15",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅37": {
+      "name_text": "∅37",
+      "name_bbox": null,
+      "key_text": "∅37",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅4": {
+      "name_text": "∅4",
+      "name_bbox": null,
+      "key_text": "∅4",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅40": {
+      "name_text": "∅40",
+      "name_bbox": null,
+      "key_text": "∅40",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R27": {
+      "name_text": "R27",
+      "name_bbox": [
+        640.8,
+        301.288614298323,
+        664.8,
+        315.6928508384819
+      ],
+      "key_text": "R27",
+      "key_bbox": null,
+      "value_text": "20K",
+      "value_bbox": [
+        639.6,
+        312.0917917034422,
+        664.8,
+        326.496028243601
+      ]
+    },
+    "R31": {
+      "name_text": "R31",
+      "name_bbox": [
+        332.4,
+        340.9002647837599,
+        356.4,
+        355.30450132391877
+      ],
+      "key_text": "R31",
+      "key_bbox": null,
+      "value_text": "510K",
+      "value_bbox": [
+        332.4,
+        351.7034421888791,
+        361.2,
+        367.3080317740512
+      ]
+    },
+    "∅48": {
+      "name_text": "∅48",
+      "name_bbox": null,
+      "key_text": "∅48",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "IP5407": {
+      "name_text": "IP5407",
+      "name_bbox": [
+        446.4,
+        192.05648720211826,
+        483.59999999999997,
+        205.26037069726388
+      ],
+      "key_text": "IP5407",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "PA3": {
+      "name_text": "PA3",
+      "name_bbox": [
+        765.6,
+        409.32038834951453,
+        789.6,
+        423.7246248896734
+      ],
+      "key_text": "PA3",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R25": {
+      "name_text": "R25",
+      "name_bbox": [
+        75.6,
+        848.64960282436,
+        99.6,
+        863.0538393645189
+      ],
+      "key_text": "R25",
+      "key_bbox": null,
+      "value_text": "10K",
+      "value_bbox": [
+        75.6,
+        860.6531332744925,
+        99.6,
+        873.8570167696381
+      ]
+    },
+    "R23": {
+      "name_text": "R23",
+      "name_bbox": [
+        172.79999999999998,
+        918.270079435128,
+        196.79999999999998,
+        931.4739629302736
+      ],
+      "key_text": "R23",
+      "key_bbox": null,
+      "value_text": "510K",
+      "value_bbox": [
+        172.79999999999998,
+        929.073256840247,
+        201.6,
+        942.2771403353927
+      ]
+    },
+    "U12": {
+      "name_text": "PC15-OSC32OUT",
+      "name_bbox": [
+        998.4,
+        348.10238305383933,
+        1087.2,
+        360.10591350397175
+      ],
+      "key_text": "U12",
+      "key_bbox": [
+        996.0,
+        297.6875551632833,
+        1016.4,
+        307.2903795233892
+      ],
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅63": {
+      "name_text": "∅63",
+      "name_bbox": null,
+      "key_text": "∅63",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅67": {
+      "name_text": "∅67",
+      "name_bbox": null,
+      "key_text": "∅67",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅69": {
+      "name_text": "∅69",
+      "name_bbox": null,
+      "key_text": "∅69",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "LED2": {
+      "name_text": "LED2",
+      "name_bbox": [
+        483.59999999999997,
+        625.3839364518976,
+        520.8,
+        642.188879082083
+      ],
+      "key_text": "LED2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R26": {
+      "name_text": "R26",
+      "name_bbox": [
+        74.39999999999999,
+        906.2665489849956,
+        99.6,
+        920.6707855251544
+      ],
+      "key_text": "R26",
+      "key_bbox": null,
+      "value_text": "20K",
+      "value_bbox": [
+        75.6,
+        917.0697263901147,
+        99.6,
+        931.4739629302736
+      ]
+    },
+    "∅76": {
+      "name_text": "∅76",
+      "name_bbox": null,
+      "key_text": "∅76",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅77": {
+      "name_text": "∅77",
+      "name_bbox": null,
+      "key_text": "∅77",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅78": {
+      "name_text": "∅78",
+      "name_bbox": null,
+      "key_text": "∅78",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅79": {
+      "name_text": "∅79",
+      "name_bbox": null,
+      "key_text": "∅79",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "C12": {
+      "name_text": "C12",
+      "name_bbox": [
+        343.2,
+        929.073256840247,
+        368.4,
+        942.2771403353927
+      ],
+      "key_text": "C12",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        344.4,
+        941.0767872903795,
+        378.0,
+        954.2806707855251
+      ]
+    },
+    "∅81": {
+      "name_text": "∅81",
+      "name_bbox": null,
+      "key_text": "∅81",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R28": {
+      "name_text": "R28",
+      "name_bbox": [
+        640.8,
+        345.7016769638129,
+        664.8,
+        360.10591350397175
+      ],
+      "key_text": "R28",
+      "key_bbox": null,
+      "value_text": "10K",
+      "value_bbox": [
+        642.0,
+        357.7052074139453,
+        664.8,
+        373.3097969991174
+      ]
+    },
+    "C27": {
+      "name_text": "C27",
+      "name_bbox": [
+        1381.2,
+        111.63283318623124,
+        1405.2,
+        126.03706972639011
+      ],
+      "key_text": "C27",
+      "key_bbox": null,
+      "value_text": "1uF",
+      "value_bbox": [
+        1381.2,
+        123.63636363636363,
+        1404.0,
+        138.0406001765225
+      ]
+    },
+    "∅86": {
+      "name_text": "∅86",
+      "name_bbox": null,
+      "key_text": "∅86",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅87": {
+      "name_text": "∅87",
+      "name_bbox": null,
+      "key_text": "∅87",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅88": {
+      "name_text": "∅88",
+      "name_bbox": null,
+      "key_text": "∅88",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅89": {
+      "name_text": "∅89",
+      "name_bbox": null,
+      "key_text": "∅89",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅9": {
+      "name_text": "∅9",
+      "name_bbox": null,
+      "key_text": "∅9",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        457.2,
+        620.5825242718446,
+        476.4,
+        634.9867608120035
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": "1K",
+      "value_bbox": [
+        458.4,
+        642.188879082083,
+        476.4,
+        657.7934686672551
+      ]
+    },
+    "C22": {
+      "name_text": "C22",
+      "name_bbox": [
+        1170.0,
+        626.5842894969109,
+        1195.2,
+        640.9885260370697
+      ],
+      "key_text": "C22",
+      "key_bbox": null,
+      "value_text": "100nF",
+      "value_bbox": [
+        1167.6,
+        655.3927625772286,
+        1198.8,
+        669.7969991173875
+      ]
+    },
+    "∅93": {
+      "name_text": "∅93",
+      "name_bbox": null,
+      "key_text": "∅93",
+      "key_bbox": null,
+      "value_text": "10uF",
+      "value_bbox": [
+        111.6,
+        666.1959399823477,
+        136.79999999999998,
+        679.3998234774933
+      ]
+    },
+    "R33": {
+      "name_text": "R33",
+      "name_bbox": [
+        332.4,
+        448.9320388349514,
+        356.4,
+        463.3362753751103
+      ],
+      "key_text": "R33",
+      "key_bbox": null,
+      "value_text": "20K",
+      "value_bbox": [
+        332.4,
+        460.93556928508383,
+        356.4,
+        476.54015887025594
+      ]
+    },
+    "∅95": {
+      "name_text": "∅95",
+      "name_bbox": null,
+      "key_text": "∅95",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅96": {
+      "name_text": "∅96",
+      "name_bbox": null,
+      "key_text": "∅96",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅97": {
+      "name_text": "∅97",
+      "name_bbox": null,
+      "key_text": "∅97",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅98": {
+      "name_text": "∅98",
+      "name_bbox": null,
+      "key_text": "∅98",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅99": {
+      "name_text": "∅99",
+      "name_bbox": null,
+      "key_text": "∅99",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "XB5352": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "NC",
+        "pin_name_bbox": null
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "VM",
+        "pin_name_bbox": [
+          1030.8,
+          108.03177405119152,
+          1051.2,
+          122.4360105913504
+        ]
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "VM",
+        "pin_name_bbox": [
+          1030.8,
+          130.83848190644306,
+          1051.2,
+          145.24271844660194
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "VDD",
+        "pin_name_bbox": [
+          999.5999999999999,
+          130.83848190644306,
+          1024.8,
+          144.0423654015887
+        ]
+      }
+    },
+    "USB2": {
+      "pin_7": {
+        "pin_id": "7",
+        "pin_id_bbox": null,
+        "pin_name": "SHELL",
+        "pin_name_bbox": [
+          97.2,
+          78.02294792586055,
+          127.19999999999999,
+          91.22683142100618
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "VBUS",
+        "pin_name_bbox": [
+          100.8,
+          134.43954104148278,
+          127.19999999999999,
+          148.84377758164166
+        ]
+      }
+    },
+    "∅13": {
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": [
+          1663.2,
+          123.63636363636363,
+          1672.8,
+          138.0406001765225
+        ],
+        "pin_name": "2",
+        "pin_name_bbox": null
+      },
+      "pin_H5": {
+        "pin_id": "H5",
+        "pin_id_bbox": [
+          1650.0,
+          84.02471315092674,
+          1668.0,
+          98.4289496910856
+        ],
+        "pin_name": "H5",
+        "pin_name_bbox": null
+      }
+    },
+    "∅145": {
+      "pin_E": {
+        "pin_id": "E",
+        "pin_id_bbox": null,
+        "pin_name": "E",
+        "pin_name_bbox": null
+      },
+      "pin_7": {
+        "pin_id": "7",
+        "pin_id_bbox": [
+          433.2,
+          1209.955869373345,
+          441.59999999999997,
+          1218.3583406884377
+        ],
+        "pin_name": "7",
+        "pin_name_bbox": null
+      },
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": [
+          432.0,
+          1147.5375110326565,
+          444.0,
+          1157.1403353927626
+        ],
+        "pin_name": "6",
+        "pin_name_bbox": null
+      },
+      "pin_SW4": {
+        "pin_id": "SW4",
+        "pin_id_bbox": [
+          445.2,
+          1147.5375110326565,
+          471.59999999999997,
+          1157.1403353927626
+        ],
+        "pin_name": "SW4",
+        "pin_name_bbox": null
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "5",
+        "pin_name_bbox": null
+      }
+    },
+    "U2": {
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": [
+          790.8,
+          120.0353045013239,
+          800.4,
+          130.83848190644306
+        ],
+        "pin_name": "2",
+        "pin_name_bbox": [
+          828.0,
+          129.63812886142983,
+          837.6,
+          144.0423654015887
+        ]
+      }
+    },
+    "U3": {
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": null,
+        "pin_name": "2",
+        "pin_name_bbox": null
+      }
+    },
+    "U7": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "E S",
+        "pin_name_bbox": null
+      },
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": [
+          117.6,
+          1147.5375110326565,
+          128.4,
+          1158.3406884377757
+        ],
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          129.6,
+          1140.3353927625772,
+          152.4,
+          1153.5392762577228
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": [
+          116.39999999999999,
+          1159.541041482789,
+          128.4,
+          1170.3442188879083
+        ],
+        "pin_name": "vCC",
+        "pin_name_bbox": [
+          130.79999999999998,
+          1152.3389232127097,
+          152.4,
+          1165.542806707855
+        ]
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "SCL",
+        "pin_name_bbox": [
+          130.79999999999998,
+          1161.9417475728155,
+          151.2,
+          1176.3459841129743
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": [
+          118.8,
+          1183.548102383054,
+          127.19999999999999,
+          1189.54986760812
+        ],
+        "pin_name": "SDA",
+        "pin_name_bbox": [
+          130.79999999999998,
+          1173.9452780229478,
+          151.2,
+          1188.3495145631068
+        ]
+      },
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": null,
+        "pin_name": "RES",
+        "pin_name_bbox": [
+          130.79999999999998,
+          1185.9488084730804,
+          151.2,
+          1199.152691968226
+        ]
+      },
+      "pin_7": {
+        "pin_id": "7",
+        "pin_id_bbox": null,
+        "pin_name": "DC",
+        "pin_name_bbox": null
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": [
+          112.8,
+          1217.1579876434246,
+          127.19999999999999,
+          1226.7608120035304
+        ],
+        "pin_name": "7",
+        "pin_name_bbox": null
+      }
+    },
+    "U15": {
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          1272.0,
+          108.03177405119152,
+          1299.6,
+          122.4360105913504
+        ]
+      },
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "VIN",
+        "pin_name_bbox": [
+          1272.0,
+          94.82789055604589,
+          1294.8,
+          109.23212709620476
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "VOUT",
+        "pin_name_bbox": [
+          1302.0,
+          96.02824360105913,
+          1335.6,
+          109.23212709620476
+        ]
+      }
+    },
+    "∅4": {
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "CAP-",
+        "pin_name_bbox": [
+          159.6,
+          661.3945278022948,
+          188.4,
+          674.5984112974404
+        ]
+      },
+      "pin_2": {
+        "pin_id": "2",
+        "pin_id_bbox": null,
+        "pin_name": "VOUT",
+        "pin_name_bbox": [
+          202.79999999999998,
+          661.3945278022948,
+          236.39999999999998,
+          674.5984112974404
+        ]
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": null,
+        "pin_name": "8",
+        "pin_name_bbox": null
+      },
+      "pin_7": {
+        "pin_id": "7",
+        "pin_id_bbox": null,
+        "pin_name": "osC",
+        "pin_name_bbox": [
+          210.0,
+          637.3874669020299,
+          236.39999999999998,
+          651.7917034421888
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "LV",
+        "pin_name_bbox": [
+          219.6,
+          651.7917034421888,
+          235.2,
+          662.594880847308
+        ]
+      },
+      "pin_U6": {
+        "pin_id": "U6",
+        "pin_id_bbox": [
+          156.0,
+          609.7793468667255,
+          174.0,
+          624.1835834068844
+        ],
+        "pin_name": "NC",
+        "pin_name_bbox": null
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "GND",
+        "pin_name_bbox": [
+          159.6,
+          650.5913503971756,
+          187.2,
+          663.7952338923212
+        ]
+      },
+      "pin_9": {
+        "pin_id": "9",
+        "pin_id_bbox": null,
+        "pin_name": "CAP+",
+        "pin_name_bbox": [
+          159.6,
+          638.5878199470433,
+          190.79999999999998,
+          651.7917034421888
+        ]
+      }
+    },
+    "∅40": {
+      "pin_H4": {
+        "pin_id": "H4",
+        "pin_id_bbox": [
+          669.6,
+          660.1941747572815,
+          686.4,
+          674.5984112974404
+        ],
+        "pin_name": "H4",
+        "pin_name_bbox": null
+      },
+      "pin_12": {
+        "pin_id": "12",
+        "pin_id_bbox": null,
+        "pin_name": "12",
+        "pin_name_bbox": null
+      }
+    },
+    "IP5407": {
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": null,
+        "pin_name": "BAT",
+        "pin_name_bbox": [
+          501.59999999999997,
+          152.44483671668138,
+          525.6,
+          168.0494263018535
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "KEY",
+        "pin_name_bbox": [
+          451.2,
+          152.44483671668138,
+          475.2,
+          168.0494263018535
+        ]
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": null,
+        "pin_name": "8",
+        "pin_name_bbox": null
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "EP VOUT",
+        "pin_name_bbox": [
+          480.0,
+          129.63812886142983,
+          526.8,
+          147.6434245366284
+        ]
+      }
+    },
+    "U12": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "PB6",
+        "pin_name_bbox": [
+          1129.2,
+          382.9126213592233,
+          1154.3999999999999,
+          396.11650485436894
+        ]
+      },
+      "pin_2226": {
+        "pin_id": "2226",
+        "pin_id_bbox": null,
+        "pin_name": "VDD",
+        "pin_name_bbox": [
+          998.4,
+          577.3698146513681,
+          1024.8,
+          591.774051191527
+        ]
+      },
+      "pin_3": {
+        "pin_id": "3",
+        "pin_id_bbox": null,
+        "pin_name": "PA3",
+        "pin_name_bbox": [
+          997.1999999999999,
+          450.1323918799647,
+          1021.1999999999999,
+          464.5366284201235
+        ]
+      },
+      "pin_4": {
+        "pin_id": "4",
+        "pin_id_bbox": null,
+        "pin_name": "PB13",
+        "pin_name_bbox": [
+          1124.3999999999999,
+          564.1659311562224,
+          1154.3999999999999,
+          578.5701676963813
+        ]
+      },
+      "pin_5": {
+        "pin_id": "5",
+        "pin_id_bbox": null,
+        "pin_name": "PA13",
+        "pin_name_bbox": [
+          1124.3999999999999,
+          474.1394527802295,
+          1154.3999999999999,
+          488.54368932038835
+        ]
+      },
+      "pin_6": {
+        "pin_id": "6",
+        "pin_id_bbox": null,
+        "pin_name": "PB7",
+        "pin_name_bbox": [
+          1129.2,
+          370.9090909090909,
+          1154.3999999999999,
+          385.31332744924975
+        ]
+      },
+      "pin_28": {
+        "pin_id": "28",
+        "pin_id_bbox": null,
+        "pin_name": "PB2",
+        "pin_name_bbox": [
+          996.0,
+          528.1553398058252,
+          1023.5999999999999,
+          546.1606354810239
+        ]
+      },
+      "pin_8": {
+        "pin_id": "8",
+        "pin_id_bbox": null,
+        "pin_name": "VSS",
+        "pin_name_bbox": [
+          998.4,
+          564.1659311562224,
+          1023.5999999999999,
+          579.7705207413945
+        ]
+      },
+      "pin_9": {
+        "pin_id": "9",
+        "pin_id_bbox": null,
+        "pin_name": "PB4",
+        "pin_name_bbox": [
+          1129.2,
+          405.71932921447484,
+          1154.3999999999999,
+          418.9232127096205
+        ]
+      },
+      "pin_10": {
+        "pin_id": "10",
+        "pin_id_bbox": null,
+        "pin_name": "PB8",
+        "pin_name_bbox": [
+          1129.2,
+          346.9020300088261,
+          1154.3999999999999,
+          361.306266548985
+        ]
+      },
+      "pin_11": {
+        "pin_id": "11",
+        "pin_id_bbox": null,
+        "pin_name": "BOOTO",
+        "pin_name_bbox": [
+          1113.6,
+          357.7052074139453,
+          1155.6,
+          375.71050308914386
+        ]
+      },
+      "pin_12": {
+        "pin_id": "12",
+        "pin_id_bbox": null,
+        "pin_name": "PB9",
+        "pin_name_bbox": [
+          1129.2,
+          336.098852603707,
+          1154.3999999999999,
+          350.50308914386585
+        ]
+      },
+      "pin_13": {
+        "pin_id": "13",
+        "pin_id_bbox": null,
+        "pin_name": "PB15",
+        "pin_name_bbox": [
+          1124.3999999999999,
+          541.3592233009708,
+          1154.3999999999999,
+          555.7634598411297
+        ]
+      },
+      "pin_14": {
+        "pin_id": "14",
+        "pin_id_bbox": [
+          982.8,
+          457.33451015004414,
+          996.0,
+          469.3380406001765
+        ],
+        "pin_name": "PA2",
+        "pin_name_bbox": [
+          997.1999999999999,
+          439.3292144748455,
+          1021.1999999999999,
+          453.7334510150044
+        ]
+      },
+      "pin_15": {
+        "pin_id": "15",
+        "pin_id_bbox": null,
+        "pin_name": "PB14",
+        "pin_name_bbox": [
+          1124.3999999999999,
+          553.3627537511032,
+          1154.3999999999999,
+          566.5666372462489
+        ]
+      },
+      "pin_16": {
+        "pin_id": "16",
+        "pin_id_bbox": [
+          982.8,
+          481.3415710503089,
+          996.0,
+          492.14474845542804
+        ],
+        "pin_name": "PA7",
+        "pin_name_bbox": [
+          997.1999999999999,
+          496.946160635481,
+          1022.4,
+          510.1500441306266
+        ]
+      },
+      "pin_17": {
+        "pin_id": "17",
+        "pin_id_bbox": null,
+        "pin_name": "VSS",
+        "pin_name_bbox": [
+          1129.2,
+          325.2956751985878,
+          1154.3999999999999,
+          338.49955869373343
+        ]
+      },
+      "pin_18": {
+        "pin_id": "18",
+        "pin_id_bbox": null,
+        "pin_name": "VDD",
+        "pin_name_bbox": [
+          1128.0,
+          313.2921447484554,
+          1153.2,
+          327.6963812886143
+        ]
+      },
+      "pin_19": {
+        "pin_id": "19",
+        "pin_id_bbox": null,
+        "pin_name": "PC13",
+        "pin_name_bbox": [
+          998.4,
+          325.2956751985878,
+          1028.3999999999999,
+          339.69991173874666
+        ]
+      },
+      "pin_OSC32 OUT 4": {
+        "pin_id": "OSC32 OUT 4",
+        "pin_id_bbox": [
+          926.4,
+          340.9002647837599,
+          996.0,
+          352.9037952338923
+        ],
+        "pin_name": "PC14-OSC32IN",
+        "pin_name_bbox": [
+          998.4,
+          337.2992056487202,
+          1075.2,
+          349.30273609885256
+        ]
+      },
+      "pin_21": {
+        "pin_id": "21",
+        "pin_id_bbox": null,
+        "pin_name": "PF0-OSCIN",
+        "pin_name_bbox": [
+          998.4,
+          358.9055604589585,
+          1057.2,
+          372.1094439541041
+        ]
+      },
+      "pin_22": {
+        "pin_id": "22",
+        "pin_id_bbox": null,
+        "pin_name": "NRST",
+        "pin_name_bbox": [
+          997.1999999999999,
+          379.31156222418355,
+          1030.8,
+          397.31685789938217
+        ]
+      },
+      "pin_23": {
+        "pin_id": "23",
+        "pin_id_bbox": null,
+        "pin_name": "PA0",
+        "pin_name_bbox": [
+          997.1999999999999,
+          416.52250661959397,
+          1022.4,
+          430.92674315975285
+        ]
+      },
+      "pin_24": {
+        "pin_id": "24",
+        "pin_id_bbox": null,
+        "pin_name": "PA4",
+        "pin_name_bbox": [
+          996.0,
+          459.7352162400706,
+          1022.4,
+          477.74051191526917
+        ]
+      },
+      "pin_115": {
+        "pin_id": "115",
+        "pin_id_bbox": null,
+        "pin_name": "PA5",
+        "pin_name_bbox": [
+          997.1999999999999,
+          474.1394527802295,
+          1022.4,
+          488.54368932038835
+        ]
+      },
+      "pin_26": {
+        "pin_id": "26",
+        "pin_id_bbox": null,
+        "pin_name": "PA6",
+        "pin_name_bbox": [
+          998.4,
+          484.9426301853486,
+          1022.4,
+          499.3468667255075
+        ]
+      },
+      "pin_27": {
+        "pin_id": "27",
+        "pin_id_bbox": null,
+        "pin_name": "PB1",
+        "pin_name_bbox": [
+          997.1999999999999,
+          519.7528684907326,
+          1022.4,
+          534.1571050308914
+        ]
+      },
+      "pin_29": {
+        "pin_id": "29",
+        "pin_id_bbox": null,
+        "pin_name": "PB10",
+        "pin_name_bbox": [
+          998.4,
+          541.3592233009708,
+          1028.3999999999999,
+          555.7634598411297
+        ]
+      },
+      "pin_30": {
+        "pin_id": "30",
+        "pin_id_bbox": null,
+        "pin_name": "PB11",
+        "pin_name_bbox": [
+          998.4,
+          553.3627537511032,
+          1027.2,
+          567.7669902912621
+        ]
+      },
+      "pin_31": {
+        "pin_id": "31",
+        "pin_id_bbox": null,
+        "pin_name": "PB5",
+        "pin_name_bbox": [
+          1129.2,
+          393.7157987643424,
+          1154.3999999999999,
+          408.1200353045013
+        ]
+      },
+      "pin_32": {
+        "pin_id": "32",
+        "pin_id_bbox": null,
+        "pin_name": "VDD",
+        "pin_name_bbox": [
+          996.0,
+          309.6910856134157,
+          1026.0,
+          327.6963812886143
+        ]
+      },
+      "pin_0": {
+        "pin_id": "0",
+        "pin_id_bbox": null,
+        "pin_name": "PF1-OSCOUT",
+        "pin_name_bbox": [
+          998.4,
+          372.1094439541041,
+          1068.0,
+          384.1129744042365
+        ]
+      },
+      "pin_34": {
+        "pin_id": "34",
+        "pin_id_bbox": null,
+        "pin_name": "VSSA",
+        "pin_name_bbox": [
+          998.4,
+          393.7157987643424,
+          1032.0,
+          409.32038834951453
+        ]
+      },
+      "pin_35": {
+        "pin_id": "35",
+        "pin_id_bbox": null,
+        "pin_name": "VDDA",
+        "pin_name_bbox": [
+          997.1999999999999,
+          405.71932921447484,
+          1032.0,
+          418.9232127096205
+        ]
+      }
+    },
+    "∅97": {
+      "pin_12": {
+        "pin_id": "12",
+        "pin_id_bbox": null,
+        "pin_name": "o",
+        "pin_name_bbox": null
+      },
+      "pin_H3": {
+        "pin_id": "H3",
+        "pin_id_bbox": [
+          670.8,
+          610.9796999117387,
+          686.4,
+          621.7828773168578
+        ],
+        "pin_name": "H3",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

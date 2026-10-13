@@ -48,6 +48,8 @@ class VisionOut:
     pins: list[PinBox] = field(default_factory=list)
     skeleton: np.ndarray | None = None
     wire_segments: list[tuple[tuple[float, float], tuple[float, float]]] = field(default_factory=list)
+    # topo_graph.extract_wire_nets 的导线网络重建结果，stage2 优先用它生成 nets
+    wire_nets: dict = field(default_factory=dict)
     img: np.ndarray | None = None
     image_path: str | Path | None = None
 
@@ -186,6 +188,17 @@ def _install_torch_stub() -> None:
     sys.modules["torch.distributed"] = dist
 
 
+def _ocr_device() -> str:
+    """device 字符串随 paddleocr 版本而异：3.x 用 "gpu:N"，2.x 用 "cuda:N"。"""
+    try:
+        import paddleocr
+
+        ver = str(getattr(paddleocr, "__version__", ""))
+    except Exception:
+        ver = ""
+    return "gpu:0" if ver.startswith("3") else "cuda:0"
+
+
 def _get_ocr(lang: str = "en"):
     global _OCR_ENGINE
 
@@ -193,10 +206,10 @@ def _get_ocr(lang: str = "en"):
         return _OCR_ENGINE
 
     from paddleocr import PaddleOCR
-    
+
     _OCR_ENGINE = PaddleOCR(
         lang=lang,
-        device="cuda:0",
+        device=_ocr_device(),
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
@@ -632,4 +645,4 @@ def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) ->
     out = extract_wire_nets(img, image_path, pins, comps, endpoints)
     run_wire_visualize(out, img, image_path)
 
-    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs, img=img, image_path=image_path)
+    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)

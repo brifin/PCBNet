@@ -142,6 +142,48 @@ def _tip_box(tip, half: float = 6.0) -> tuple[float, float, float, float] | None
     return (x - half, y - half, x + half, y + half)
 
 
+def load_text_boxes(path: str | Path | None) -> list[tuple[float, float, float, float]]:
+    """读取 text_bbox json，返回图像左上角坐标下的文本 bbox 列表。
+
+    兼容两种 schema：
+    * 合成数据（data/Dataset200/text_bbox/<id>.json，来自 adapt_synthetic.py）：
+      ``{"texts": [{"text":.., "bbox": [x1,y1,x2,y2]}, ..]}``
+    * 真实数据（同目录）：``{"components": {k: {name_bbox/key_bbox/value_bbox}},
+      "pins": {k: {pin_n: {pin_name_bbox, pin_id_bbox}}}``
+    """
+    if path is None:
+        return []
+    p = Path(path)
+    if not p.exists():
+        return []
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+    boxes: list[tuple[float, float, float, float]] = []
+
+    def collect(node: dict, fields: tuple[str, ...]) -> None:
+        for field in fields:
+            box = _box_xyxy(node[field]) if node.get(field) else None
+            if box:
+                boxes.append(box)
+
+    for item in data.get("texts") or []:
+        if isinstance(item, dict):
+            collect(item, ("bbox",))
+    for comp in (data.get("components") or {}).values():
+        if isinstance(comp, dict):
+            collect(comp, ("name_bbox", "key_bbox", "value_bbox"))
+    for pin_dict in (data.get("pins") or {}).values():
+        if not isinstance(pin_dict, dict):
+            continue
+        for pin in pin_dict.values():
+            if isinstance(pin, dict):
+                collect(pin, ("pin_name_bbox", "pin_id_bbox"))
+    return boxes
+
+
 def export_split(
     cases: dict[str, Any],
     case_ids: list[str],
@@ -150,6 +192,7 @@ def export_split(
     names: list[str],
     category_map: dict[str, str],
     coarse_map: dict[str, str] | None = None,
+    text_bbox_root: Path | None = None,
 ) -> dict[str, Any]:
     img_dir = out_root / "images" / split
     lbl_dir = out_root / "labels" / split
@@ -197,8 +240,15 @@ def export_split(
                 lines.append(line)
             else:
                 n_skip += 1
-        # 赛题数据无 text 标注，text 类无训练标签（n_text 恒 0）
+        # text 类：从 text_bbox/<cid>.json 取文本框（真实数据 + 合成数据通用）。
+        # 赛题 GT 本身不含文本标注，因此没有该文件时 text 类无标签。
         n_text = 0
+        if text_id is not None and text_bbox_root is not None:
+            for tb in load_text_boxes(Path(text_bbox_root) / f"{cid}.json"):
+                line = yolo_line(tb, iw, ih, text_id)
+                if line:
+                    lines.append(line)
+                    n_text += 1
         n_pin = 0
         pin_locations = []  # 新增：保存所有pin点坐标（图像坐标系）
         if pin_id is not None:

@@ -45,7 +45,7 @@ def main() -> int:
             continue
         img = _read_image(case.image)
         dets = _try_yolo(img, weights)
-        _comps, text_boxes, _pins = _split_detections(dets)
+        _comps, text_boxes, _pins, _endpoints = _split_detections(dets)
         save_json(vision_cache_file(out_root, case.image), {"text_boxes": [list(map(float, b)) for b in text_boxes]})
         n += 1
         print(f"[vision] {cid} text_boxes={len(text_boxes)}")

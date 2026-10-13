@@ -28,6 +28,11 @@ class Case:
                 return token
         return "unknown"
 
+    @property
+    def is_synthetic(self) -> bool:
+        """合成 case（data_pipeline/adapt_synthetic.py 生成，图片名带 Synthetic）。"""
+        return "synthetic" in self.image.stem.lower()
+
 
 def _first(paths: Iterable[Path]) -> Path | None:
     items = list(paths)
@@ -71,6 +76,12 @@ def make_splits(cases: list[Case], seed: int = 42, ratio: tuple[float, float, fl
     test = sorted(ids[n_train + n_val :])
     if not test and ids:
         test = [train.pop()] if train else []
+    # 合成 case 只进 train：val/test 保持纯真实数据，指标才有意义。
+    synthetic = {c.case_id for c in cases if c.is_synthetic}
+    if synthetic:
+        train = sorted(set(train) | synthetic)
+        val = [i for i in val if i not in synthetic]
+        test = [i for i in test if i not in synthetic]
     return {"train": train, "val": val, "test": test, "all": sorted(ids)}
 
 

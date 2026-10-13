@@ -1,0 +1,151 @@
+{
+  "case_id": "0066",
+  "width": 775,
+  "height": 697,
+  "components": {
+    "U1": {
+      "name_text": "METER",
+      "name_bbox": [
+        512.0,
+        521.0,
+        582.0,
+        546.0
+      ],
+      "key_text": "U1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "D1": {
+      "name_text": "D1",
+      "name_bbox": null,
+      "key_text": "D1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R3": {
+      "name_text": "R3",
+      "name_bbox": null,
+      "key_text": "R3",
+      "key_bbox": null,
+      "value_text": "5.1k",
+      "value_bbox": [
+        142.0,
+        93.0,
+        187.0,
+        120.0
+      ]
+    },
+    "∅56": {
+      "name_text": "∅56",
+      "name_bbox": null,
+      "key_text": "∅56",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R4": {
+      "name_text": "R4",
+      "name_bbox": null,
+      "key_text": "R4",
+      "key_bbox": null,
+      "value_text": "1M",
+      "value_bbox": [
+        242.0,
+        110.0,
+        272.0,
+        137.0
+      ]
+    },
+    "R2": {
+      "name_text": "R2",
+      "name_bbox": [
+        330.0,
+        346.0,
+        360.0,
+        371.0
+      ],
+      "key_text": "R2",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R5": {
+      "name_text": "R5",
+      "name_bbox": null,
+      "key_text": "R5",
+      "key_bbox": null,
+      "value_text": "2k",
+      "value_bbox": [
+        606.0,
+        58.0,
+        635.0,
+        84.0
+      ]
+    },
+    "R1": {
+      "name_text": "R1",
+      "name_bbox": [
+        504.0,
+        342.0,
+        532.0,
+        368.0
+      ],
+      "key_text": "R1",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "R6": {
+      "name_text": "R6",
+      "name_bbox": null,
+      "key_text": "R6",
+      "key_bbox": null,
+      "value_text": "100k",
+      "value_bbox": [
+        335.0,
+        242.0,
+        382.0,
+        268.0
+      ]
+    },
+    "R7": {
+      "name_text": "R7",
+      "name_bbox": null,
+      "key_text": "R7",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    },
+    "∅104": {
+      "name_text": "∅104",
+      "name_bbox": null,
+      "key_text": "∅104",
+      "key_bbox": null,
+      "value_text": null,
+      "value_bbox": null
+    }
+  },
+  "pins": {
+    "U1": {
+      "pin_1": {
+        "pin_id": "1",
+        "pin_id_bbox": null,
+        "pin_name": "+",
+        "pin_name_bbox": [
+          470.0,
+          471.0,
+          489.0,
+          489.0
+        ]
+      },
+      "pin_31": {
+        "pin_id": "31",
+        "pin_id_bbox": null,
+        "pin_name": "P_19",
+        "pin_name_bbox": null
+      }
+    }
+  }
+}

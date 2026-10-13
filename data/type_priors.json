@@ -1,0 +1,550 @@
+{
+  "amp": {
+    "pin_count": 5,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 1,
+      "1": 2,
+      "2": 8,
+      "3": 7,
+      "4": 5,
+      "5": 10
+    },
+    "text_dist": {
+      "0": 26,
+      "1": 7
+    }
+  },
+  "amp_3pin": {
+    "pin_count": 3,
+    "text_count": 1,
+    "pin_dist": {
+      "3": 10
+    },
+    "text_dist": {
+      "0": 2,
+      "1": 8
+    }
+  },
+  "amp_5pin": {
+    "pin_count": 5,
+    "text_count": 1,
+    "pin_dist": {
+      "5": 11
+    },
+    "text_dist": {
+      "0": 3,
+      "1": 8
+    }
+  },
+  "ant": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 3,
+      "2": 6,
+      "3": 21,
+      "4": 9,
+      "5": 7,
+      "6": 2,
+      "7": 1
+    },
+    "text_dist": {
+      "0": 26,
+      "1": 23
+    }
+  },
+  "battary": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 2,
+      "1": 8,
+      "2": 14,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 25
+    }
+  },
+  "bjt": {
+    "pin_count": 3,
+    "text_count": 1,
+    "pin_dist": {
+      "0": 2,
+      "1": 3,
+      "2": 9,
+      "3": 49,
+      "4": 1
+    },
+    "text_dist": {
+      "0": 28,
+      "1": 36
+    }
+  },
+  "bjt_npn": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "3": 2
+    },
+    "text_dist": {
+      "0": 1,
+      "1": 1
+    }
+  },
+  "bjt_pnp": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "3": 2
+    },
+    "text_dist": {
+      "0": 1,
+      "1": 1
+    }
+  },
+  "block": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 5,
+      "1": 5,
+      "2": 3
+    },
+    "text_dist": {
+      "0": 13
+    }
+  },
+  "buzzer": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 4,
+      "1": 5,
+      "2": 71,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 81
+    }
+  },
+  "c": {
+    "pin_count": 2,
+    "text_count": 2,
+    "pin_dist": {
+      "0": 4,
+      "1": 26,
+      "2": 2567,
+      "3": 18,
+      "4": 2,
+      "6": 1,
+      "8": 2,
+      "11": 1
+    },
+    "text_dist": {
+      "0": 475,
+      "1": 1063,
+      "2": 1083
+    }
+  },
+  "circle_header": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 2,
+      "2": 4,
+      "3": 1,
+      "4": 1
+    },
+    "text_dist": {
+      "0": 7,
+      "1": 1
+    }
+  },
+  "crystal": {
+    "pin_count": 1,
+    "text_count": 2,
+    "pin_dist": {
+      "1": 1
+    },
+    "text_dist": {
+      "2": 1
+    }
+  },
+  "crystal_2pin": {
+    "pin_count": 2,
+    "text_count": 1,
+    "pin_dist": {
+      "2": 49,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 10,
+      "1": 21,
+      "2": 19
+    }
+  },
+  "crystal_3pin": {
+    "pin_count": 3,
+    "text_count": 2,
+    "pin_dist": {
+      "2": 1,
+      "3": 5
+    },
+    "text_dist": {
+      "0": 1,
+      "1": 1,
+      "2": 4
+    }
+  },
+  "crystal_4pin": {
+    "pin_count": 4,
+    "text_count": 2,
+    "pin_dist": {
+      "4": 8
+    },
+    "text_dist": {
+      "0": 1,
+      "1": 2,
+      "2": 5
+    }
+  },
+  "d": {
+    "pin_count": 2,
+    "text_count": 1,
+    "pin_dist": {
+      "2": 206,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 83,
+      "1": 124
+    }
+  },
+  "dc": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "2": 1,
+      "3": 5
+    },
+    "text_dist": {
+      "0": 6
+    }
+  },
+  "esd": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 1,
+      "2": 5
+    },
+    "text_dist": {
+      "0": 6
+    }
+  },
+  "fuse": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 1,
+      "1": 1,
+      "2": 21,
+      "3": 1,
+      "4": 1,
+      "5": 1
+    },
+    "text_dist": {
+      "0": 20,
+      "1": 6
+    }
+  },
+  "gnd": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 6,
+      "1": 2993,
+      "2": 1,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 2001,
+      "1": 1000
+    }
+  },
+  "jumper": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "2": 6,
+      "3": 1,
+      "4": 2
+    },
+    "text_dist": {
+      "0": 9
+    }
+  },
+  "l": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "2": 212,
+      "3": 5
+    },
+    "text_dist": {
+      "0": 123,
+      "1": 65,
+      "2": 29
+    }
+  },
+  "led": {
+    "pin_count": 2,
+    "text_count": 1,
+    "pin_dist": {
+      "1": 1,
+      "2": 202,
+      "3": 2,
+      "4": 2,
+      "5": 1
+    },
+    "text_dist": {
+      "0": 88,
+      "1": 116,
+      "2": 4
+    }
+  },
+  "m3螺丝": {
+    "pin_count": 0,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 42,
+      "1": 16
+    },
+    "text_dist": {
+      "0": 58
+    }
+  },
+  "mosfet": {
+    "pin_count": 3,
+    "text_count": 1,
+    "pin_dist": {
+      "1": 4,
+      "2": 6,
+      "3": 55
+    },
+    "text_dist": {
+      "0": 24,
+      "1": 41
+    }
+  },
+  "mosfet_npn": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "2": 1,
+      "3": 5
+    },
+    "text_dist": {
+      "0": 4,
+      "1": 2
+    }
+  },
+  "mosfet_pnp": {
+    "pin_count": 3,
+    "text_count": 0,
+    "pin_dist": {
+      "3": 1
+    },
+    "text_dist": {
+      "0": 1
+    }
+  },
+  "motor": {
+    "pin_count": 0,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 8
+    },
+    "text_dist": {
+      "0": 8
+    }
+  },
+  "net_bidirection": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 5,
+      "1": 8
+    },
+    "text_dist": {
+      "0": 13
+    }
+  },
+  "net_input": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 16,
+      "1": 493
+    },
+    "text_dist": {
+      "0": 509
+    }
+  },
+  "net_output": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 72
+    },
+    "text_dist": {
+      "0": 72
+    }
+  },
+  "net_short": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 1,
+      "1": 12,
+      "2": 149,
+      "3": 1
+    },
+    "text_dist": {
+      "0": 163
+    }
+  },
+  "opt": {
+    "pin_count": 4,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 1,
+      "4": 2
+    },
+    "text_dist": {
+      "0": 3
+    }
+  },
+  "other": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 11,
+      "1": 20,
+      "2": 46,
+      "3": 4,
+      "4": 2,
+      "7": 1,
+      "8": 2
+    },
+    "text_dist": {
+      "0": 86
+    }
+  },
+  "pin": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 215,
+      "2": 8,
+      "3": 2,
+      "4": 2
+    },
+    "text_dist": {
+      "0": 178,
+      "1": 49
+    }
+  },
+  "r": {
+    "pin_count": 2,
+    "text_count": 2,
+    "pin_dist": {
+      "0": 2,
+      "1": 6,
+      "2": 2006,
+      "3": 39,
+      "4": 12,
+      "5": 17,
+      "6": 8,
+      "7": 4,
+      "8": 2,
+      "9": 1,
+      "12": 1,
+      "18": 1,
+      "21": 1,
+      "25": 1
+    },
+    "text_dist": {
+      "0": 458,
+      "1": 743,
+      "2": 900
+    }
+  },
+  "seg": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 1,
+      "1": 6
+    },
+    "text_dist": {
+      "0": 5,
+      "1": 2
+    }
+  },
+  "switch": {
+    "pin_count": 2,
+    "text_count": 0,
+    "pin_dist": {
+      "0": 13,
+      "1": 21,
+      "2": 113,
+      "3": 12,
+      "6": 1,
+      "7": 1
+    },
+    "text_dist": {
+      "0": 91,
+      "1": 70
+    }
+  },
+  "testpoint": {
+    "pin_count": 1,
+    "text_count": 0,
+    "pin_dist": {
+      "1": 43
+    },
+    "text_dist": {
+      "0": 22,
+      "1": 21
+    }
+  },
+  "transfomer": {
+    "pin_count": 6,
+    "text_count": 0,
+    "pin_dist": {
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "6": 2
+    },
+    "text_dist": {
+      "0": 5
+    }
+  },
+  "v": {
+    "pin_count": 1,
+    "text_count": 1,
+    "pin_dist": {
+      "1": 1278,
+      "2": 4
+    },
+    "text_dist": {
+      "0": 514,
+      "1": 767,
+      "2": 1
+    }
+  }
+}
