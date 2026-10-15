@@ -101,10 +101,7 @@ pcbnet/  config coords geometry schema knowledge_base pin_library ocr_cache
 ## 打包 / 测试 / 提交
 
 ```bash
-# 一键打包（自动收集当前 pcbnet/ 的推理闭包、自动读 configs/default.yaml 的权重、
-# 自动带知识库文件、自动下载缺失的 OCR wheels；参数透传给 pack_submission.py）
-bash submission/pack.sh
-# 等价于：
+# 打包（推荐无 text 标签权重：10GT 65.299）
 python3 submission/pack_submission.py --weights outputs/models/yolo/train_notext/weights/best.pt
 
 bash submission/check_env.sh          # 探测基础镜像里有哪些包（需 sudo + 本机有镜像）
@@ -127,8 +124,3 @@ bash submission/test_docker.sh        # docker build + run 全流程（需 sudo�
 - 2026-10-15：按反馈重做——Dockerfile 去掉全部 pip 安装（对齐纯CV样本、避免构建联网超时）；
   去掉预置 wheels 方案；只保留核心解析代码（剔除 scorer/dataset/label_export/oracle/unet、
   LLM 相关、可视化实现改为空实现、知识库从 `data/Dataset200/10gt` 移到 `data/kb`）。
-- 2026-10-15：**自动打包**——pack_submission.py 不再依赖手工模块清单：从 agent.py 的入口
-  import 出发静态扫描 `from .xxx import`（含函数内懒加载）自动收集推理闭包；被排除模块
-  （visual/gt_adapter/scorer 等）自动换空实现；知识库文件按闭包里的实际引用自动带上；
-  权重自动从 configs/default.yaml 解析。新增 `pack.sh`（一键）与 `fetch_wheels.sh`（清华
-  镜像下载 OCR wheels）；`wheels/`、`build/` 已 gitignore（不入库）。
