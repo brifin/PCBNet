@@ -1,0 +1,6 @@
+# 不提交：构建产物 / OCR 依赖二进制（用 fetch_wheels.sh 随时可重新下载）
+build/
+wheels/
+__pycache__/
+*.pyc
+*.log
