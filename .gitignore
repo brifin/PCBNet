@@ -5,4 +5,3 @@ outputs
 __pycache__/
 data/base_comps/*/*_vis.png
 data/Synthetic_Data/*
-dist/
