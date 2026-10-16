@@ -46,7 +46,6 @@ class VisionOut:
     components: list[DetBox] = field(default_factory=list)
     texts: list[TextBox] = field(default_factory=list)
     pins: list[PinBox] = field(default_factory=list)
-    endpoints: list[PinBox] = field(default_factory=list)   # wire_endpoint/pin_tip 检测结果
     skeleton: np.ndarray | None = None
     wire_segments: list[tuple[tuple[float, float], tuple[float, float]]] = field(default_factory=list)
     # topo_graph.extract_wire_nets 的导线网络重建结果，stage2 优先用它生成 nets
@@ -79,53 +78,14 @@ def _read_image(path: str | Path) -> np.ndarray:
     return img
 
 
-_YOLO_DEVICE: str | None = None
-
-
-def _resolve_yolo_device() -> str:
-    """显式选择推理设备：能用 CUDA 就用 GPU，否则 CPU（并静音 torch 的驱动告警）。
-
-    环境变量 PCB_YOLO_DEVICE 可强制指定（如 cpu / 0）。评测机驱动过旧时
-    （镜像 torch 是 cu130，驱动仅支持 CUDA 12.9），torch.cuda 会初始化失败，
-    这里安全回退 CPU，不抛异常、不刷 stderr。
-    """
-    global _YOLO_DEVICE
-    if _YOLO_DEVICE is not None:
-        return _YOLO_DEVICE
-    import os
-
-    forced = os.environ.get("PCB_YOLO_DEVICE", "").strip()
-    if forced:
-        _YOLO_DEVICE = forced
-    else:
-        try:
-            import warnings
-
-            import torch
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                _YOLO_DEVICE = "0" if torch.cuda.is_available() else "cpu"
-        except Exception:
-            _YOLO_DEVICE = "cpu"
-    print(f"[vision] YOLO device = {_YOLO_DEVICE}", flush=True)
-    return _YOLO_DEVICE
-
-
-def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4) -> list[DetBox]:
+def _try_yolo(img: np.ndarray, weights: str) -> list[DetBox]:
     if not weights:
         return []
 
     from ultralytics import YOLO
 
     model = YOLO(weights)
-    try:
-        res = model.predict(img, conf=conf, device=_resolve_yolo_device(), verbose=False)[0]
-    except Exception as exc:  # noqa: BLE001 设备不可用时回退 CPU 再试
-        print(f"[vision] 推理设备失败({exc})，回退 CPU", flush=True)
-        global _YOLO_DEVICE
-        _YOLO_DEVICE = "cpu"
-        res = model.predict(img, device="cpu", verbose=False)[0]
+    res = model.predict(img, verbose=False)[0]
     boxes = []
     names = res.names
     for b in res.boxes:
@@ -229,16 +189,7 @@ def _install_torch_stub() -> None:
 
 
 def _ocr_device() -> str:
-    """device 字符串随 paddleocr 版本而异：3.x 用 "gpu:N"，2.x 用 "cuda:N"。
-
-    可用环境变量 PCBOCR_DEVICE 显式指定（如评测容器内装的是 CPU 版 paddle，
-    设 PCBOCR_DEVICE=cpu 避免与 torch 的 CUDA 库冲突）。
-    """
-    import os
-
-    env = os.environ.get("PCBOCR_DEVICE", "").strip()
-    if env:
-        return env
+    """device 字符串随 paddleocr 版本而异：3.x 用 "gpu:N"，2.x 用 "cuda:N"。"""
     try:
         import paddleocr
 
@@ -256,21 +207,12 @@ def _get_ocr(lang: str = "en"):
 
     from paddleocr import PaddleOCR
 
-    # det_limit_side_len：paddle 默认 960，会把大图缩得很小导致密集小字检不出
-    # （实测 10gt case2：960 → 6 条文本；1600 → 46 条；2560 → 51 条）。可按需调大。
-    import os as _os
-
-    try:
-        _det_limit = int(_os.environ.get("PCBOCR_DET_LIMIT", "2560"))
-    except ValueError:
-        _det_limit = 2560
     _OCR_ENGINE = PaddleOCR(
         lang=lang,
         device=_ocr_device(),
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
-        det_limit_side_len=_det_limit,
     )
 
     # if _OCR_ENGINE is not None:
@@ -476,79 +418,19 @@ def _skel_to_segments(
 
 def _try_unet_wires(
     img: np.ndarray, weights: str, max_side: int, max_segments: int
-) -> tuple[np.ndarray, list, list[tuple[float, float]]] | None:
-    """双通道 UNet：导线 mask → 骨架线段；连接点 mask → 小连通斑的质心。"""
+) -> tuple[np.ndarray, list] | None:
     if not weights or not Path(weights).exists():
         return None
     try:
         from skimage.morphology import skeletonize
 
-        from .unet import predict_wire_points
+        from .unet import predict_mask
 
-        wmask, pmask = predict_wire_points(weights, img, size=min(512, max(256, max_side)))
-        skel = skeletonize(wmask > 0).astype(np.uint8) * 255
-        points: list[tuple[float, float]] = []
-        nlab, lab, stats, cent = cv2.connectedComponentsWithStats(pmask, 8)
-        for i in range(1, nlab):
-            area = int(stats[i, cv2.CC_STAT_AREA])
-            if 6 <= area <= 600:      # 太小=噪声，太大=不是点
-                points.append((float(cent[i, 0]), float(cent[i, 1])))
-        # NMS/去重：8px 内的点只留一个
-        points = sorted(points, key=lambda q: (-int(pmask[int(q[1]), int(q[0])]), q[0]))
-        dedup: list[tuple[float, float]] = []
-        for (px, py) in points:
-            if any((px - qx) ** 2 + (py - qy) ** 2 < 64 for qx, qy in dedup):
-                continue
-            dedup.append((px, py))
-        return skel, _skel_to_segments(skel, max_segments=max_segments), dedup
+        mask = predict_mask(weights, img, size=min(512, max(256, max_side)))
+        skel = skeletonize(mask > 0).astype(np.uint8) * 255
+        return skel, _skel_to_segments(skel, max_segments=max_segments)
     except Exception:
         return None
-
-
-def _detect_ic_pins_crop(
-    img: np.ndarray, comps: list[DetBox], weights: str,
-    conf: float = 0.15, margin: float = 0.3, dedup_px: float = 8.0,
-) -> list[PinBox]:
-    """两阶段检测：对每个 ic（box）元件裁剪放大（含引脚范围）再跑一次 YOLO 检 pin_tip。
-
-    crop 范围 = box 外扩 margin*max(box宽,box高)（夹在图像内）；crop 放大后引脚更清晰。
-    结果按 8px 去重（保留置信度高的），与全图检测互不干扰。
-    """
-    from ultralytics import YOLO
-
-    model = YOLO(weights)
-    h, w = img.shape[:2]
-    found: list[PinBox] = []
-    for comp in comps:
-        if comp.label != "ic":
-            continue
-        x1, y1, x2, y2 = (float(v) for v in comp.bbox)
-        m = margin * max(x2 - x1, y2 - y1, 1.0)
-        cx1, cy1 = max(0.0, x1 - m), max(0.0, y1 - m)
-        cx2, cy2 = min(float(w), x2 + m), min(float(h), y2 + m)
-        if cx2 - cx1 < 16 or cy2 - cy1 < 16:
-            continue
-        crop = img[int(cy1):int(cy2), int(cx1):int(cx2)]
-        try:
-            res = model.predict(crop, imgsz=640, conf=conf, verbose=False)[0]
-        except Exception:
-            continue
-        if res.boxes is None:
-            continue
-        for b, cl, cf in zip(res.boxes.xyxy.tolist(), res.boxes.cls.tolist(), res.boxes.conf.tolist()):
-            if int(cl) != 15:      # pin_tip
-                continue
-            px = (b[0] + b[2]) / 2 + cx1
-            py = (b[1] + b[3]) / 2 + cy1
-            found.append(PinBox(xy=(px, py), score=float(cf)))
-    # NMS/去重：8px 内只留置信度最高的
-    found.sort(key=lambda p: -float(getattr(p, "score", 0.5)))
-    keep: list[PinBox] = []
-    for p in found:
-        if any((p.xy[0] - q.xy[0]) ** 2 + (p.xy[1] - q.xy[1]) ** 2 < dedup_px * dedup_px for q in keep):
-            continue
-        keep.append(p)
-    return keep
 
 
 def _bbox_iou(a: list[float], b: list[float]) -> float:
@@ -577,31 +459,6 @@ def _cover_frac(inner: list[float], outer: list[float]) -> float:
 # Symbol-like classes where a box fully covered by printed text is a misdetection.
 # Power/label classes are inherently text-like and excluded from that filter.
 _TEXTLIKE_EXEMPT = {"net_label", "gnd", "vcc"}
-
-def _nms_components(comps: list[DetBox], iou_thr: float = 0.5) -> list[DetBox]:
-    """按类 NMS：同类元件框 IoU>阈值只留置信度最高者（防重复检测框）。"""
-    if not comps:
-        return comps
-    from collections import defaultdict
-
-    by_label: dict[str, list[DetBox]] = defaultdict(list)
-    for c in comps:
-        by_label[c.label].append(c)
-    out: list[DetBox] = []
-    for lst in by_label.values():
-        lst.sort(key=lambda b: -float(b.score))
-        keep = []
-        for b in lst:
-            drop = False
-            for k in keep:
-                if _bbox_iou(b.bbox, k.bbox) > iou_thr:
-                    drop = True
-                    break
-            if not drop:
-                keep.append(b)
-        out.extend(keep)
-    return out
-
 
 def _clean_components(
     comps: list[DetBox],
@@ -736,9 +593,7 @@ def _load_cached_ocr(image_path: str | Path, cfg: dict[str, Any]) -> list[TextBo
         return None
 
 
-def extract_vision(
-    image_path: str | Path, cfg: dict[str, Any] | None = None, visualize: bool = True
-) -> VisionOut:
+def extract_vision(image_path: str | Path, cfg: dict[str, Any] | None = None) -> VisionOut:
     cfg = cfg or {}
     img = _read_image(image_path)
     h, w = img.shape[:2]
@@ -751,25 +606,9 @@ def extract_vision(
     ocr_enabled = bool(ocr_cfg.get("enabled", True))
     lang = str(ocr_cfg.get("lang") or "en")
 
-    dets = _try_yolo(img, models.get("yolo_weights") or "", conf=float(vision_cfg.get("yolo_conf", 0.4)))
+    dets = _try_yolo(img, models.get("yolo_weights") or "")
     comps, text_boxes, pins, endpoints = _split_detections(dets)
     comps = _clean_components(comps, text_boxes)
-    comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.5)))
-
-    # 两阶段检测：对检出的 ic（box）裁剪放大再检一次 pin_tip（含 NMS 去重），补充/细化 IC 引脚
-    if vision_cfg.get("box_pin_crop", True) and comps:
-        extra_pins = _detect_ic_pins_crop(img, comps, models.get("yolo_weights") or "",
-                                          conf=float(vision_cfg.get("box_pin_conf", 0.15)))
-        if extra_pins:
-            # 与全图 pin 合并：8px 内去重（保留置信度高者）
-            all_pins = list(pins) + extra_pins
-            all_pins.sort(key=lambda pp: -float(getattr(pp, "score", 0.5)))
-            merged = []
-            for pp in all_pins:
-                if any((pp.xy[0] - q.xy[0]) ** 2 + (pp.xy[1] - q.xy[1]) ** 2 < 64 for q in merged):
-                    continue
-                merged.append(pp)
-            pins = merged
 
     if not comps:
         # No detector: rule-based component fallback (weak, low score expected).
@@ -781,46 +620,29 @@ def extract_vision(
 
     texts = _load_cached_ocr(image_path, cfg) if ocr_enabled else []
     if texts is None:
-        # No cache: OCR in-process.
-        # mode: "auto"（默认，先按 YOLO 文本框裁剪识别，没读出东西再整图识别）
-        #       "image"（始终整图 det+rec —— paddleocr 2.x 的检测器对紧裁剪不敏感，
-        #                提交/评测环境用这个更稳）
-        mode = str(ocr_cfg.get("mode") or "auto")
-        ocr_img, _ = _maybe_resize(img, max_side)
-
-        def _whole_image() -> list:
-            # 用**原生分辨率**做整图 OCR：paddle 内部会自己缩放（det_limit_side_len），
-            # 我们再额外预缩放会把字缩得太小，导致大图上识别率暴跌（实测 case2 只剩 1 条文本）。
-            return _ocr_texts(img, enabled=ocr_enabled, lang=lang)
-
-        if mode == "image":
-            texts = _whole_image()
-        elif text_boxes:
+        # No cache: OCR in-process (only works in a paddle-only process; when
+        # torch/YOLO is loaded this raises a cudnn DLL clash and returns []).
+        if text_boxes:
             texts = _ocr_on_boxes(img, text_boxes, lang=lang) if ocr_enabled else []
-            if ocr_enabled and not texts:
-                texts = _whole_image()   # 裁剪路径失效 → 整图兜底
         else:
-            texts = _whole_image()
+            ocr_img, _ = _maybe_resize(img, max_side)
+            texts = _ocr_texts(ocr_img, enabled=ocr_enabled, lang=lang)
+            if ocr_img.shape[0] != h or ocr_img.shape[1] != w:
+                sx, sy = w / ocr_img.shape[1], h / ocr_img.shape[0]
+                for t in texts:
+                    t.bbox = [t.bbox[0] * sx, t.bbox[1] * sy, t.bbox[2] * sx, t.bbox[3] * sy]
 
     wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
-    unet_points: list[tuple[float, float]] = []
     if wired is None:
         skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
     else:
-        skel, segs, unet_points = wired
+        skel, segs = wired
 
-    # UNet 连接点并入端点列表（网络重建时作为 wire_endpoint 节点参与）
-    all_endpoints = list(endpoints)
-    for (px, py) in unet_points:
-        all_endpoints.append(PinBox(xy=(px, py), score=0.6))
+    # 可视化
+    run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
+    run_gt_visualize(image_path, img)
 
-    # 可视化（agents/ 批量跑时可用 visualize=False 跳过，不影响检测结果）
-    if visualize:
-        run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
-        run_gt_visualize(image_path, img)
+    out = extract_wire_nets(img, image_path, pins, comps, endpoints)
+    run_wire_visualize(out, img, image_path)
 
-    out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
-    if visualize:
-        run_wire_visualize(out, img, image_path)
-
-    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, endpoints=endpoints, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)
+    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)

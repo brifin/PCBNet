@@ -197,8 +197,7 @@ def export_split(
     img_dir = out_root / "images" / split
     lbl_dir = out_root / "labels" / split
     mask_dir = out_root / "masks" / split
-    mask_pts_dir = out_root / "masks_points" / split
-    for d in (img_dir, lbl_dir, mask_dir, mask_pts_dir):
+    for d in (img_dir, lbl_dir, mask_dir):
         d.mkdir(parents=True, exist_ok=True)
     cls_ids = class_to_id(names)
     other_id = cls_ids.get("other", 0)
@@ -315,43 +314,14 @@ def export_split(
                             n_wire_ep += 1
 
         (lbl_dir / f"{cid}.txt").write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
-        # 导线 mask + 连接点 mask（UNet 双通道监督）：
-        #   wires：nets.edges 的线段（左下角坐标 → 图像坐标），线宽加大以便下采样后仍可见；
-        #   points：网上的"特殊连接点" = 线段端点（剔除与元件引脚重合的点，评测不再要元件引脚）
-        #           + 多线段交汇的结点，按半径膨胀成小圆斑。
+        # 导线 mask：赛题 nets.edges 是左下角坐标，翻转到图像坐标画线
         mask = np.zeros((ih, iw), np.uint8)
-        mask_pts = np.zeros((ih, iw), np.uint8)
-        ep_count: dict[tuple[int, int], int] = {}
-        all_segs = []
         for net in (data.get("nets") or {}).values():
             for seg in (net.get("edges") or {}).values():
                 pts = [(int(round(float(p["x"]))), int(round(ih - float(p["y"])))) for p in seg]
                 if len(pts) >= 2:
-                    all_segs.append(pts)
-                    cv2.polylines(mask, [np.asarray(pts, dtype=np.int32).reshape(-1, 1, 2)], False, 255, 4)
-                    for pt in (pts[0], pts[-1]):
-                        ep_count[pt] = ep_count.get(pt, 0) + 1
-        # 元件引脚位置（图像坐标）：这些点不算"连接点"
-        pin_pts = []
-        for pins in (data.get("pins") or {}).values():
-            for pin in (pins or {}).values():
-                pt = pin.get("point") or {}
-                try:
-                    pin_pts.append((float(pt["x"]), ih - float(pt["y"])))
-                except (KeyError, TypeError, ValueError):
-                    continue
-
-        def near_pin(x: float, y: float, thr: float = 10.0) -> bool:
-            return any((x - px) ** 2 + (y - py) ** 2 < thr * thr for px, py in pin_pts)
-
-        radius = 10
-        for (x, y), cnt in ep_count.items():
-            if cnt >= 2:          # 多线段交汇的结点：必留
-                cv2.circle(mask_pts, (x, y), radius, 255, -1)
-            elif cnt == 1 and not near_pin(x, y):   # 端点：与元件引脚重合的剔除
-                cv2.circle(mask_pts, (x, y), radius, 255, -1)
+                    cv2.polylines(mask, [np.asarray(pts, dtype=np.int32).reshape(-1, 1, 2)], False, 255, 2)
         cv2.imencode(".png", mask)[1].tofile(str(mask_dir / f"{cid}.png"))
-        cv2.imencode(".png", mask_pts)[1].tofile(str(mask_pts_dir / f"{cid}.png"))
         rows.append(
             {
                 "case_id": cid,

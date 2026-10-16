@@ -96,7 +96,7 @@ _BOX_NAMES_CACHE = None
 
 
 def _known_box_names() -> set:
-    """Whitelist of box-type model names (BoxICLibrary.json)."""
+    """Whitelist of box-type model names (BoxICLibrary_200cases.json)."""
     global _BOX_NAMES_CACHE
     if _BOX_NAMES_CACHE is None:
         try:
@@ -542,7 +542,7 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
     """Chip PN (box Name) near an IC, verified against the box-name KB whitelist.
 
     Only a text whose content (or first token) is a known box name in
-    BoxICLibrary.json is accepted, so unrelated OCR text is not bound to the box."""
+    BoxICLibrary_200cases.json is accepted, so unrelated OCR text is not bound to the box."""
     if comp["type"] != "box":
         return None
     known = _known_box_names()
@@ -642,7 +642,7 @@ def _dedup_pins(pins: list[PinBox], eps: float) -> list[PinBox]:
 
 
 def _box_library_pins(ic_name: str | None, n_pins: int) -> list[tuple[str, str]] | None:
-    """Return [(number, name), ...] from BoxICLibrary.json for a box IC, or None.
+    """Return [(number, name), ...] from BoxICLibrary_200cases.json for a box IC, or None.
 
     Pins are returned in ascending numeric EDA order (library `number`), which is the
     counterclockwise order for most IC symbols. Non-numeric numbers sort last."""
@@ -674,7 +674,7 @@ def _pins_for_component(
 ) -> list[tuple[str, str, tuple[float, float]]]:
     """Return [(pin_number, pinname, xy)] using detected tips if available.
 
-    box 类优先用 BoxICLibrary.json 查 pinname（按名字查号），查不到则 OCR/弱先验
+    box 类优先用 BoxICLibrary_200cases.json 查 pinname（按名字查号），查不到则 OCR/弱先验
     （左 1 逆时针）；非 box 空编号引脚 pin key 用 pin_1/pin_2…（只比端点坐标）。
     """
     x1, y1, x2, y2 = comp["img_bbox"]

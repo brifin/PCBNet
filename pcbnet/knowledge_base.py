@@ -1,7 +1,7 @@
 """Load contest knowledge bases.
 
 - key-type KB: parsed from type_list.md (type -> key prefix, constrains naming given type)
-- box-name KB: BoxICLibrary.json (box model names; pin naming handled by pin_library)
+- box-name KB: BoxICLibrary_200cases.json (box model names; pin naming handled by pin_library)
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Any
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "Dataset200" / "10gt"
 TYPE_LIST = _DATA_DIR / "type_list.md"
-BOX_LIB = _DATA_DIR / "BoxICLibrary.json"
+BOX_LIB = _DATA_DIR / "BoxICLibrary_200cases.json"
 
 _key_type_cache: dict[str, Any] | None = None
 _box_name_cache: set[str] | None = None
@@ -67,7 +67,7 @@ def load_box_name_kb() -> dict[str, Any]:
 
 
 def known_box_names() -> set[str]:
-    """Whitelist of box model names (keys of BoxICLibrary.json)."""
+    """Whitelist of box model names (keys of BoxICLibrary_200cases.json)."""
     global _box_name_cache
     if _box_name_cache is None:
         _box_name_cache = set(load_box_name_kb().keys())

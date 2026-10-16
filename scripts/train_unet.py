@@ -111,17 +111,13 @@ def main() -> int:
             if img_path is None:
                 raise FileNotFoundError(cid)
             img = _read_bgr(img_path)
-            mask = _read_gray(mask_dir / f"{cid}.png")                                   # 导线
-            mask_pts = _read_gray(mask_dir.parent.parent / "masks_points" / mask_dir.name / f"{cid}.png")  # 连接点
+            mask = _read_gray(mask_dir / f"{cid}.png")
             if img is None or mask is None:
                 raise FileNotFoundError(cid)
-            if mask_pts is None:
-                mask_pts = np.zeros_like(mask)
             img = _pad_square(img, self.size, False)[:, :, ::-1].astype(np.float32) / 255.0
             mask = (_pad_square(mask, self.size, True) > 0).astype(np.float32)
-            mask_pts = (_pad_square(mask_pts, self.size, True) > 0).astype(np.float32)
             x = torch.from_numpy(img.transpose(2, 0, 1))
-            y = torch.from_numpy(np.stack([mask, mask_pts]))
+            y = torch.from_numpy(mask[None])
             return x, y
 
     epochs = 1 if args.smoke else int(unet_cfg.get("epochs", args.epochs))
@@ -138,15 +134,6 @@ def main() -> int:
     train_loader = DataLoader(train_set, batch_size=batch, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=0)
     model = build_unet().to(device)
-    best_pt = out_dir / "best.pt" if False else (project_root() / "outputs" / "models" / "unet" / "best.pt")
-    if best_pt.exists():
-        try:
-            ck = torch.load(str(best_pt), map_location=device, weights_only=True)
-            state = ck["state_dict"] if isinstance(ck, dict) and "state_dict" in ck else ck
-            model.load_state_dict(state)
-            print("[unet] 从 best.pt 续训")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[unet] 续训失败，从头开始：{exc}")
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     out_dir = project_root() / "outputs" / "models" / "unet"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -160,8 +147,7 @@ def main() -> int:
             x, y = x.to(device), y.to(device)
             opt.zero_grad()
             logits = model(x)
-            # 点通道稀疏，加权 3 倍；dice 评估只看导线通道
-            loss = bce_dice_loss(logits[:, :1], y[:, :1]) + 3.0 * bce_dice_loss(logits[:, 1:], y[:, 1:])
+            loss = bce_dice_loss(logits, y)
             loss.backward()
             opt.step()
             losses.append(float(loss.item()))
@@ -170,7 +156,7 @@ def main() -> int:
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(device), y.to(device)
-                dices.append(float(dice_coef(model(x)[:, :1], y[:, :1]).item()))  # 导线通道 dice
+                dices.append(float(dice_coef(model(x), y).item()))
         mean_loss = sum(losses) / max(len(losses), 1)
         mean_dice = sum(dices) / max(len(dices), 1)
         history.append({"epoch": epoch, "loss": mean_loss, "val_dice": mean_dice})
