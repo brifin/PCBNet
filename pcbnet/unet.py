@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 
-def build_unet(in_ch: int = 3, out_ch: int = 1, base: int = 16):
+def build_unet(in_ch: int = 3, out_ch: int = 2, base: int = 16):
     import torch
     from torch import nn
 
@@ -85,6 +85,15 @@ def load_unet(weights: str | Path, device: str = "cpu"):
 
 
 def predict_mask(weights: str | Path, image_bgr: np.ndarray, size: int = 512, device: str = "cpu") -> np.ndarray:
+    """兼容旧接口：只返回导线通道。"""
+    wmask, _ = predict_wire_points(weights, image_bgr, size, device)
+    return wmask
+
+
+def predict_wire_points(
+    weights: str | Path, image_bgr: np.ndarray, size: int = 512, device: str = "cpu"
+) -> tuple[np.ndarray, np.ndarray]:
+    """双通道 UNet 推理：返回 (导线 mask, 连接点 mask)，均已还原到原图尺寸。"""
     import torch
 
     h, w = image_bgr.shape[:2]
@@ -94,9 +103,10 @@ def predict_mask(weights: str | Path, image_bgr: np.ndarray, size: int = 512, de
     model = load_unet(weights, device)
     with torch.no_grad():
         logits = model(tensor)
-        prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
-    mask = (prob >= 0.5).astype(np.uint8) * 255
-    return _resize_gray(mask, w, h)
+        prob = torch.sigmoid(logits)[0].cpu().numpy()   # (2, H, W)
+    wmask = (prob[0] >= 0.5).astype(np.uint8) * 255
+    pmask = (prob[1] >= 0.5).astype(np.uint8) * 255
+    return _resize_gray(wmask, w, h), _resize_gray(pmask, w, h)
 
 
 def _resize_keep(img: np.ndarray, size: int) -> np.ndarray:

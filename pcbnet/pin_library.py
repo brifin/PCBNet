@@ -1,4 +1,4 @@
-"""Look up IC pin number -> pinname from BoxICLibrary_200cases.json."""
+"""Look up IC pin number -> pinname from BoxICLibrary.json."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-DEFAULT_LIB = Path(__file__).resolve().parent.parent / "data" / "Dataset200" / "10gt" / "BoxICLibrary_200cases.json"
+DEFAULT_LIB = Path(__file__).resolve().parent.parent / "data" / "Dataset200" / "10gt" / "BoxICLibrary.json"
 
 _cache: dict[str, Any] | None = None
 

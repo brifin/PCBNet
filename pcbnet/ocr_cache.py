@@ -18,7 +18,14 @@ from typing import Any
 
 
 def _key(image_path: str | Path) -> str:
-    return hashlib.sha1(str(Path(image_path).resolve()).encode("utf-8")).hexdigest()[:16]
+    # key 包含文件大小与修改时间：图片内容换了（如 10gt 数据更新）缓存自动失效，
+    # 避免"换图后仍读到旧图的 OCR 结果"这类隐性泄漏。
+    p = Path(image_path).resolve()
+    try:
+        sig = f"{p}|{p.stat().st_size}|{p.stat().st_mtime_ns}"
+    except OSError:
+        sig = str(p)
+    return hashlib.sha1(sig.encode("utf-8")).hexdigest()[:16]
 
 
 def vision_cache_file(out_root: str | Path, image_path: str | Path) -> Path:

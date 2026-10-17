@@ -63,8 +63,8 @@ def main() -> int:
     thr = cfg.get("thresholds") or {}
     kw = dict(
         bbox_thr=float(thr.get("bbox_px", 20)),
-        pin_thr=float(thr.get("pin_px", 5)),
-        line_thr=float(thr.get("line_px", 5)),
+        pin_thr=float(thr.get("pin_px", 20)),
+        line_thr=float(thr.get("line_px", 20)),
         weights=cfg.get("weights"),
     )
     report = score_batch(items, **kw)

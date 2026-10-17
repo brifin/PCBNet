@@ -96,7 +96,7 @@ _BOX_NAMES_CACHE = None
 
 
 def _known_box_names() -> set:
-    """Whitelist of box-type model names (BoxICLibrary_200cases.json)."""
+    """Whitelist of box-type model names (BoxICLibrary.json)."""
     global _BOX_NAMES_CACHE
     if _BOX_NAMES_CACHE is None:
         try:
@@ -542,7 +542,7 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
     """Chip PN (box Name) near an IC, verified against the box-name KB whitelist.
 
     Only a text whose content (or first token) is a known box name in
-    BoxICLibrary_200cases.json is accepted, so unrelated OCR text is not bound to the box."""
+    BoxICLibrary.json is accepted, so unrelated OCR text is not bound to the box."""
     if comp["type"] != "box":
         return None
     known = _known_box_names()
@@ -558,7 +558,8 @@ def _nearby_ic_partname(comp: dict, texts: list[dict]) -> str | None:
         if t.get("used"):
             continue
         content = (t.get("content") or "").strip()
-        for token in (content.split()[0], content):
+        toks = content.split()
+        for token in ((toks[0] if toks else content), content):
             pn = _strip_token(token)
             if pn in known:
                 d = _score(t, pn)
@@ -642,7 +643,7 @@ def _dedup_pins(pins: list[PinBox], eps: float) -> list[PinBox]:
 
 
 def _box_library_pins(ic_name: str | None, n_pins: int) -> list[tuple[str, str]] | None:
-    """Return [(number, name), ...] from BoxICLibrary_200cases.json for a box IC, or None.
+    """Return [(number, name), ...] from BoxICLibrary.json for a box IC, or None.
 
     Pins are returned in ascending numeric EDA order (library `number`), which is the
     counterclockwise order for most IC symbols. Non-numeric numbers sort last."""
@@ -674,7 +675,7 @@ def _pins_for_component(
 ) -> list[tuple[str, str, tuple[float, float]]]:
     """Return [(pin_number, pinname, xy)] using detected tips if available.
 
-    box 类优先用 BoxICLibrary_200cases.json 查 pinname（按名字查号），查不到则 OCR/弱先验
+    box 类优先用 BoxICLibrary.json 查 pinname（按名字查号），查不到则 OCR/弱先验
     （左 1 逆时针）；非 box 空编号引脚 pin key 用 pin_1/pin_2…（只比端点坐标）。
     """
     x1, y1, x2, y2 = comp["img_bbox"]
@@ -723,27 +724,70 @@ def _pins_for_component(
         cx = (x1 + x2) / 2.0
         owned = _order_pins_ccw(owned, cx)  # 逆时针几何顺序
 
-        # 第一遍：先 pinname（图中文字），后 number（图中数字）
+        # 第一遍：先 pinname（图中文字），后 number（图中数字）。
+        # 库校验：OCR 噪声（det_limit 加大后更多）——数字不在库编号里、文字不在库引脚名里
+        # 的，一律当缺失处理，交给第二遍的库反查/几何分配，避免编号整体移位、'n' 误绑。
+        valid_nums = set(lib.keys()) if lib else set()
+        valid_names = {str(n).lower() for n in lib.values()} if lib else set()
         items = []
         for p in owned:
             xy = _snap_to_wire(p.xy, vision, snap_px)
             pinname = p.name or _nearest_pinname(p.xy, texts, comp)  # 图中文字（引脚名）
             number = p.number or _nearest_pinnum(p.xy, texts)         # 图中数字（引脚编号）
+            if valid_nums:
+                number = None   # 库存在时编号统一走"名→号/几何"分配，忽略 OCR 数字
+                if pinname and str(pinname).lower() not in valid_names:
+                    cand = _nearest_pinname_from_set(p.xy, texts, comp, valid_names)
+                    pinname = cand  # 附近有库内合法名则用，否则 None（交给库反查）
             items.append({"pinname": pinname, "number": number, "xy": xy})
 
-        # 第二遍：图中信息优先；缺失时才对照 BoxICLibrary
-        name_assigned: dict[str, int] = defaultdict(int)
+        # 第二遍：库存在时，编号以"库名→号 + 几何兜底"为准（OCR 数字噪声大，
+        # det_limit 加大后会出现编号整体移位）；库不存在才用 OCR 数字。
+        name_lower_to_nums: dict[str, list[str]] = {n.lower(): v for n, v in name_to_nums.items()}
         seen: set[str] = set()
+        if lib and items:
+            cx_ = (x1 + x2) / 2.0
+            left_idx = sorted([i for i in range(len(items)) if items[i]["xy"][0] <= cx_],
+                              key=lambda i: items[i]["xy"][1])          # 左列上→下
+            right_idx = sorted([i for i in range(len(items)) if items[i]["xy"][0] > cx_],
+                               key=lambda i: items[i]["xy"][1])         # 右列上→下
+            geom: dict[int, str] = {}
+            n = 1
+            for i in left_idx:
+                geom[i] = str(n)
+                n += 1
+            for i in right_idx:
+                geom[i] = str(n)
+                n += 1
+            name_assigned: dict[str, int] = defaultdict(int)
+            for i, item in enumerate(items):
+                pinname, xy = item["pinname"], item["xy"]
+                number = None
+                if pinname and pinname.lower() in name_lower_to_nums:
+                    nums = name_lower_to_nums[pinname.lower()]
+                    k = name_assigned[pinname.lower()]
+                    number = nums[k] if k < len(nums) else nums[-1]
+                    name_assigned[pinname.lower()] += 1
+                if number is None:
+                    number = geom.get(i, str(len(seen) + 1))
+                    if pinname is None and number in lib:
+                        pinname = lib[number]
+                if number in seen:      # 冲突兜底：退回几何编号
+                    number = geom.get(i, str(len(seen) + 1))
+                    if pinname is None and number in lib:
+                        pinname = lib[number]
+                seen.add(number)
+                out.append((number, pinname or number, xy))
+            return out
+        name_assigned: dict[str, int] = defaultdict(int)
         for item in items:
             pinname, number, xy = item["pinname"], item["number"], item["xy"]
             if number is None and pinname and pinname in name_to_nums:
-                # 图中 number 缺失：用 pinname 反查库（同名多编号按几何顺序分配）
                 nums = name_to_nums[pinname]
                 idx = name_assigned[pinname]
                 number = nums[idx] if idx < len(nums) else nums[-1]
                 name_assigned[pinname] += 1
             elif pinname is None and number and number in lib:
-                # 图中 pinname 缺失：用 number 查库 pinname
                 pinname = lib[number]
             if number is None:
                 number = str(len(seen) + 1)
@@ -807,6 +851,28 @@ def _nearest_pinname(pt: tuple[float, float], texts: list[dict], comp: dict) -> 
         d = _dist(pt, c)
         if d < best_d and re.search(r"[A-Za-z]", t["content"]):
             best, best_d = t["content"].strip(), d
+    return best
+
+
+def _nearest_pinname_from_set(
+    pt: tuple[float, float], texts: list[dict], comp: dict, name_set: set[str]
+) -> str | None:
+    """在引脚附近文字里找库内合法引脚名（大小写不敏感），防 OCR 噪声（如 'n'）误绑。"""
+    if not name_set:
+        return None
+    x1, y1, x2, y2 = comp["img_bbox"]
+    m = 30.0
+    best, best_d = None, 1e9
+    for t in texts:
+        if t.get("used") or t["cls"] not in {"name", "other"}:
+            continue
+        c = _center(t["bbox"])
+        if not (x1 - m <= c[0] <= x2 + m and y1 - m <= c[1] <= y2 + m):
+            continue
+        if str(t["content"]).strip().lower() in name_set:
+            d = _dist(pt, c)
+            if d < best_d:
+                best, best_d = str(t["content"]).strip(), d
     return best
 
 
