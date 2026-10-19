@@ -52,7 +52,8 @@ def flip_gt_y(gt: dict, h_img: int) -> dict:
 def run_synthetic_visualize(img_path: str | Path):
     """单个case可视化：在同一张图上绘制 components框、text文本框、pin点、net连线"""
     img_path = Path(img_path)
-    json_path = img_path.parent / "annotation.json"
+    json_candidates = list(img_path.parent.glob("*.json"))
+    json_path = json_candidates[0]
     case_name = img_path.parent.name  # case_0, case_1 ...
     # 读图片
     img = cv2.imread(str(img_path))
