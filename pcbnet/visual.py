@@ -93,7 +93,12 @@ def flip_gt_y(gt: dict, h_img: int) -> dict:
 
 def run_gt_visualize(img_path, img):
     img_path = Path(img_path)
-    with open(f"outputs/gt/{img_path.parent.name}.json", "r") as f:
+    gt_path = Path(f"outputs/gt/{img_path.parent.name}.json")
+    if not gt_path.exists():
+        # 没有 GT 时跳过，避免整条可视化链因一个缺失文件中断
+        print(f"[viz] skip GT visualize: {gt_path} not found")
+        return
+    with open(gt_path, "r") as f:
         gt = json.load(f)
 
     save_dir = f"outputs/viz/{img_path.parent.name}"

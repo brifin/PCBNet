@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 """全图 OCR 子进程 worker。
 
-主进程里 torch 与 paddlepaddle-gpu 的 CUDA 库会冲突（libcublas 符号错误），
-所以整图 OCR 放到独立子进程执行：本脚本只 import paddleocr，对整图做 det+rec，
-把结果写 JSON。不读任何缓存——每次调用都是全新识别。
+主进程里 torch 与 paddle 的运行库/CUDA 库可能冲突，所以整图 OCR 放到独立子进程：
+本脚本只 import paddleocr，对整图做 det+rec，把结果写 JSON。不读任何缓存。
+
+固定使用 PaddleOCR 3.7 / PaddleX 3.7.2（PP-OCRv6）。主进程会先确保 3.7 运行时，
+并通过 PYTHONPATH 传给本进程；当前环境不是 3.7 会直接报错，不会静默使用旧版 OCR。
 
 用法：python _ocr_worker.py <图片路径> <输出json路径>
-环境变量：PCBOCR_DEVICE（默认 cpu；3.x 用 gpu:0）、PCBOCR_DET_LIMIT（默认 2560）、
+环境变量：PCBOCR_DEVICE（默认 cpu；GPU 用 gpu:0）、PCBOCR_DET_LIMIT（默认 2560）、
           PCBOCR_LANG（默认 en）。
-兼容 paddleocr 2.x 与 3.x；提交容器内依赖装在 /submission/pylibs，这里自动追加 sys.path。
 """
 
 from __future__ import annotations
@@ -18,11 +19,6 @@ import json
 import os
 import sys
 from pathlib import Path
-
-# 提交容器：paddle 在 /submission/pylibs（本机该目录不存在，自动忽略）
-_PYLIBS = Path(__file__).resolve().parent.parent / "pylibs"
-if _PYLIBS.is_dir():
-    sys.path.append(str(_PYLIBS))
 
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
@@ -51,46 +47,42 @@ def main() -> int:
     import paddleocr
 
     ver = str(getattr(paddleocr, "__version__", ""))
+    if not ver.startswith("3.7"):
+        raise RuntimeError(
+            f"需要 PaddleOCR 3.7，实际导入的是 {ver!r}。"
+            "主流程会自动安装 3.7 到通用缓存目录；如果看到本错误，"
+            "请检查 PYTHONPATH 是否把旧版 paddleocr 提前了。"
+        )
+
     out: list[dict] = []
-    if ver.startswith("3"):
-        engine = paddleocr.PaddleOCR(
-            lang=lang, device=dev, use_doc_orientation_classify=False,
-            use_doc_unwarping=False, use_textline_orientation=False,
-            det_limit_side_len=det_limit,
-        )
-        res = engine.predict(img)
-        item = res[0]
-        texts = list(item.get("rec_texts") or [])
-        scores = list(item.get("rec_scores") or [])
-        boxes = list(item.get("rec_polys", item.get("dt_polys", [])) or [])
-        for b, t, s in zip(boxes, texts, scores):
-            if not str(t or "").strip():
-                continue
-            pts = np.asarray(b).reshape(-1, 2)
-            out.append({
-                "bbox": [float(pts[:, 0].min()) * inv_scale, float(pts[:, 1].min()) * inv_scale,
-                         float(pts[:, 0].max()) * inv_scale, float(pts[:, 1].max()) * inv_scale],
-                "content": str(t),
-                "score": float(s),
-            })
-    else:
-        engine = paddleocr.PaddleOCR(
-            lang=lang, device=dev, use_angle_cls=False, show_log=False,
-            det_limit_side_len=det_limit,
-        )
-        res = engine.ocr(img, cls=True)
-        for box, (t, s) in (res[0] or []):
-            if not str(t or "").strip():
-                continue
-            xs = [float(p[0]) for p in box]
-            ys = [float(p[1]) for p in box]
-            out.append({
-                "bbox": [min(xs) * inv_scale, min(ys) * inv_scale, max(xs) * inv_scale, max(ys) * inv_scale],
-                "content": str(t),
-                "score": float(s),
-            })
+    engine = paddleocr.PaddleOCR(
+        lang=lang,
+        device=dev,
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+        text_det_limit_side_len=det_limit,
+        # paddlepaddle 3.3 CPU + oneDNN 在 PP-OCRv6 的某些算子上报
+        # ConvertPirAttribute2RuntimeAttribute；关闭 MKLDNN 后可正常推理。
+        enable_mkldnn=False,
+    )
+    res = engine.predict(img)
+    item = res[0]
+    texts = list(item.get("rec_texts") or [])
+    scores = list(item.get("rec_scores") or [])
+    boxes = list(item.get("rec_polys", item.get("dt_polys", [])) or [])
+    for b, t, s in zip(boxes, texts, scores):
+        if not str(t or "").strip():
+            continue
+        pts = np.asarray(b).reshape(-1, 2)
+        out.append({
+            "bbox": [float(pts[:, 0].min()) * inv_scale, float(pts[:, 1].min()) * inv_scale,
+                     float(pts[:, 0].max()) * inv_scale, float(pts[:, 1].max()) * inv_scale],
+            "content": str(t),
+            "score": float(s),
+        })
     json.dump(out, open(out_path, "w", encoding="utf-8"), ensure_ascii=False)
-    print(f"[ocr-worker] {Path(img_path).name}: {len(out)} texts", flush=True)
+    print(f"[ocr-worker] {Path(img_path).name}: {len(out)} texts (paddleocr {ver})", flush=True)
     return 0
 
 
