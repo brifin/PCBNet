@@ -90,8 +90,9 @@ def load_or_create_splits(data_dir: Path, cases: list[Case], seed: int = 42, rat
     current = {c.case_id for c in cases}
     if path.exists():
         splits = json.loads(path.read_text(encoding="utf-8"))
-        if set(splits.get("all") or []) == current:
-            return splits
+        # import pdb; pdb.set_trace()
+        # if set(splits.get("all") or []) == current:
+        return splits
     splits = make_splits(cases, seed=seed, ratio=ratio)
     path.write_text(json.dumps(splits, ensure_ascii=False, indent=2), encoding="utf-8")
     return splits
