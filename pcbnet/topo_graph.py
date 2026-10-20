@@ -631,6 +631,7 @@ def extract_wire_nets(
     comps: list,
     endpoints: list,
     snap_max_dist: int = 10,
+    visualize: bool = True,
 ):
     """
     从原图 + YOLO检测结果（器件/引脚/折线点）重建完整导线网络
@@ -643,13 +644,15 @@ def extract_wire_nets(
         merge_thresh: 节点合并距离阈值（像素）
         snap_max_dist: 节点吸附到骨架的最大偏移距离
         pin_obstacle_margin: 引脚周围避开器件障碍物的距离
+        visualize: 是否落盘 mask/grid 调试图（与 extract_vision 的 visualize 开关一致）
     
     Returns:
         结构化网络字典，net独立编号，edge独立编号，点带x/y坐标
     """
     # 1. 导线提取与骨架化
     wire_mask = _get_wire_mask_v2(img, comps)
-    visualize_mask(img, wire_mask, img_path)
+    if visualize:
+        visualize_mask(img, wire_mask, img_path)
     
     # 2. 节点统一编码 + 去重
     nodes, node_coords = _prepare_nodes(pins, endpoints)
@@ -661,7 +664,8 @@ def extract_wire_nets(
 
     # 4. 创建稀疏图
     grid, element_list, x_centers, y_centers = build_element_grid(nodes, comps)
-    visualize_grid(grid, x_centers, y_centers, element_list, img, img_path)
+    if visualize:
+        visualize_grid(grid, x_centers, y_centers, element_list, img, img_path)
 
     # 5. 追踪所有边
     edges, element_list = dfs_grid(grid, element_list, wire_mask, x_centers, y_centers)

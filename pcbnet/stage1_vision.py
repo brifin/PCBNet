@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import Any 
+from typing import Any
 from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize
 from .topo_graph import extract_wire_nets
 from tqdm import tqdm
@@ -80,6 +84,12 @@ def _read_image(path: str | Path) -> np.ndarray:
 
 
 _YOLO_DEVICE: str | None = None
+# OCR 运行时与具体虚拟环境解耦：统一安装到通用缓存目录，运行时只设置 PYTHONPATH。
+_OCR_PYTHONPATH: str | None = None
+_OCR_RUNTIME_DIR = Path(
+    os.environ.get("PCBNET_OCR_RUNTIME")
+    or (Path.home() / ".cache" / "pcbnet" / "ocr37")
+)
 
 
 def _resolve_yolo_device() -> str:
@@ -424,12 +434,134 @@ def _ocr_on_boxes(img: np.ndarray, boxes: list[list[float]], lang: str = "en", p
     return out
 
 
+def _ocr_subprocess_env(pythonpath: str | None) -> dict[str, str]:
+    """OCR 子进程环境：PYTHONPATH 指向 3.7 运行时；容器里补 libgomp 搜索路径。"""
+    env = dict(os.environ)
+    if pythonpath:
+        old = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = pythonpath + (":" + old if old else "")
+    project = Path(__file__).resolve().parent.parent
+    libs_dir = project / "libs"
+    if libs_dir.is_dir():
+        old_ld = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = str(libs_dir) + (":" + old_ld if old_ld else "")
+    return env
+
+
+def _probe_ocr_version(pythonpath: str | None) -> str:
+    """用当前解释器 + 指定 PYTHONPATH 探测 paddleocr 版本；失败返回空串。"""
+    try:
+        out = subprocess.run(
+            [sys.executable, "-c", "import paddleocr;print(paddleocr.__version__)"],
+            env=_ocr_subprocess_env(pythonpath),
+            capture_output=True, text=True, timeout=120,
+        )
+    except Exception:
+        return ""
+    if out.returncode != 0:
+        return ""
+    lines = [x.strip() for x in (out.stdout or "").splitlines() if x.strip()]
+    return lines[-1] if lines else ""
+
+
+def _ensure_ocr37() -> str:
+    """确保存在 PaddleOCR 3.7 运行时，返回需要加到 PYTHONPATH 的目录。
+
+    不依赖任何特定虚拟环境：
+      1. 容器/打包目录里有 pylibs 且已是 3.7 → 直接用；
+      2. 通用缓存目录 ~/.cache/pcbnet/ocr37 已是 3.7 → 直接用；
+      3. 当前解释器本身已是 3.7 → 不加 PYTHONPATH；
+      4. 都没有 → pip 安装到通用缓存目录（帮助用户自动装好）。
+    """
+    global _OCR_PYTHONPATH
+    if _OCR_PYTHONPATH is not None:
+        return _OCR_PYTHONPATH
+
+    project = Path(__file__).resolve().parent.parent
+    for candidate in (project / "pylibs", _OCR_RUNTIME_DIR):
+        if not candidate.is_dir():
+            continue
+        ver = _probe_ocr_version(str(candidate))
+        if ver.startswith("3.7"):
+            _OCR_PYTHONPATH = str(candidate)
+            print(f"[ocr] PaddleOCR {ver}：{candidate}", flush=True)
+            return _OCR_PYTHONPATH
+
+    ver = _probe_ocr_version(None)
+    if ver.startswith("3.7"):
+        _OCR_PYTHONPATH = ""
+        print(f"[ocr] PaddleOCR {ver}：当前环境", flush=True)
+        return _OCR_PYTHONPATH
+
+    _OCR_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    print(
+        f"[ocr] 未检测到 PaddleOCR 3.7（当前 {ver or '未安装'}），"
+        f"正在安装到 {_OCR_RUNTIME_DIR}（首次约 1~2 分钟）…",
+        flush=True,
+    )
+    base = [
+        sys.executable, "-m", "pip", "install",
+        "--upgrade", "--no-input", "--disable-pip-version-check",
+        "--target", str(_OCR_RUNTIME_DIR),
+        "paddlepaddle==3.3.0", "paddleocr==3.7.0", "paddlex==3.7.2",
+    ]
+    for extra in (["-i", "https://pypi.tuna.tsinghua.edu.cn/simple"], []):
+        try:
+            proc = subprocess.run(base + extra, timeout=1800)
+            if proc.returncode == 0:
+                break
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ocr] pip 安装失败（{exc}），尝试备用源…", flush=True)
+
+    ver = _probe_ocr_version(str(_OCR_RUNTIME_DIR))
+    if not ver.startswith("3.7"):
+        raise RuntimeError(
+            "PaddleOCR 3.7 安装失败。请手动执行：\n"
+            f"  {sys.executable} -m pip install --target {_OCR_RUNTIME_DIR} "
+            "paddlepaddle==3.3.0 paddleocr==3.7.0 paddlex==3.7.2"
+        )
+    _OCR_PYTHONPATH = str(_OCR_RUNTIME_DIR)
+    print(f"[ocr] PaddleOCR {ver} 安装完成：{_OCR_RUNTIME_DIR}", flush=True)
+    return _OCR_PYTHONPATH
+
+
+def _ensure_ocr_models() -> None:
+    """PP-OCRv6 模型：优先复用已缓存；没有时从随包 ocr_models 复制。"""
+    cache = Path(
+        os.environ.get("PADDLE_PDX_CACHE_HOME")
+        or (Path.home() / ".paddlex")
+    )
+    need = ("PP-OCRv6_medium_det", "PP-OCRv6_medium_rec")
+    model_dir = cache / "official_models"
+    if all((model_dir / n).is_dir() for n in need):
+        return
+
+    bundled = (
+        Path(__file__).resolve().parent.parent
+        / "submission" / "ocr_models" / ".paddlex" / "official_models"
+    )
+    if not bundled.is_dir():
+        # 没有随包模型时交给 PaddleX 在首次推理时下载。
+        return
+    try:
+        model_dir.mkdir(parents=True, exist_ok=True)
+        for name in need:
+            src = bundled / name
+            dst = model_dir / name
+            if src.is_dir() and not dst.is_dir():
+                shutil.copytree(src, dst)
+        print(f"[ocr] 已准备 PP-OCRv6 模型：{model_dir}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ocr] 复制 OCR 模型失败（将由 PaddleX 尝试下载）：{exc}", flush=True)
+
+
 def _full_image_ocr(image_path: str | Path, lang: str = "en") -> list[TextBox]:
 
     """每次推理都做一次**全图 OCR**（不读缓存）。
 
-    torch 已加载时（主推理进程），paddlepaddle-gpu 与 torch 的 CUDA 库冲突，
-    改用独立子进程跑 OCR（pcbnet/_ocr_worker.py，可用 PCB_OCR_PYTHON 指定解释器）；
+    torch 已加载时（主推理进程），paddlepaddle 与 torch 的 CUDA/运行库可能冲突，
+    改用独立子进程跑 OCR（pcbnet/_ocr_worker.py）；OCR 固定使用 PaddleOCR 3.7，
+    当前环境没有时自动安装到通用缓存目录并仅对 OCR 子进程设置 PYTHONPATH。
     否则（纯 paddle 进程）直接进程内识别。
     """
     import json
@@ -442,12 +574,18 @@ def _full_image_ocr(image_path: str | Path, lang: str = "en") -> list[TextBox]:
 
     if "torch" in sys.modules:
         worker = Path(__file__).resolve().parent / "_ocr_worker.py"
-        interpreter = os.environ.get("PCB_OCR_PYTHON") or sys.executable
+        # 不管当前是什么环境，都先把 PaddleOCR 3.7 运行时准备好；
+        # 没有就自动安装到通用缓存目录，并只通过 PYTHONPATH 注入 OCR 子进程。
+        pythonpath = _ensure_ocr37()
+        _ensure_ocr_models()
+        interpreter = sys.executable
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as fh:
             out_path = fh.name
         try:
-            env = dict(os.environ)
+            env = _ocr_subprocess_env(pythonpath)
             env.setdefault("PCBOCR_LANG", lang)
+            # 自动安装的是 paddlepaddle 3.3.0 CPU；需要 GPU 时可显式设 PCBOCR_DEVICE=gpu:0。
+            env.setdefault("PCBOCR_DEVICE", "cpu")
             subprocess.run(
                 [interpreter, str(worker), str(image_path), out_path],
                 check=True, env=env, timeout=1800,
@@ -843,7 +981,7 @@ def extract_vision(
         run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
+    out = extract_wire_nets(img, image_path, pins, comps, all_endpoints, visualize=visualize)
     if visualize:
         run_wire_visualize(out, img, image_path)
 
