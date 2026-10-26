@@ -6,61 +6,84 @@
 # Do not reorder after a training run starts. Rare CVJsonStd categories collapse
 # into `other` (contest does not compare text for `other`).
 names:
-  - ic
-  - resistor
-  - capacitor
-  - inductor
-  - diode
-  - transistor
-  - gnd
-  - vcc
-  - net_label
-  - connector
-  - crystal
-  - switch
-  - testpoint
-  - other
-  - text
-  - pin_tip
-  - wire_endpoint
+  # - pin_tip
+  # - wire_endpoint
+  - opamp                  # 对应 amp / amp_3pin / amp_5pin
+  - antenna                # 对应 ant
+  - battery                # 对应 battery
+  - bjt                    # 对应 bjt / bjt_npn / bjt_pnp
+  - bnp           # 对应 block
+  - ic                # 对应 box
+  - buzzer                 # 对应 buzzer
+  - capacitor              # 对应 c
+  - circle_header        # 对应 circle_header
+  - crystal_oscillator     # 对应 crystal / crystal_2pin / crystal_3pin / crystal_4pin
+  - diode                  # 对应 d
+  - dc_socket     # 对应 dc
+  - esd_protection   # 对应 esd
+  - ground                 # 对应 gnd
+  - jumper_cap             # 对应 jumper
+  - inductor               # 对应 l
+  - led                    # 对应 led
+  - m3_screw          # 对应 m3螺丝
+  - mosfet                 # 对应 mosfet / mosfet_npn / mosfet_pnp
+  - motor                  # 对应 motor
+  - network_input     # 对应 net_input
+  - network_output    # 对应 net_output
+  - network_short     # 对应 net_short
+  - network_bidirection # 对应 net_bidirection
+  - optocoupler            # 对应 opt
+  - other         # 对应 other
+  - resistor               # 对应 r
+  - tube_segment  # 对应 seg
+  - switch                 # 对应 switch
+  - testpoint             # 对应 testpoint
+  - transformer            # 对应 transformer
+  - power           # 对应 v
 
 # race type (赛题词表) -> coarse yolo component class
 coarse_map:
+  amp: opamp
+  amp_3pin: opamp
+  amp_5pin: opamp
+  ant: antenna
+  battery: battery
+  bjt: bjt
+  bjt_npn: bjt 
+  bjt_pnp: bjt
+  block: dnp
   box: ic
-  block: ic
-  amp: ic
-  amp_3pin: ic
-  amp_5pin: ic
-  opt: ic
-  r: resistor
+  buzzer: buzzer
   c: capacitor
-  l: inductor
-  transfomer: inductor
+  circle_header: circle_header
+  crystal: crystal_oscillator
+  crystal_2pin: crystal_oscillator
+  crystal_3pin: crystal_oscillator
+  crystal_4pin: crystal_oscillator
   d: diode
-  led: diode
-  esd: diode
-  mosfet: transistor
-  mosfet_npn: transistor
-  mosfet_pnp: transistor
-  bjt: transistor
-  bjt_npn: transistor
-  bjt_pnp: transistor
-  gnd: gnd
-  v: vcc
-  net_input: net_label
-  net_output: net_label
-  net_short: net_label
-  net_bidirection: net_label
-  crystal: crystal
-  crystal_2pin: crystal
-  crystal_3pin: crystal
-  crystal_4pin: crystal
+  dc: dc_socket
+  esd: esd_protection
+  gnd: ground
+  jumper: jumper_cap
+  l: inductor
+  led: led
+  m3螺丝: m3_screw
+  mosfet: mosfet
+  mosfet_npn: mosfet
+  mosfet_pnp: mosfet
+  motor: motor
+  net_input: network_input
+  net_output: network_output
+  net_short: network_short
+  net_bidirection: network_bidirection
+  opt: optocoupler
+  other: other
+  r: resistor
+  seg: tube_segment
   switch: switch
-  jumper: switch
   testpoint: testpoint
-  pin: connector
-  circle_header: connector
-  dc: connector
+  transformer: transformer
+  v: power
   # everything else -> other
 
 TEXT_CLASS: text

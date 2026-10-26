@@ -168,7 +168,7 @@ def main() -> int:
     for offset, src in enumerate(sources):
         case_id = f"{args.start_id + offset:04d}"
         annotation = json.loads((src / "annotation.json").read_text(encoding="utf-8"))
-        image_src = src / annotation.get("image", "board_render.png")
+        image_src = src / annotation.get("image", "circuit.png")
         if not image_src.exists():
             print(f"  [skip] {src.name} 缺少图片 {image_src.name}")
             continue

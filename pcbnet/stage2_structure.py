@@ -608,13 +608,14 @@ def _geometry_pins(bbox: list[float], ctype: str) -> list[tuple[str, tuple[float
 
 
 def _snap_to_wire(pt: tuple[float, float], vision: VisionOut, eps: float) -> tuple[float, float]:
-    best, best_d = pt, eps
-    for a, b in vision.wire_segments:
-        for cand in (a, b):
-            d = _dist(pt, cand)
-            if d < best_d:
-                best_d, best = d, cand
-    return best
+    # best, best_d = pt, eps
+    # for a, b in vision.wire_segments:
+    #     for cand in (a, b):
+    #         d = _dist(pt, cand)
+    #         if d < best_d:
+    #             best_d, best = d, cand
+    # return best
+    return pt
 
 
 def _order_pins_ccw(pins: list[PinBox], cx: float) -> list[PinBox]:
@@ -1098,9 +1099,9 @@ def build_structure(vision: VisionOut, cfg: dict[str, Any] | None = None) -> dic
             out["pins"][key][pk] = {"pinname": pinname, "point": contest_point(xy[0], xy[1], height)}
             pin_nodes.append({"ref": f"{key}.{number}", "xy": xy})
 
-    parent, find, union = _union_find([p["ref"] for p in pin_nodes])
-    _connect_pins(pin_nodes, vision, eps, union)
-    _merge_flywires(out, comps, union)
+    # parent, find, union = _union_find([p["ref"] for p in pin_nodes])
+    # _connect_pins(pin_nodes, vision, eps, union)
+    # _merge_flywires(out, comps, union)
 
     # 优先用 topo_graph.extract_wire_nets 的重建结果生成 nets；为空则退回旧的 union-find 分段
     if getattr(vision, "wire_nets", None):

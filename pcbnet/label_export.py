@@ -243,13 +243,13 @@ def export_split(
                 n_skip += 1
         # text 类：从 text_bbox/<cid>.json 取文本框（真实数据 + 合成数据通用）。
         # 赛题 GT 本身不含文本标注，因此没有该文件时 text 类无标签。
-        n_text = 0
-        if text_id is not None and text_bbox_root is not None:
-            for tb in load_text_boxes(Path(text_bbox_root) / f"{cid}.json"):
-                line = yolo_line(tb, iw, ih, text_id)
-                if line:
-                    lines.append(line)
-                    n_text += 1
+        # n_text = 0
+        # if text_id is not None and text_bbox_root is not None:
+        #     for tb in load_text_boxes(Path(text_bbox_root) / f"{cid}.json"):
+        #         line = yolo_line(tb, iw, ih, text_id)
+        #         if line:
+        #             lines.append(line)
+        #             n_text += 1
         n_pin = 0
         pin_locations = []  # 新增：保存所有pin点坐标（图像坐标系）
         if pin_id is not None:
@@ -357,7 +357,7 @@ def export_split(
                 "case_id": cid,
                 "status": "ok",
                 "boxes": len(lines),
-                "text_boxes": n_text,
+                # "text_boxes": n_text,
                 "pin_boxes": n_pin,
                 "wire_ep_boxes": n_wire_ep,
                 "skipped": n_skip,

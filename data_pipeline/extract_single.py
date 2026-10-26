@@ -8,27 +8,36 @@ from tqdm import tqdm
 from pathlib import Path
 
 # ==================== 单个提取配置 ====================
-target_comp_name = ""
+target_comp_name = "0039_U2"
 
 # ==================== 修复 bbox 相对坐标 ====================
-fix_bbox_left_padding     =  5
-fix_bbox_right_padding    =  5
-fix_bbox_down_padding     =  5
-fix_bbox_up_padding       =  5
+fix_bbox_left_padding     =  0
+fix_bbox_right_padding    =  0
+fix_bbox_down_padding     =  0
+fix_bbox_up_padding       =  0
 
 # ==================== 修复 pin 相对坐标 ====================
 fix_pin = {
-    # "name": [move_x, move_y],
-    "P_68": [0, 13],
-    "P_98": [0, 13],
+        "B": [
+          0,
+          1
+        ],
+        "E": [
+          6,
+          0
+        ],
+        "C": [
+          6,
+          0
+        ]
 }
 
 # 是否启动图形学去背景，否为 AI，精度更高速度更慢，优先推荐 True
-USE_THRESHOLD_BG = True
+USE_THRESHOLD_BG = False
 
 # 引脚外扩边距：裁剪PNG时，在最外侧引脚外额外保留的像素，建议 1~5px
 CROP_MARGIN = 2
-BBOX_GAP = 2
+BBOX_GAP = 0
 
 # 可视化开关：True=绘制bbox和pin点并保存vis图，False=不绘制
 DRAW_PIN_AND_BBOX = True
@@ -303,12 +312,12 @@ for case_name in tqdm(os.listdir(data_dir)):
             }
         }
         # ========== 6. 保存引脚JSON ==========
-        upsert_comp_json("/data/luoxuan/PCBNet/data/base_comps/pins.json", save_dict)
+        upsert_comp_json("/data1/chenjh/PCBNet/data/base_comps/pins.json", save_dict)
         # ========== 7. 按新裁剪框截取PNG ==========
         crop_img = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
         # ========== 8. 保存文件 & SVG处理 ==========
         # 创建分类目录
-        type_dir = os.path.join("/data/luoxuan/PCBNet/data/base_comps", comp_type)
+        type_dir = os.path.join("/data1/chenjh/PCBNet/data/base_comps", comp_type)
         os.makedirs(type_dir, exist_ok=True)
         OUTPUT_TRANSPARENT_PNG = os.path.join(type_dir, f"{target_comp_name}.png")
         OUTPUT_SVG = f"{type_dir}/svg.svg"

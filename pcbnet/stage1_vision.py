@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any 
-from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize
+from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize, draw_pcb_pin_net
 from .topo_graph import extract_wire_nets
 from tqdm import tqdm
+from .skele_wire import extract_nets
 
 import cv2
 import numpy as np
@@ -111,7 +112,6 @@ def _resolve_yolo_device() -> str:
     print(f"[vision] YOLO device = {_YOLO_DEVICE}", flush=True)
     return _YOLO_DEVICE
 
-
 def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4) -> list[DetBox]:
     if not weights:
         return []
@@ -125,13 +125,49 @@ def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4) -> list[DetBox]:
         print(f"[vision] 推理设备失败({exc})，回退 CPU", flush=True)
         global _YOLO_DEVICE
         _YOLO_DEVICE = "cpu"
-        res = model.predict(img, device="cpu", verbose=False)[0]
+        res = model.predict(img, conf=conf, device=_resolve_yolo_device(), verbose=False)[0]
+
     boxes = []
     names = res.names
     for b in res.boxes:
         xyxy = b.xyxy[0].tolist()
         cls = int(b.cls[0])
         boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
+
+    return boxes
+
+
+def _try_yolo_v2(img: np.ndarray, weights: str, comp_conf: float = 0.4, pin_conf: float = 0.05) -> list[DetBox]:
+    if not weights:
+        return []
+
+    from ultralytics import YOLO
+
+    model = YOLO(weights)
+    try:
+        comp_res = model.predict(img, conf=comp_conf, device=_resolve_yolo_device(), verbose=False)[0]
+        pin_res = model.predict(img, conf=pin_conf, device=_resolve_yolo_device(), verbose=False)[0]
+    except Exception as exc:  # noqa: BLE001 设备不可用时回退 CPU 再试
+        print(f"[vision] 推理设备失败({exc})，回退 CPU", flush=True)
+        global _YOLO_DEVICE
+        _YOLO_DEVICE = "cpu"
+        comp_res = model.predict(img, conf=comp_conf, device=_resolve_yolo_device(), verbose=False)[0]
+        pin_res = model.predict(img, conf=pin_conf, device=_resolve_yolo_device(), verbose=False)[0]
+
+    boxes = []
+    names = comp_res.names
+    for b in comp_res.boxes:
+        xyxy = b.xyxy[0].tolist()
+        cls = int(b.cls[0])
+        if cls not in [14, 15]:
+            boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
+    
+    for b in pin_res.boxes:
+        xyxy = b.xyxy[0].tolist()
+        cls = int(b.cls[0])
+        if cls in [0, 1]:
+            boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
+
     return boxes
 
 
@@ -733,7 +769,6 @@ def _clean_components(
     return final
 
 
-
 def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox], list[PinBox]]:
     comp_labels = _component_labels()
     comps: list[DetBox] = []
@@ -775,6 +810,28 @@ def _load_cached_ocr(image_path: str | Path, cfg: dict[str, Any]) -> list[TextBo
         return None
 
 
+def compute_iou(box_a: list[float], box_b: list[float]) -> float:
+    """IoU计算，DetBox.bbox格式：[x1,y1,x2,y2]"""
+    x1a, y1a, x2a, y2a = box_a
+    x1b, y1b, x2b, y2b = box_b
+    # 交集
+    x1 = max(x1a, x1b)
+    y1 = max(y1a, y1b)
+    x2 = min(x2a, x2b)
+    y2 = min(y2a, y2b)
+    inter_w = max(0.0, x2 - x1)
+    inter_h = max(0.0, y2 - y1)
+    inter_area = inter_w * inter_h
+    # 两个框面积
+    area_a = (x2a - x1a) * (y2a - y1a)
+    area_b = (x2b - x1b) * (y2b - y1b)
+    union_area = area_a + area_b - inter_area
+    if union_area < 1e-8:
+        return 0.0
+    return inter_area / union_area
+
+
+
 def extract_vision(
     image_path: str | Path, cfg: dict[str, Any] | None = None, visualize: bool = True
 ) -> VisionOut:
@@ -790,24 +847,81 @@ def extract_vision(
     ocr_enabled = bool(ocr_cfg.get("enabled", True))
     lang = str(ocr_cfg.get("lang") or "en")
 
-    dets = _try_yolo(img, models.get("yolo_weights") or "", conf=float(vision_cfg.get("yolo_conf", 0.4)))
-    comps, text_boxes, pins, endpoints = _split_detections(dets)
-    comps = _clean_components(comps, text_boxes)
-    comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.5)))
+    # dets = _try_yolo_v2(img, models.get("yolo_weights") or "", comp_conf=float(vision_cfg.get("yolo_comp_conf", 0.05)), pin_conf=float(vision_cfg.get("yolo_pin_conf", 0.2)))
+    # comps, text_boxes, pins, endpoints = _split_detections(dets)
+    # comps = _clean_components(comps, text_boxes, cross_class_iou_thr=0.2)
+    # comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.01)))
+
+    # ========== 迭代检测逻辑（直接粘贴到你原有代码后面） ==========
+    # 复制原图作为迭代图像，保护原始img不被涂白修改
+    img_iter = img.copy()
+
+    total_rounds = 0
+    total_new_comps = 0
+    comps = []  # 保存已经识别过的器件框，用来判断是否新增
+    yolo_confs = [None, 0.4, 0.25]
+    while True:
+        total_rounds += 1
+        # 复用你原有的YOLO推理+后处理流水线
+        dets = _try_yolo(img_iter, models.get("yolo_weights") or "", conf=yolo_confs[min(total_rounds, len(yolo_confs)-1)])
+        if total_rounds == 1:
+            comp, text_boxes, pins, endpoints = _split_detections(dets)
+        else:
+            comp, _, _, _ = _split_detections(dets)
+        comp = _clean_components(comp, text_boxes)
+        comp = _nms_components(comp, iou_thr=0.01)
+
+        # 判断本轮哪些器件是【新增】：与历史所有框IoU都小于阈值才算新目标
+        new_in_round = []
+        for box in comp:
+            new_flag = True
+            for seen_box in comps:
+                iou = compute_iou(box.bbox, seen_box.bbox)
+                if iou > 0.01:
+                    new_flag = False
+                    break
+            if new_flag:
+                new_in_round.append(box)
+
+        # 本轮无新增器件，终止迭代
+        if len(new_in_round) == 0:
+            break
+
+        if total_rounds > 1:
+            total_new_comps += len(new_in_round)
+        comps.extend(new_in_round)
+
+        # 涂白本轮新检测出来的器件bbox
+        h, w = img_iter.shape[:2]
+        for b in new_in_round:
+            x1, y1, x2, y2 = b.bbox
+            # 浮点坐标转像素，clip边界防止越界
+            x1i = max(0, int(round(x1 - 0)))
+            y1i = max(0, int(round(y1 - 0)))
+            x2i = min(w, int(round(x2 + 0)))
+            y2i = min(h, int(round(y2 + 0)))
+
+            # 填充白色矩形
+            cv2.rectangle(img_iter, (x1i, y1i), (x2i, y2i), (255,255,255), thickness=-1)
+
+        # import os
+        # save_path = os.path.join(f"iter_{total_rounds}.png")
+        # cv2.imwrite(save_path, img_iter)
+    print(f"迭代器件检测结束 | 总轮次: {total_rounds}, 第二轮后累计新增器件数量: {total_new_comps}")
 
     # 两阶段检测：对检出的 ic（box）裁剪放大再检一次 pin_tip（含 NMS 去重），补充/细化 IC 引脚
-    if vision_cfg.get("box_pin_crop", True) and comps:
-        extra_pins = _detect_ic_pins_crop(img, comps, models.get("yolo_weights") or "",
-                                          conf=float(vision_cfg.get("box_pin_conf", 0.15)))
-        if extra_pins:
-            # 合并策略：全图 pin 优先保留；裁剪 pin 只在 8px 内没有现有点时补充
-            # （裁剪高置信度点若挤掉全图点，反而会让 tip 漂移）
-            merged = list(pins)
-            for pp in extra_pins:
-                if any((pp.xy[0] - q.xy[0]) ** 2 + (pp.xy[1] - q.xy[1]) ** 2 < 64 for q in merged):
-                    continue
-                merged.append(pp)
-            pins = merged
+    # if vision_cfg.get("box_pin_crop", True) and comps:
+    #     extra_pins = _detect_ic_pins_crop(img, comps, models.get("yolo_weights") or "",
+    #                                       conf=float(vision_cfg.get("box_pin_conf", 0.15)))
+    #     if extra_pins:
+    #         # 合并策略：全图 pin 优先保留；裁剪 pin 只在 8px 内没有现有点时补充
+    #         # （裁剪高置信度点若挤掉全图点，反而会让 tip 漂移）
+    #         merged = list(pins)
+    #         for pp in extra_pins:
+    #             if any((pp.xy[0] - q.xy[0]) ** 2 + (pp.xy[1] - q.xy[1]) ** 2 < 64 for q in merged):
+    #                 continue
+    #             merged.append(pp)
+    #         pins = merged
 
     if not comps:
         # No detector: rule-based component fallback (weak, low score expected).
@@ -826,25 +940,29 @@ def extract_vision(
     if ocr_enabled:
         texts = _full_image_ocr(image_path, lang=lang)
 
-    wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
-    unet_points: list[tuple[float, float]] = []
-    if wired is None:
-        skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
-    else:
-        skel, segs, unet_points = wired
+    skel, segs = None, None
+    # wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
+    # unet_points: list[tuple[float, float]] = []
+    # if wired is None:
+    #     skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
+    # else:
+    #     skel, segs, unet_points = wired
 
     # UNet 连接点并入端点列表（网络重建时作为 wire_endpoint 节点参与）
     all_endpoints = list(endpoints)
-    for (px, py) in unet_points:
-        all_endpoints.append(PinBox(xy=(px, py), score=0.6))
+    # for (px, py) in unet_points:
+    #     all_endpoints.append(PinBox(xy=(px, py), score=0.6))
 
     # 可视化（agents/ 批量跑时可用 visualize=False 跳过，不影响检测结果）
     if visualize:
-        run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
+        run_vision_visualize(image_path, img, comps, texts, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
-    if visualize:
-        run_wire_visualize(out, img, image_path)
+    pins, nets = extract_nets(img, comps, texts)
+    save_path = draw_pcb_pin_net(img, pins, nets, case_name=Path(image_path).parent.name)
+    print(f"可视化已保存：{save_path}")
+    # out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
+    # if visualize:
+    #     run_wire_visualize(out, img, image_path)
 
-    return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, endpoints=endpoints, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)
+    # return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, endpoints=endpoints, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)

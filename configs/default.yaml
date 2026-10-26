@@ -5,7 +5,7 @@ text_bbox_root: "data/Dataset200/text_bbox"
 
 output_root: "outputs"
 split_seed: 42
-split_ratio: [0.85, 0.05, 0.1]
+split_ratio: [0.95, 0.05, 0.0]
 
 thresholds:
   bbox_px: 20.0
