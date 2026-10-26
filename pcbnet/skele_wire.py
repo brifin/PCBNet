@@ -733,6 +733,7 @@ def trace_single_net_dfs(
             if walkable[ny, nx] > 0 and comp_mask[ny, nx] == 0:
                 stack.append((nx, ny, dx, dy, sx, sy))
 
+    import pdb; pdb.set_trace()
     while stack:
         cx, cy, dx, dy, last_kx, last_ky = stack.pop()
         curr_x, curr_y = cx, cy
@@ -814,26 +815,29 @@ def trace_single_net_dfs(
     return net_pin_ids, net_edge_list
 
 
-def trace_all_normal_nets(
-    normal_pins: List[Dict[str, Any]],
+def build_pcb_nets(
+    comp_pins: Dict[int, List[Dict[str, Any]]],
     wire_binary: np.ndarray,
-    comp_mask: np.ndarray,
-    pos_to_pins: Dict[Tuple[int, int], List[Dict[str, Any]]],
-    pin_near_mask: np.ndarray,
-    start_near_mask: np.ndarray,
-    pixel2pin: Dict[Tuple[int,int], List[Tuple[int,int]]],
-    scan_range: int,
-    thres: float,
-    fork_pad: int,
-    near_win: int,
-    DIRS,
-    _split_continuous_segments
-) -> List[Dict[str, Any]]:
+    comps: List[Any],
+    comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
+    scan_range: int = 10,
+    thres: float = 0.9,
+    fork_pad: int = 5,
+    near_win: int = 4
+) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     h, w = wire_binary.shape
+
+    dead_pins, meet_pins, normal_pins, pos_to_pins, pins_dict = prepare_pin_data(comp_pins)
+    nets = build_meet_pin_nets(meet_pins)
+    comp_mask, start_pt_set = build_obstacle_mask(h, w, comps, comp_start_pts)
+
+    pin_near_mask, start_near_mask, pos_to_pins = build_pin_start_masks(
+        h, w, pos_to_pins, start_pt_set, near_win
+    )
+    pixel2pin = build_pixel2pin(h, w, pos_to_pins, near_win)
+
     walkable = wire_binary.copy()
     visited_pins: Set[int] = set()
-    nets = []
-
     for start_pin in tqdm(normal_pins):
         if start_pin["gid"] in visited_pins:
             continue
@@ -861,53 +865,11 @@ def trace_all_normal_nets(
             "hyperGraph": f"({','.join(sorted(net_pin_ids))})",
             "edges": edges_dict
         })
-    return nets
-
-
-
-def build_pcb_nets(
-    comp_pins: Dict[int, List[Dict[str, Any]]],
-    wire_binary: np.ndarray,
-    comps: List[Any],
-    comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
-    scan_range: int = 10,
-    thres: float = 0.9,
-    fork_pad: int = 5,
-    near_win: int = 4
-) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
-    h, w = wire_binary.shape
-
-    dead_pins, meet_pins, normal_pins, pos_to_pins, pins_dict = prepare_pin_data(comp_pins)
-    nets = build_meet_pin_nets(meet_pins)
-    comp_mask, start_pt_set = build_obstacle_mask(h, w, comps, comp_start_pts)
-
-    pin_near_mask, start_near_mask, pos_to_pins = build_pin_start_masks(
-        h, w, pos_to_pins, start_pt_set, near_win
-    )
-    pixel2pin = build_pixel2pin(h, w, pos_to_pins, near_win)
-
-    normal_nets = trace_all_normal_nets(
-        normal_pins=normal_pins,
-        wire_binary=wire_binary,
-        comp_mask=comp_mask,
-        pos_to_pins=pos_to_pins,
-        pin_near_mask=pin_near_mask,
-        start_near_mask=start_near_mask,
-        pixel2pin=pixel2pin,
-        scan_range=scan_range,
-        thres=thres,
-        fork_pad=fork_pad,
-        near_win=near_win,
-        DIRS=DIRS,
-        _split_continuous_segments=_split_continuous_segments
-    )
-    nets.extend(normal_nets)
 
     nets_dict = {}
     for idx, net in enumerate(nets):
         nets_dict[f"net_{idx}"] = net
     return pins_dict, nets_dict
-
 
 
 def visualize_start_points_with_pins(
@@ -985,7 +947,7 @@ def extract_nets(
     intersect = cv2.bitwise_and(wire_binary, cover_mask)
 
     comp_start_pts = _get_comp_start_points(
-        intersect,
+        wire_binary,
         comps,
         step_cfg=(-2, 15),
         boundary_ratio_thresh=0.9
@@ -1010,14 +972,13 @@ def extract_nets(
         wire_binary=wire_binary,
         comps=comps,
         comp_start_pts=comp_start_pts,  # 新增传参
-        scan_range=10,
+        scan_range=15,
         thres=0.99,
         fork_pad=5
     )
 
-
     visualize_start_points_with_pins(
-        wire_binary=intersect,
+        wire_binary=wire_binary,
         comp_start_pts=comp_start_pts,
         comp_pins=comp_pins,
         nets_dict=nets_dict,

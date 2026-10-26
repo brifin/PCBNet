@@ -1096,8 +1096,10 @@ def extract_vision(
         run_vision_visualize(image_path, img, comps, texts, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
-    if visualize:
-        run_wire_visualize(out, img, image_path)
+    pins_dict, nets_dict = extract_nets(img, comps, texts)
+
+    # out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
+    # if visualize:
+    #     run_wire_visualize(out, img, image_path)
 
     # return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, endpoints=endpoints, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)
