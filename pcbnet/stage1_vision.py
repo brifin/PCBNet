@@ -972,7 +972,8 @@ def compute_iou(box_a: list[float], box_b: list[float]) -> float:
 
 def extract_vision(
     image_path: str | Path, cfg: dict[str, Any] | None = None, visualize: bool = True
-) -> VisionOut:
+# ) -> VisionOut:
+):
     cfg = cfg or {}
     img = _read_image(image_path)
     h, w = img.shape[:2]
@@ -1075,8 +1076,8 @@ def extract_vision(
     #   - 对**原分辨率整图**做 det+rec（paddle 内部自行缩放，det_limit_side_len 控制），
     #     不再额外预缩放（预缩放会把字缩太小，大图识别率暴跌）。
     texts: list[TextBox] = []
-    if ocr_enabled:
-        texts = _full_image_ocr(image_path, lang=lang)
+    # if ocr_enabled:
+        # texts = _full_image_ocr(image_path, lang=lang)
 
     skel, segs = None, None
     # wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
@@ -1096,8 +1097,7 @@ def extract_vision(
         run_vision_visualize(image_path, img, comps, texts, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    pins_dict, nets_dict = extract_nets(img, comps, texts)
-
+    pins_dict, nets_dict = extract_nets(img, comps, texts, image_path)
     # out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
     # if visualize:
     #     run_wire_visualize(out, img, image_path)

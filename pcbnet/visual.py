@@ -42,9 +42,17 @@ def run_vision_visualize(img_path, img, comps, texts, pins, endpoints):
         cv2.circle(vis_comp, (cx, cy), radius=2, color=(255, 255, 0), thickness=-1)
 
     vis_comp_rgb = cv2.cvtColor(vis_comp, cv2.COLOR_BGR2RGB)
+    h, w = vis_comp_rgb.shape[:2]
     fig1 = plt.figure(figsize=(12, 8))
     plt.imshow(vis_comp_rgb)
-    plt.axis("off")
+
+    tick_step = 50
+    xticks = list(range(0, w + 1, tick_step))
+    yticks = list(range(0, h + 1, tick_step))
+    plt.xticks(xticks, fontsize=7)
+    plt.yticks(yticks, fontsize=7)
+    plt.grid(True, color="#cccccc", linewidth=0.4, alpha=0.7)
+
     plt.title("Pred Components")
     plt.tight_layout()
     plt.savefig(join(save_dir, "pred_components.png"), bbox_inches="tight", dpi=150)
