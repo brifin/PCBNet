@@ -9,10 +9,14 @@ from .export_json import export_contest_json
 from .stage1_vision import extract_vision
 from .stage2_structure import build_structure
 from .stage3_correct import correct
+from data_pipeline.database import query_image
 
 
 def infer_image(image_path: str | Path, cfg: dict[str, Any] | None = None, out_json: str | Path | None = None) -> dict[str, Any]:
     cfg = cfg or {}
+    # abc = query_image(str(image_path), threshold=5)
+    # if abc:
+    #     return abc
     vision = extract_vision(image_path, cfg)
     # contest = build_structure(vision, cfg)
     # contest = correct(contest, cfg)

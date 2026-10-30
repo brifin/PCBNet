@@ -9,6 +9,7 @@ from tqdm import tqdm
 import math
 from pathlib import Path
 from sklearn.cluster import KMeans
+from .llm import fix_pin_by_llm
 
 # ===================== PCB走线提取配置参数区（统一管理） =====================
 # _get_wire_binary
@@ -1281,6 +1282,7 @@ def extract_nets(
         scan_range=RCP_SCAN_RANGE,
         max_back_step=RCP_MAX_BACK_STEP
     )
+    comp_pins = fix_pin_by_llm(binary_raw, img, comps, comp_pins, img_name)
     pins_dict, nets_dict = build_pcb_nets(
         comp_pins=comp_pins,
         wire_binary=binary_raw,

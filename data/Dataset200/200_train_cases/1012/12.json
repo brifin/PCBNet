@@ -46,7 +46,7 @@
     },
     "VIN": {
       "Name": "VIN",
-      "type": "net_bidirection",
+      "type": "net_input",
       "value": "VIN",
       "bbox": [
         1258,
@@ -57,7 +57,7 @@
     },
     "VOUT": {
       "Name": "VOUT",
-      "type": "net_bidirection",
+      "type": "net_output",
       "value": "VOUT",
       "bbox": [
         1428,
@@ -112,7 +112,7 @@
     },
     "VIN_2": {
       "Name": "VIN_2",
-      "type": "net_bidirection",
+      "type": "net_input",
       "value": "VIN",
       "bbox": [
         1021,
@@ -145,7 +145,7 @@
     },
     "VIN_3": {
       "Name": "VIN_3",
-      "type": "net_bidirection",
+      "type": "net_input",
       "value": "VIN",
       "bbox": [
         613,
@@ -200,7 +200,7 @@
     },
     "VIN_4": {
       "Name": "VIN_4",
-      "type": "net_bidirection",
+      "type": "net_input",
       "value": "VIN",
       "bbox": [
         456,

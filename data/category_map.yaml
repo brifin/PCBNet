@@ -2,6 +2,7 @@
 # （gt_adapter 用 CVJsonStd category；stage2 用 YOLO coarse 类，二者 key 集合都映射到 race）
 
 # ---- CVJsonStd category -> race ----
+pin: pin
 opamp: amp
 antenna: ant
 battery: battary
@@ -15,6 +16,7 @@ crystal_oscillator: crystal
 diode: d
 dc_socket: dc
 esd_protection: esd
+fuse: fuse
 ground: gnd
 jumper_cap: jumper
 inductor: l
@@ -35,4 +37,3 @@ testpoint: testpoint
 transformer: transfomer
 power: v
 other: other
-pin_tip: pin

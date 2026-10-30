@@ -6,7 +6,7 @@
 # Do not reorder after a training run starts. Rare CVJsonStd categories collapse
 # into `other` (contest does not compare text for `other`).
 names:
-  # - pin_tip
+  - pin
   # - wire_endpoint
   - opamp                  # 对应 amp / amp_3pin / amp_5pin
   - antenna                # 对应 ant
@@ -21,6 +21,7 @@ names:
   - diode                  # 对应 d
   - dc_socket     # 对应 dc
   - esd_protection   # 对应 esd
+  - fuse
   - ground                 # 对应 gnd
   - jumper_cap             # 对应 jumper
   - inductor               # 对应 l
@@ -43,6 +44,7 @@ names:
 
 # race type (赛题词表) -> coarse yolo component class
 coarse_map:
+  pin: pin
   amp: opamp
   amp_3pin: opamp
   amp_5pin: opamp
@@ -63,6 +65,7 @@ coarse_map:
   d: diode
   dc: dc_socket
   esd: esd_protection
+  fuse: fuse
   gnd: ground
   jumper: jumper_cap
   l: inductor
@@ -87,4 +90,3 @@ coarse_map:
   # everything else -> other
 
 TEXT_CLASS: text
-PIN_CLASS: pin_tip
