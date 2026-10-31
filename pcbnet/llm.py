@@ -8,7 +8,6 @@ from typing import List, Tuple, Dict, Any, Set
 import re
 import ast
 
-
 API_KEY = ['sk-7e70fc36aa39491993109a8ce0957a36']
 
 client = OpenAI(
@@ -37,6 +36,41 @@ PIN_NUMBER = {
     "testpoint": 1,
     "power": 1
 }
+
+yolo_classes = [
+'pin',
+'opamp',
+'antenna',
+'battery', 
+'bjt',
+'bnp',        
+'ic',            
+'buzzer',              
+'capacitor',          
+'circle_header',    
+'crystal_oscillator',    
+'diode',               
+'esd_protection',  
+'fuse',
+'ground',           
+'jumper',         
+'inductor',    
+'led',   
+'m3_screw',     
+'mosfet',  
+'motor', 
+'network_input',
+'network_output', 
+'network_short',   
+'network_bidirection', 
+'optocoupler',  
+'other',     
+'resistor',      
+'switch',          
+'testpoint',           
+'transformer',        
+'power'         
+]
 
 
 def img2base64(img_path: str) -> str:
@@ -178,27 +212,6 @@ def draw_comp_and_pins(
     return crop_canvas
 
 
-def fix_pin_prompt(pin, comp, current, suppose):
-    return f"""
-        这是一张被截取的PCB原理图，里面包含着元器件和线。我们对该元器件图进行识别，
-        目前引脚的编号与其位置为 {str(pin)}，该器件的信息为 {str(comp)}。理论上该器件的应该有 {suppose} 个引脚，但现在有 {current} 个。
-        请你找出缺少（实际引脚数小于理论）、多余（实际引脚数大于理论）的引脚，并将最终答案按照以下格式放在 <answer> 中：
-        
-        '<answer> [{{'idx':, 'x': , 'y':, 'type': ,'side': , 'fix_type':}}] </answer>'
-
-        注意：
-        1.得到的器件预测框为蓝色，框上的文字为识别的标签。
-        2.红色的点表示识别的该器件的引脚，点边上的文字表示该引脚在 list 中的下标idx。引脚表示元器件与外界线的连接通道，通常而言，引脚位于颜色交界处或者分叉路交叉点中心。
-        3.灰色表示坐标线，线旁边的灰色数字是该线的刻度值
-        4.输出格式中:
-            (1)type表示引脚类型，'gradient' 表示颜色分界或者交叉点中心；'dead' 表示线断了产生的引脚
-            (2)side 表示引脚引出的方向，有四个取值，'top','bottom','left','right'
-            (3)fix_type表示你修正的类型，取值'delete'表示删除，'add'表示增加
-        5.删除引脚可以通过判断引脚是否在元器件出去的线上来判断
-        6.增加引脚的坐标可以通过已有引脚的坐标以及坐标轴线刻度来判断，引脚坐标之间往往具有对称性（x、y坐标相同），且引脚不能出现在元器件框内部
-    """
-
-
 def snap_add_pin_to_wire(
     wire_endpoint: np.ndarray,
     add_pin: dict,
@@ -324,12 +337,32 @@ def apply_pin_fix(wire_endpoint: np.ndarray, pin_list: list[dict], llm_text: str
 
 
 def fix_pin_by_llm(wire_endpoint, img, comps, comp_pins, img_name):
+    def fix_pin_prompt(pin, comp, current, suppose):
+        return f"""
+            这是一张被截取的PCB原理图，里面包含着元器件和线。我们对该元器件图进行识别，
+            目前引脚的编号与其位置为 {str(pin)}，该器件的信息为 {str(comp)}。理论上该器件的应该有 {suppose} 个引脚，但现在有 {current} 个。
+            请你找出缺少（实际引脚数小于理论）、多余（实际引脚数大于理论）的引脚，并将最终答案按照以下格式放在 <answer> 中：
+            
+            '<answer> [{{'idx':, 'x': , 'y':, 'type': ,'side': , 'fix_type':}}] </answer>'
+
+            注意：
+            1.得到的器件预测框为蓝色，框上的文字为识别的标签。
+            2.红色的点表示识别的该器件的引脚，点边上的文字表示该引脚在 list 中的下标idx。引脚表示元器件与外界线的连接通道，通常而言，引脚位于颜色交界处或者分叉路交叉点中心。
+            3.灰色表示坐标线，线旁边的灰色数字是该线的刻度值
+            4.输出格式中:
+                (1)type表示引脚类型，'gradient' 表示颜色分界或者交叉点中心；'dead' 表示线断了产生的引脚
+                (2)side 表示引脚引出的方向，有四个取值，'top','bottom','left','right'
+                (3)fix_type表示你修正的类型，取值'delete'表示删除，'add'表示增加
+            5.删除引脚可以通过判断引脚是否在元器件出去的线上来判断
+            6.增加引脚的坐标可以通过已有引脚的坐标以及坐标轴线刻度来判断，引脚坐标之间往往具有对称性（x、y坐标相同），且引脚不能出现在元器件框内部
+        """
+
     num_total_tokens = 0
     for idx, (comp, p_key) in enumerate(zip(comps, comp_pins.keys())):
         pin = comp_pins[p_key]
         if comp.label in PIN_NUMBER:
             if len(pin) != PIN_NUMBER[comp.label]:
-                pic = draw_comp_and_pins(img, comp, pin, f'viz/{img_name}/crops/{idx}.png')
+                pic = draw_comp_and_pins(img, comp, pin, f'viz/{img_name}/crops/{idx}_pin.png')
                 continue
                 img_base64 = cvimg_to_base64(pic)
 
@@ -342,5 +375,48 @@ def fix_pin_by_llm(wire_endpoint, img, comps, comp_pins, img_name):
                 num_total_tokens += response['num_tokens']['total_tokens']
                 new_pin = apply_pin_fix(wire_endpoint, pin, response['answer'])
                 comp_pins[p_key] = new_pin
-                pic = draw_comp_and_pins(img, comp, new_pin, img_name, f'viz/{img_name}/crops/{idx}_llmfix.png')
+                pic = draw_comp_and_pins(img, comp, new_pin, f'viz/{img_name}/crops/{idx}_pin_llmfix.png')
     return comp_pins
+
+
+def apply_comp_fix(comp, llm_text):
+    match = re.search(r'<answer>(.*?)</answer>', llm_text, re.DOTALL)
+    if match:
+        fix_items = eval(match.group(1).strip())
+        if isinstance(fix_items, List):
+            if not fix_items[0] and fix_items[1] in yolo_classes:
+                comp.label = fix_items[1]
+        elif isinstance(fix_items, bool):
+                pass
+    return comp
+
+
+def check_comp_by_llm(img, comp, save_name):
+    def fix_comp_prompt_v1(comp):
+        return f"""
+            这是一张被截取的PCB原理图，里面包含着元器件和线。我们对该元器件图进行识别，
+            得到蓝色器件预测框，框上的文字为识别的元器件类型（{comp.label}），请你判断该元器件的类型是否是对的
+            如果是错的，请你给出器件类型，预测范围内的器件类型有 {str(yolo_classes)}，如果框出来的不是器件，则类型标记为 None
+            将最终答案按照以下格式放在 <answer> 中：
+
+            '<answer> [is_right (True/False), correct_comp_type (element in typelist)] </answer>'
+        """
+    
+    def fix_comp_prompt_v2(comp):
+        return f"""
+            这是一张被截取的PCB原理图，里面包含着元器件和线。我们对该元器件图进行识别，
+            得到蓝色器件预测框，框上的文字为识别的元器件类型（{comp.label}），请你判断该元器件的类型是否是对的
+            如果是错的，给出 False，如果框出来的不是元器件，则类型标记为 None
+            将最终答案按照以下格式放在 <answer> 中：
+
+            '<answer> True/False/None </answer>'
+        """
+    
+    pic = draw_comp_and_pins(img, comp, [], save_name)
+    img_base64 = cvimg_to_base64(pic)
+    prompt = fix_comp_prompt_v1(comp)
+    response = query_llm(prompt, img_base64, enable_thinking=True)
+    print(response)
+    comp = apply_comp_fix(comp, response['answer'])
+    pic = draw_comp_and_pins(img, comp, [], save_name)
+    return comp

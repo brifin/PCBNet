@@ -1250,9 +1250,8 @@ def extract_nets(
     img: np.ndarray,
     comps: List[Any],
     texts: List[Any],
-    img_path : str
+    img_name : str
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    img_name = Path(img_path).parent.name
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = img.shape[:2]
 

@@ -13,6 +13,7 @@ from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize, 
 from .topo_graph import extract_wire_nets
 from tqdm import tqdm
 from .skele_wire import extract_nets
+from .llm import check_comp_by_llm
 
 import cv2
 import numpy as np
@@ -139,11 +140,11 @@ def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4) -> list[DetBox]:
 
     boxes = []
     names = res.names
-    for b in res.boxes:
+    for idx, b in enumerate(res.boxes):
         xyxy = b.xyxy[0].tolist()
         cls = int(b.cls[0])
-        boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
-
+        comp = DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0]))
+        boxes.append(comp)
     return boxes
 
 
@@ -969,7 +970,6 @@ def compute_iou(box_a: list[float], box_b: list[float]) -> float:
     return inter_area / union_area
 
 
-
 def extract_vision(
     image_path: str | Path, cfg: dict[str, Any] | None = None, visualize: bool = True
 # ) -> VisionOut:
@@ -985,6 +985,7 @@ def extract_vision(
     ocr_cfg = cfg.get("ocr") or {}
     ocr_enabled = bool(ocr_cfg.get("enabled", True))
     lang = str(ocr_cfg.get("lang") or "en")
+    img_name = Path(image_path).parent.name
 
     # dets = _try_yolo_v2(img, models.get("yolo_weights") or "", comp_conf=float(vision_cfg.get("yolo_comp_conf", 0.05)), pin_conf=float(vision_cfg.get("yolo_pin_conf", 0.2)))
     # comps, text_boxes, pins, endpoints = _split_detections(dets)
@@ -1062,6 +1063,13 @@ def extract_vision(
     #             merged.append(pp)
     #         pins = merged
 
+    # --------- LLM Check ---------
+    # for idx, comp in enumerate(comps):
+    #     print(comp)
+    #     if comp.label == 'other':
+    #         if comp.score < 100:
+    #             comp = check_comp_by_llm(img, comp, f'viz/{img_name}/crops/{idx}_comp.png')
+        
     if not comps:
         # No detector: rule-based component fallback (weak, low score expected).
         work, scale = _maybe_resize(img, max_side)
@@ -1097,7 +1105,7 @@ def extract_vision(
         run_vision_visualize(image_path, img, comps, texts, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    pins_dict, nets_dict = extract_nets(img, comps, texts, image_path)
+    pins_dict, nets_dict = extract_nets(img, comps, texts, img_name)
     # out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
     # if visualize:
     #     run_wire_visualize(out, img, image_path)
