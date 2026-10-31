@@ -8,6 +8,7 @@ dependencies = [
     "imagehash>=4.3.2",
     "numpy<=2.4.1",
     "openai>=3.41.0",
+    "flask>=3.0",
     "opencv-python",
     "paddleocr>=2.10.0",
     "pillow>=12.3.0",
