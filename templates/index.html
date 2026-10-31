@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>PCB 原理图标注编辑器</title>
+<style>
+  * { box-sizing: border-box; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+  html,body { margin:0; height:100%; background:#1e1e1e; color:#ddd; }
+  #topbar { height:44px; display:flex; align-items:center; gap:8px; padding:0 12px; background:#252526; border-bottom:1px solid #333; overflow-x:auto; white-space:nowrap; }
+  #topbar input[type=text] { width:80px; background:#333; color:#fff; border:1px solid #555; border-radius:4px; padding:4px 8px; }
+  #topbar button { background:#0e639c; color:#fff; border:none; border-radius:4px; padding:5px 10px; cursor:pointer; }
+  #topbar button:hover { background:#1177bb; }
+  #topbar #savebtn { background:#1a7f37; }
+  #topbar #savebtn:hover { background:#209b45; }
+  #topbar #status { color:#8a8; font-size:13px; }
+  #topbar .mode-badge { background:#5a3d00; color:#ffcc66; padding:2px 8px; border-radius:10px; font-size:12px; }
+  #topbar .mode-link { color:#6fc3ff; text-decoration:none; font-size:13px; }
+  #topbar .mode-link:hover { text-decoration:underline; }
+  #left canvas.drawing { cursor:crosshair; }
+  #main { display:flex; height:calc(100% - 44px); }
+  #left { width:50%; position:relative; overflow:auto; background:#111; }
+  #left img { display:block; }
+  #left canvas { position:absolute; left:0; top:0; }
+  #right { width:50%; overflow:auto; padding:10px; border-left:1px solid #333; }
+  .panel { margin-bottom:10px; border:1px solid #444; border-radius:4px; }
+  .panel-head { display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:14px; font-weight:bold; border-bottom:1px solid #444; }
+  .panel-head .src-badge { font-size:12px; }
+  .mini-btn { background:#3a3d41; color:#fff; border:1px solid #555; border-radius:3px; padding:1px 7px; cursor:pointer; font-size:11px; }
+  .mini-btn:hover { opacity:0.9; }
+  .area-head { display:flex; align-items:center; gap:6px; margin:6px 0 2px; }
+  .area-head .muted { flex:1; }
+  .panel-body { padding:6px 10px; }
+  .panel.pred .panel-head { color:#7aff7a; }
+  .panel.gt .panel-head { color:#6fc3ff; }
+  .list { max-height:180px; overflow:auto; border:1px solid #444; border-radius:4px; }
+  .list .item { padding:3px 8px; border-bottom:1px solid #333; font-size:13px; display:flex; align-items:center; gap:5px; }
+  .list .item .name { cursor:pointer; }
+  .list .item .name:hover { text-decoration:underline; }
+  .list .item.sel { background:#094771; }
+  .list .item input[type=checkbox] { cursor:pointer; }
+  .row { display:flex; gap:6px; margin:4px 0; align-items:center; flex-wrap:wrap; }
+  .row label { width:56px; color:#888; font-size:12px; }
+  .row input, .row select { background:#333; color:#fff; border:1px solid #555; border-radius:3px; padding:3px 6px; font-size:13px; }
+  .row input.sm { width:70px; }
+  .btn { background:#3a3d41; color:#fff; border:1px solid #555; border-radius:3px; padding:3px 8px; cursor:pointer; font-size:12px; }
+  .btn.danger { background:#8a2a2a; }
+  .btn.ok { background:#1a7f37; }
+  .btn:hover { opacity:0.9; }
+  .sub { margin-left:14px; border-left:2px solid #333; padding-left:8px; }
+  .pin-row, .edge-row, .ref-row { display:flex; gap:4px; align-items:center; font-size:12px; }
+  .pin-row input, .edge-row input, .ref-row input { width:70px; }
+  .muted { color:#777; font-size:12px; }
+
+  .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:3px; }
+  .src-badge { display:inline-block; padding:0 5px; border-radius:3px; font-size:11px; font-weight:bold; margin-right:3px; }
+  .src-pred { background:#0a3d0a; color:#7aff7a; }
+  .src-gt { background:#0a2a4a; color:#6fc3ff; }
+  .legend { font-size:12px; color:#aaa; line-height:1.6; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  {% if app_mode == 'review' %}<span class="mode-badge">检查模式</span>{% elif app_mode == 'modify' %}<span class="mode-badge">bbox 修改模式</span>{% endif %}
+  <span>序号:</span>
+  <input type="text" id="caseInput" placeholder="如 0001">
+  <button id="loadbtn">加载</button>
+  <button id="prevbtn">←</button>
+  <button id="nextbtn">→</button>
+  <span id="caseinfo" class="muted"></span>
+  {% if app_mode == 'review' %}
+  <button id="uploadbtn">上传图片</button>
+  <input type="file" id="uploadfile" accept="image/*" multiple style="display:none">
+  <button id="predictbtn">生成 Pred</button>
+  <button id="importjsonbtn">导入 JSON</button>
+  <input type="file" id="importjsonfile" accept=".json,application/json" style="display:none">
+  <button id="promotebtn">加入训练集</button>
+  {% if root_mode == 'review' %}<a class="mode-link" href="/review">检查模式</a>{% else %}<a class="mode-link" href="/">返回对比模式</a>{% endif %}
+  {% else %}
+  {% if app_mode == 'modify' %}<a class="mode-link" href="/">返回对比模式</a>{% else %}<a class="mode-link" href="/modify">bbox 修改</a>{% endif %}
+  <a class="mode-link" href="/review">检查模式</a>
+  {% endif %}
+  {% if app_mode == 'modify' %}<button id="undobtn" disabled>撤销上一步</button>{% endif %}
+  <button id="savebtn">{{ '保存标注' if app_mode == 'review' else ('保存 bbox' if app_mode == 'modify' else '保存 Pred') }}</button>
+  <span id="status"></span>
+</div>
+<div id="main">
+  <div id="left">
+    <img id="img" alt="schematic">
+    <canvas id="cv"></canvas>
+  </div>
+  <div id="right">
+    <div class="section">
+      <h3>图例</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="panel pred">
+      <div class="panel-head">
+        <span class="src-badge src-pred">{{ 'bbox' if app_mode == 'modify' else ('标注' if app_mode == 'review' else 'Pred') }}</span>
+        <span>{{ '修改元件 bbox（点击元件显示框，拖拽重画或直接改坐标）' if app_mode == 'modify' else ('可编辑标注（基于模型 Pred）' if app_mode == 'review' else '预测结果') }}</span>
+      </div>
+      <div class="panel-body">
+        <div class="area-head">
+          <span class="muted">Components（每个元件一个开关）</span>
+          <button class="mini-btn" onclick="setAll('pred','comp',true)">全选</button>
+          <button class="mini-btn" onclick="setAll('pred','comp',false)">全不选</button>
+        </div>
+        <div class="list" id="complist_pred"></div>
+        {% if app_mode != 'modify' %}
+        <div class="row"><button class="btn ok" onclick="startDrawComp('pred',null)">+ 框选新增元件</button></div>
+        {% endif %}
+        <div id="compeditor_pred" class="sub"></div>
+        {% if app_mode != 'modify' %}
+        <div class="area-head">
+          <span class="muted">Nets（勾选=展示点边；点开后每个点/边单独开关）</span>
+          <button class="mini-btn" onclick="setAll('pred','net',true)">全选</button>
+          <button class="mini-btn" onclick="setAll('pred','net',false)">全不选</button>
+        </div>
+        <div class="list" id="netlist_pred"></div>
+        <div class="row"><button class="btn ok" onclick="addNet('pred')">+ 新增网络</button></div>
+        <div id="neteditor_pred" class="sub"></div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if app_mode != 'review' and app_mode != 'modify' %}
+    <div class="panel gt">
+      <div class="panel-head">
+        <span class="src-badge src-gt">GT</span>
+        <span>真实标注（只读）</span>
+      </div>
+      <div class="panel-body">
+        <div class="area-head">
+          <span class="muted">Components（每个元件一个开关）</span>
+          <button class="mini-btn" onclick="setAll('gt','comp',true)">全选</button>
+          <button class="mini-btn" onclick="setAll('gt','comp',false)">全不选</button>
+        </div>
+        <div class="list" id="complist_gt"></div>
+        <div id="compeditor_gt" class="sub"></div>
+        <div class="area-head">
+          <span class="muted">Nets（勾选=展示点边；点开后每个点/边单独开关）</span>
+          <button class="mini-btn" onclick="setAll('gt','net',true)">全选</button>
+          <button class="mini-btn" onclick="setAll('gt','net',false)">全不选</button>
+        </div>
+        <div class="list" id="netlist_gt"></div>
+        <div id="neteditor_gt" class="sub"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+let state = null;        // {case_id, width, height, image}
+let jsonPred = null, jsonGt = null;
+let selComp = { pred:null, gt:null };   // 每个面板独立的选中元件
+let selNet = { pred:null, gt:null };    // 每个面板独立的选中网络
+let cases = [];
+const APP_MODE = "{{ app_mode }}";
+const SRC_LIST = (APP_MODE === 'review' || APP_MODE === 'modify') ? ['pred'] : ['pred','gt'];
+const MODE_Q = APP_MODE === 'review' ? '?mode=review' : (APP_MODE === 'modify' ? '?mode=modify' : '');
+let drawState = null;   // {kind:'comp',src,targetKey} | {kind:'point',src,type,comp,pin,net,edge,which}
+let dragStart = null, preview = null;
+let bboxDrag = null;   // modify: {src,key,mode,startX,startY,orig,moved}
+let bboxHistory = [];  // modify: [{src,key,bbox}]，已应用修改的撤销栈
+let bboxDraft = null;   // modify: {src,key,orig,bbox}，未应用的拖动草稿
+let suppressCanvasClickUntil = 0;
+
+// 颜色：同源内元件颜色一致；引脚/网点/网边用不同色；pred 与 gt 各一套
+const COLORS = {
+  pred: { comp:'#00cc00', pin:'#88ff00', pt:'#ff3333', edge:'#ff8800' },
+  gt:   { comp:'#3388ff', pin:'#00ddff', pt:'#ffee00', edge:'#ff44ff' },
+};
+
+// 展示开关（每个对象独立）：show[src] = { comp:{key:bool}, pin:{compKey|pinKey:bool}, pt:{netKey|ref:bool}, edge:{netKey|edgeKey:bool} }
+let show = { pred:{}, gt:{} };
+
+const $ = id => document.getElementById(id);
+const imgEl = $('img'), cv = $('cv'), ctx = cv.getContext('2d');
+const Y = y => state.height - y;
+const JS = src => src === 'pred' ? jsonPred : jsonGt;
+
+function parseHG(hg){ return String(hg||'').replace(/[()]/g,'').split(',').map(s=>s.trim()).filter(Boolean); }
+function serializeHG(refs){ return '('+refs.join(',')+')'; }
+function remapHG(hg, fn){ return serializeHG(parseHG(hg).map(fn).filter(x => x !== null)); }
+// 元件 key 和 pin key 都可能含 '.'（如 #3.3VA1、pin_13.1），
+// 所以按“已存在的元件 key 最长前缀”切 ref，而不是简单 split('.')。
+function splitRef(ref, j){
+  const keys = Object.keys(j.components||{}).sort((a,b)=>b.length-a.length);
+  for(const ck of keys){
+    if(ref === ck) return [ck, ''];
+    if(ref.startsWith(ck+'.')) return [ck, ref.slice(ck.length+1)];
+  }
+  const i = ref.indexOf('.');
+  return i < 0 ? [ref, ''] : [ref.slice(0,i), ref.slice(i+1)];
+}
+function escHtml(v){ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function safeKey(v){ return String(v||'').trim(); }
+function unsafeKey(v){ return /["'`\\\n\r\t]/.test(String(v||'')); }
+function safeRef(v){ return String(v||'').trim(); }
+
+// ---------------- 加载 ----------------
+async function loadCases(){ cases = await (await fetch('/api/cases'+MODE_Q)).json(); }
+async function loadCase(cid){
+  const r = await fetch('/api/case/'+cid+MODE_Q);
+  if(!r.ok){ $('status').textContent='未找到 '+cid; return; }
+  state = await r.json();
+  jsonPred = state.json;
+  jsonGt = null;
+  if(APP_MODE !== 'review' && APP_MODE !== 'modify'){
+    try { const g = await fetch('/api/gt/'+cid); jsonGt = g.ok ? (await g.json()).json : null; }
+    catch(e){ jsonGt = null; }
+  }
+  selComp = { pred:null, gt:null };
+  selNet = { pred:null, gt:null };
+  bboxHistory = [];
+  bboxDraft = null;
+  // 默认：全不勾选（原始图像，无标注）
+  show = { pred:{comp:{},pin:{},pt:{},edge:{}}, gt:{comp:{},pin:{},pt:{},edge:{}} };
+  $('caseInput').value = cid;
+  const extra = APP_MODE === 'review'
+    ? ` · ${state.has_annotation ? '已有可编辑 JSON' : '无 JSON'}${state.has_pred ? ' · 已有 Pred' : ''}`
+    : '';
+  $('caseinfo').textContent = `共 ${cases.length} 例 · ${cid} · ${state.width}x${state.height}${extra}`;
+  imgEl.onload = () => { cv.width = imgEl.naturalWidth; cv.height = imgEl.naturalHeight; redraw(); };
+  imgEl.src = state.image;
+  cancelDraw(true);
+  renderLegend();
+  refresh();
+}
+function currentIndex(){ return cases.indexOf(state.case_id); }
+
+function renderLegend(){
+  let h = '';
+  for(const src of SRC_LIST){
+    const C = COLORS[src];
+    h += `<span class="src-badge ${src==='pred'?'src-pred':'src-gt'}">${src==='pred'?'Pred':'GT'}</span>
+      <span class="swatch" style="background:${C.comp}"></span>元件
+      <span class="swatch" style="background:${C.pin}"></span>引脚
+      <span class="swatch" style="background:${C.pt}"></span>网点
+      <span class="swatch" style="background:${C.edge}"></span>网边&nbsp;&nbsp;`;
+  }
+  $('legend').innerHTML = h;
+}
+
+// 单个对象开关
+function toggleShow(src, kind, id, val){
+  // net 的显示状态由其下的 pt/edge 反推，无独立存储键（show[src] 无 net 键，
+  // 若在此写 show[src]['net'][id] 会因 undefined 抛错导致后续逻辑不执行）。
+  if(kind !== 'net'){
+    show[src][kind][id] = val;
+  }
+  if(kind === 'net'){
+    const net = (JS(src).nets||{})[id];
+    if(net){
+      for(const ref of parseHG(net.hyperGraph)) show[src].pt[id+'|'+ref] = val;
+      for(const ek in (net.edges||{})) show[src].edge[id+'|'+ek] = val;
+    }
+  }
+  refresh();
+}
+
+// 全选 / 全不选（按区域：comp / net / pin / pt / edge）
+function setAll(src, kind, on){
+  const j = JS(src); if(!j) return;
+  if(kind === 'comp'){
+    for(const k in (j.components||{})) show[src].comp[k] = on;
+  } else if(kind === 'net'){
+    for(const nk in (j.nets||{})){
+      const net = j.nets[nk];
+      for(const ref of parseHG(net.hyperGraph)) show[src].pt[nk+'|'+ref] = on;
+      for(const ek in (net.edges||{})) show[src].edge[nk+'|'+ek] = on;
+    }
+  } else if(kind === 'pin'){
+    if(selComp[src]){
+      for(const pk in ((j.pins||{})[selComp[src]]||{})) show[src].pin[selComp[src]+'|'+pk] = on;
+    }
+  } else if(kind === 'pt'){
+    if(selNet[src]){
+      const net = (j.nets||{})[selNet[src]];
+      if(net) for(const ref of parseHG(net.hyperGraph)) show[src].pt[selNet[src]+'|'+ref] = on;
+    }
+  } else if(kind === 'edge'){
+    if(selNet[src]){
+      const net = (j.nets||{})[selNet[src]];
+      if(net) for(const ek in (net.edges||{})) show[src].edge[selNet[src]+'|'+ek] = on;
+    }
+  }
+  refresh();
+}
+
+// 统一刷新（两个面板的列表 + 展开区 + 画布）
+function refresh(){
+  updateUndoButton();
+  for(const src of SRC_LIST){
+    renderCompList(src); renderNetList(src);
+    renderCompEditor(src); renderNetEditor(src);
+  }
+  redraw();
+}
+
+// ---------------- 列表 ----------------
+function renderCompList(src){
+  const j = JS(src); const el = $('complist_'+src);
+  if(!j || !el){ if(el) el.innerHTML=''; return; }
+  const rows = [];
+  for(const k of Object.keys(j.components||{})){
+    const c = j.components[k];
+    const sel = selComp[src]===k;
+    const checked = show[src].comp[k] ? 'checked' : '';
+    rows.push(`<div class="item${sel?' sel':''}">
+      <input type="checkbox" ${checked} onchange="toggleShow('${src}','comp','${k}',this.checked)">
+      <span class="name" onclick="selectComp('${src}','${k}')">${escHtml(k)}</span>
+      <span class="muted">(${escHtml(c.type)})</span></div>`);
+  }
+  el.innerHTML = rows.join('');
+}
+function renderNetList(src){
+  const j = JS(src); const el = $('netlist_'+src);
+  if(!j || !el){ if(el) el.innerHTML=''; return; }
+  const rows = [];
+  for(const k of Object.keys(j.nets||{})){
+    const sel = selNet[src]===k;
+    const net = j.nets[k];
+    const refs = parseHG(net.hyperGraph);
+    const ekeys = Object.keys(net.edges||{});
+    const allOn = refs.every(r => show[src].pt[k+'|'+r]) && ekeys.every(e => show[src].edge[k+'|'+e]);
+    const checked = (allOn && (refs.length || ekeys.length)) ? 'checked' : '';
+    rows.push(`<div class="item${sel?' sel':''}">
+      <input type="checkbox" ${checked} onchange="toggleShow('${src}','net','${k}',this.checked)">
+      <span class="name" onclick="selectNet('${src}','${k}')">${escHtml(k)}</span></div>`);
+  }
+  el.innerHTML = rows.join('');
+}
+
+// ---------------- modify：直接拖动 bbox 边/角/内部 ----------------
+function _clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function _showOnlyComp(k){
+  for(const kk in (show.pred.comp||{})) show.pred.comp[kk] = false;
+  if(k) show.pred.comp[k] = true;
+}
+
+function _displayBbox(k){
+  if(bboxDraft && bboxDraft.key === k) return bboxDraft.bbox;
+  const j = JS('pred');
+  return (j && (j.components||{})[k] && (j.components[k].bbox || null));
+}
+
+function _clearDraft(){
+  if(!bboxDraft) return;
+  bboxDraft = null;
+  updateUndoButton();
+}
+
+function _bboxInfo(k){
+  const j = JS('pred'); if(!j) return null;
+  const c = (j.components||{})[k]; if(!c) return null;
+  const b = _displayBbox(k); if(!Array.isArray(b) || b.length < 4) return null;
+  const [x1,y1,x2,y2] = b.map(Number);
+  if(![x1,y1,x2,y2].every(Number.isFinite)) return null;
+  const l=Math.min(x1,x2), r=Math.max(x1,x2), t=Y(Math.max(y1,y2)), bt=Y(Math.min(y1,y2));
+  return {k, b:[l,y1,r,y2], area:(r-l)*Math.abs(y2-y1), x1:l,x2:r,yt:t,yb:bt};
+}
+
+function _bboxAt(x, y){
+  const j = JS('pred'); if(!j) return null;
+  const hits = [];
+  for(const k of Object.keys(j.components||{})){
+    const h = _bboxInfo(k); if(!h) continue;
+    if(x >= h.x1-8 && x <= h.x2+8 && y >= h.yt-8 && y <= h.yb+8) hits.push(h);
+  }
+  if(!hits.length) return null;
+  hits.sort((a,b)=>a.area-b.area);
+  return hits[0];
+}
+
+function _bboxMode(hit, x, y){
+  const t = 8;
+  const nearL = Math.abs(x-hit.x1) <= t, nearR = Math.abs(x-hit.x2) <= t;
+  const nearT = Math.abs(y-hit.yt) <= t, nearB = Math.abs(y-hit.yb) <= t;
+  if(nearL && nearT) return 'nw';
+  if(nearR && nearT) return 'ne';
+  if(nearL && nearB) return 'sw';
+  if(nearR && nearB) return 'se';
+  if(nearL) return 'w';
+  if(nearR) return 'e';
+  if(nearT) return 'n';
+  if(nearB) return 's';
+  // 框内部拖动 = 整体移动（保持宽高），不画额外控制点。
+  if(x > hit.x1 && x < hit.x2 && y > hit.yt && y < hit.yb) return 'move';
+  return null;
+}
+
+function _cursorForMode(mode){
+  return ({nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',
+           w:'ew-resize',e:'ew-resize',n:'ns-resize',s:'ns-resize',move:'move'})[mode] || 'default';
+}
+
+function _startBboxDrag(e){
+  if(APP_MODE !== 'modify' || drawState) return false;
+  // 只操作已经显示的绿色框；未选中时先由 click 选中，不在 mousedown 里换框。
+  if(!selComp.pred) return false;
+  const hit = _bboxInfo(selComp.pred);
+  if(!hit) return false;
+  const mode = _bboxMode(hit, e.offsetX, e.offsetY);
+  if(!mode) return false;
+  if(bboxDraft && bboxDraft.key !== hit.k) _clearDraft();
+  selComp.pred = hit.k;
+  _showOnlyComp(hit.k);
+  refresh();
+  const cur = (_displayBbox(hit.k) || [0,0,0,0]).map(Number);
+  bboxDrag = {
+    src:'pred', key:hit.k, mode,
+    startX:e.offsetX, startY:e.offsetY,
+    orig:cur,
+    moved:false,
+  };
+  cv.style.cursor = _cursorForMode(mode);
+  $('status').textContent = `拖动 ${hit.k} 的 ${mode==='move'?'框':'边/角'} 调整 bbox（松开后点“保存 bbox”）`;
+  e.preventDefault();
+  return true;
+}
+
+function _updateBboxDrag(e){
+  if(!bboxDrag) return;
+  const j = JS(bboxDrag.src), c = j.components[bboxDrag.key]; if(!c) return;
+  if(!bboxDraft) bboxDraft = {src:bboxDrag.src, key:bboxDrag.key, orig:(c.bbox||[0,0,0,0]).map(Number), bbox:(c.bbox||[0,0,0,0]).map(Number)};
+  const W = state.width, H = state.height;
+  const dx = e.offsetX - bboxDrag.startX;
+  const dy = e.offsetY - bboxDrag.startY;  // canvas 向下为正；y-up 坐标里是减
+  const [ox1,oy1,ox2,oy2] = bboxDrag.orig;
+  let x1=ox1, y1=oy1, x2=ox2, y2=oy2;
+  const m = bboxDrag.mode;
+  if(m === 'move'){
+    const w = Math.max(2, x2-x1), h = Math.max(2, y2-y1);
+    x1 = _clamp(ox1 + dx, 0, Math.max(0, W-w)); x2 = x1 + w;
+    y1 = _clamp(oy1 - dy, 0, Math.max(0, H-h)); y2 = y1 + h;
+  } else {
+    if(m.includes('w')) x1 = _clamp(ox1 + dx, 0, ox2 - 2);
+    if(m.includes('e')) x2 = _clamp(ox2 + dx, ox1 + 2, W);
+    if(m.includes('n')) y2 = _clamp(oy2 - dy, oy1 + 2, H);  // 上边
+    if(m.includes('s')) y1 = _clamp(oy1 - dy, 0, oy2 - 2);  // 下边
+  }
+  bboxDraft.bbox = [r1(x1), r1(y1), r1(x2), r1(y2)];
+  bboxDrag.moved = bboxDrag.moved || Math.abs(dx) > 1 || Math.abs(dy) > 1;
+  // 同步右侧坐标输入
+  for(let i=0;i<4;i++){
+    const el = $('c_b'+i+'_pred');
+    if(el) el.value = bboxDraft.bbox[i];
+  }
+  redraw();
+  e.preventDefault();
+}
+
+function _finishBboxDrag(e){
+  if(!bboxDrag) return false;
+  const d = bboxDrag;
+  const moved = d.moved;
+  bboxDrag = null;
+  cv.style.cursor = 'default';
+  if(moved){
+    suppressCanvasClickUntil = performance.now() + 250;
+    $('status').textContent = 'bbox 已临时调整，尚未写入 JSON；点“应用修改”保存，取消选择则还原';
+    refresh();
+  }
+  return true;
+}
+
+function selectComp(src, k){
+  if(APP_MODE === 'modify' && bboxDraft && bboxDraft.key !== k) _clearDraft();
+  selComp[src] = k;
+  if(APP_MODE === 'modify') _showOnlyComp(k);
+  refresh();
+}
+function selectNet(src, k){ selNet[src] = k; refresh(); }
+
+// ---------------- 绘图（两个源叠加） ----------------
+function redraw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(!state) return;
+  for(const src of SRC_LIST){
+    const j = JS(src); if(!j) continue;
+    const S = show[src];
+    const C = COLORS[src];
+    for(const k in S.comp){
+      if(!S.comp[k]) continue;
+      const c = (j.components||{})[k]; if(!c) continue;
+      const bb = (APP_MODE === 'modify') ? _displayBbox(k) : c.bbox;
+      if(!Array.isArray(bb) || bb.length < 4) continue;
+      const [x1,y1,x2,y2] = bb;
+      const isSel = selComp[src]===k;
+      ctx.strokeStyle = C.comp;
+      // modify 模式下选中/拖动都不改变线宽，始终与普通展示的绿色框一致。
+      ctx.lineWidth = (APP_MODE === 'modify') ? 1.5 : (isSel ? 4 : 1.5);
+      ctx.strokeRect(x1, Y(y2), x2-x1, y2-y1);
+    }
+    for(const id in S.pin){
+      if(!S.pin[id]) continue;
+      const [ck, pk] = id.split('|');
+      const pin = (j.pins||{})[ck] && j.pins[ck][pk]; if(!pin || !pin.point) continue;
+      ctx.fillStyle = C.pin;
+      ctx.beginPath(); ctx.arc(pin.point.x, Y(pin.point.y), 4, 0, 2*Math.PI); ctx.fill();
+    }
+    for(const id in S.edge){
+      if(!S.edge[id]) continue;
+      const [nk, ek] = id.split('|');
+      const net = (j.nets||{})[nk]; if(!net || !net.edges[ek]) continue;
+      const e = net.edges[ek]; if(!e || e.length < 2) continue;
+      const a = e[0] || {x:0,y:0}, b = e[1] || {x:0,y:0};
+      ctx.strokeStyle = C.edge; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(a.x, Y(a.y)); ctx.lineTo(b.x, Y(b.y)); ctx.stroke();
+    }
+    for(const id in S.pt){
+      if(!S.pt[id]) continue;
+      const [nk, ref] = id.split('|');
+      const [ck, pnum] = splitRef(ref, j);
+      const pins = (j.pins||{})[ck] || {};
+      const pin = pins['pin_'+pnum] || pins[pnum];
+      if(!pin || !pin.point) continue;
+      ctx.fillStyle = C.pt;
+      ctx.beginPath(); ctx.arc(pin.point.x, Y(pin.point.y), 6, 0, 2*Math.PI); ctx.fill();
+    }
+  }
+  // 框选/取点预览
+  if(preview){
+    ctx.save();
+    ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff';
+    ctx.lineWidth = 1.5; ctx.setLineDash([6,4]);
+    if(preview.kind === 'rect'){
+      ctx.strokeRect(preview.x1, preview.y1, preview.x2-preview.x1, preview.y2-preview.y1);
+    } else if(preview.kind === 'point'){
+      const x = preview.x, y = preview.y;
+      ctx.beginPath(); ctx.moveTo(x-10,y); ctx.lineTo(x+10,y); ctx.moveTo(x,y-10); ctx.lineTo(x,y+10); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+// ------- Component editor（每源独立，含每个 pin 的开关） -------
+function renderCompEditor(src){
+  const el = $('compeditor_'+src);
+  const j = JS(src);
+  if(!j || !el || !selComp[src]){ if(el) el.innerHTML=''; return; }
+  const key = selComp[src];
+  const c = j.components[key]; if(!c){ el.innerHTML=''; return; }
+  const shownBbox = _displayBbox(key);
+  const bbox = (Array.isArray(shownBbox) && shownBbox.length === 4) ? shownBbox : [0,0,0,0];
+  if(APP_MODE === 'modify'){
+    el.innerHTML = `
+      <div class="row"><label>key</label><span>${escHtml(key)}</span>
+        <span class="muted">type=${escHtml(c.type??'')} · Name=${escHtml(c.Name??'')} · value=${escHtml(c.value??'')}</span></div>
+      <div class="row"><label>bbox</label>
+        <input class="sm" id="c_b0_${src}" value="${bbox[0]}"><input class="sm" id="c_b1_${src}" value="${bbox[1]}">
+        <input class="sm" id="c_b2_${src}" value="${bbox[2]}"><input class="sm" id="c_b3_${src}" value="${bbox[3]}"></div>
+      <div class="row"><button class="btn ok" onclick="applyBbox('${src}')">应用修改</button>
+        <button class="btn" onclick="undoBbox()">撤销上一步</button></div>
+      <div class="muted">框显示后直接拖绿框的边/角改大小，拖绿框内部整体移动；框的显示样式保持不变。也可以改坐标后点“应用修改”。坐标顺序 x1,y1,x2,y2（图像左下原点）。</div>`;
+    return;
+  }
+  const pins = j.pins[key]||{};
+  const pinRows = Object.keys(pins).map(pk=>{
+    const pid = key+'|'+pk;
+    const checked = show[src].pin[pid] ? 'checked' : '';
+    const p = pins[pk] || {};
+    const pt = p.point || {x:0,y:0};
+    return `<div class="pin-row">
+      <input type="checkbox" ${checked} onchange="toggleShow('${src}','pin','${pid}',this.checked)" title="展示此引脚">
+      <input value="${escHtml(pk)}" data-pk="${escHtml(pk)}" class="p_key"> name<input value="${escHtml(p.pinname??'')}" class="p_name">
+      x<input value="${pt.x}" class="p_x"> y<input value="${pt.y}" class="p_y">
+      <button class="mini-btn" onclick="startPickPin('${src}','${pk}')" title="在图上点击设置该引脚坐标">取点</button>
+      <button class="btn danger" onclick="delPin('${src}','${pk}')">删</button></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="row"><label>key</label><input id="c_key_${src}" value="${escHtml(key)}"></div>
+    <div class="row"><label>Name</label><input id="c_name_${src}" value="${escHtml(c.Name??'')}"></div>
+    <div class="row"><label>type</label><input id="c_type_${src}" value="${escHtml(c.type??'')}"></div>
+    <div class="row"><label>value</label><input id="c_value_${src}" value="${escHtml(c.value??'')}"></div>
+    <div class="row"><label>bbox</label>
+      <input class="sm" id="c_b0_${src}" value="${bbox[0]}"><input class="sm" id="c_b1_${src}" value="${bbox[1]}">
+      <input class="sm" id="c_b2_${src}" value="${bbox[2]}"><input class="sm" id="c_b3_${src}" value="${bbox[3]}"></div>
+    <div class="row"><button class="btn ok" onclick="applyComp('${src}')">应用元件修改</button>
+      <button class="btn" onclick="startDrawComp('${src}','${key}')">图上重画 bbox</button>
+      <button class="btn danger" onclick="delComp('${src}')">删除元件</button></div>
+    <div class="muted">Pins（勾选=展示该引脚，颜色不同于元件框）:</div>
+    <div class="area-head">
+      <button class="mini-btn" onclick="setAll('${src}','pin',true)">全选</button>
+      <button class="mini-btn" onclick="setAll('${src}','pin',false)">全不选</button>
+    </div>
+    <div id="pineditor_${src}">${pinRows}</div>
+    <div class="row"><button class="btn ok" onclick="addPin('${src}')">+ 新增 pin</button>
+      <button class="btn" onclick="applyPins('${src}')">应用 pins 修改</button></div>`;
+}
+
+function _pushBboxHistory(src, key, bbox){
+  if(!bbox || bbox.length < 4) return;
+  bboxHistory.push({src, key, bbox:bbox.map(Number)});
+  if(bboxHistory.length > 50) bboxHistory.shift();
+  updateUndoButton();
+}
+function updateUndoButton(){
+  const btn = $('undobtn');
+  if(!btn) return;
+  const n = bboxHistory.length + (bboxDraft ? 1 : 0);
+  btn.disabled = n === 0;
+  btn.textContent = n ? `撤销上一步 (${n})` : '撤销上一步';
+}
+async function undoBbox(){
+  if(bboxDraft){
+    const key = bboxDraft.key;
+    _clearDraft();
+    refresh();
+    $('status').textContent = `已取消 ${key} 的未应用 bbox 修改`;
+    return;
+  }
+  const h = bboxHistory.pop();
+  if(!h) return;
+  const j = JS(h.src), c = (j.components||{})[h.key];
+  if(!c){ updateUndoButton(); return; }
+  const cur = (c.bbox || []).map(Number);
+  c.bbox = h.bbox;
+  selComp[h.src] = h.key;
+  if(APP_MODE === 'modify') _showOnlyComp(h.key);
+  const ok = await save();
+  if(!ok){ c.bbox = cur; refresh(); return; }
+  refresh();
+  $('status').textContent = `已撤销并保存 ${h.key} 的上一步 bbox`;
+  updateUndoButton();
+}
+
+async function applyBbox(src){
+  if(!selComp[src]) return;
+  const key = selComp[src];
+  const c = JS(src).components[key]; if(!c) return;
+  const b = ['c_b0_','c_b1_','c_b2_','c_b3_'].map(p => Number($(p+src).value));
+  if(!b.every(Number.isFinite) || b[2] <= b[0] || b[3] <= b[1]){
+    alert('bbox 需要四个有效数字，且 x2>x1、y2>y1'); return;
+  }
+  const committed = (c.bbox || []).map(Number);
+  const changed = committed.length === 4 && committed.some((v,i)=>v !== b[i]);
+  if(!changed && !bboxDraft){ $('status').textContent = 'bbox 没有变化'; return; }
+  if(changed) _pushBboxHistory(src, key, committed);
+  c.bbox = b;
+  bboxDraft = null;
+  const ok = await save();
+  if(!ok){
+    c.bbox = committed;
+    refresh();
+    return;
+  }
+  $('status').textContent = `已应用并保存 ${key} 的 bbox 到 JSON`;
+  refresh();
+}
+
+function applyComp(src){
+  if(!selComp[src]) return;
+  const j = JS(src);
+  const oldKey = selComp[src];
+  const newKey = safeKey($('c_key_'+src).value);
+  if(!newKey){ alert('key 不能为空'); return; }
+  if(unsafeKey(newKey)){ alert('key 不能包含引号、反斜杠或换行'); return; }
+  if(newKey !== oldKey){
+    if(j.components[newKey] && newKey !== oldKey){ alert('新 key 已存在'); return; }
+    j.components[newKey] = j.components[oldKey]; delete j.components[oldKey];
+    j.pins[newKey] = j.pins[oldKey]||{}; delete j.pins[oldKey];
+    for(const nk in j.nets){
+      j.nets[nk].hyperGraph = remapHG(j.nets[nk].hyperGraph, ref => {
+        if(ref === oldKey) return newKey;
+        return ref.startsWith(oldKey+'.') ? newKey + ref.slice(oldKey.length) : ref;
+      });
+    }
+    selComp[src] = newKey;
+  }
+  const c = j.components[selComp[src]];
+  c.Name = $('c_name_'+src).value;
+  c.type = $('c_type_'+src).value;
+  c.value = $('c_value_'+src).value || null;
+  c.bbox = [+($('c_b0_'+src).value||0), +($('c_b1_'+src).value||0), +($('c_b2_'+src).value||0), +($('c_b3_'+src).value||0)];
+  refresh();
+}
+function delComp(src){
+  if(!selComp[src]) return;
+  const j = JS(src);
+  const key = selComp[src];
+  delete j.components[key];
+  delete j.pins[key];
+  for(const nk in j.nets){
+    j.nets[nk].hyperGraph = remapHG(j.nets[nk].hyperGraph,
+      ref => (ref === key || ref.startsWith(key+'.')) ? null : ref);
+  }
+  selComp[src] = null; refresh();
+}
+function addPin(src){
+  if(!selComp[src]) return;
+  const j = JS(src);
+  j.pins[selComp[src]] = j.pins[selComp[src]]||{};
+  let n = 1;
+  while(j.pins[selComp[src]]['pin_'+n]) n++;
+  const pk = 'pin_'+n;
+  j.pins[selComp[src]][pk] = {pinname:'', point:{x:0,y:0}};
+  refresh();
+  startPickPin(src, pk);
+}
+function delPin(src, pk){
+  if(!selComp[src]) return;
+  const j = JS(src);
+  const comp = selComp[src];
+  delete j.pins[comp][pk];
+  const num = pk.replace('pin_','');
+  const prefix = comp + '.';
+  for(const nk in j.nets){
+    j.nets[nk].hyperGraph = remapHG(j.nets[nk].hyperGraph, ref => {
+      return (ref.startsWith(prefix) && ref.slice(prefix.length) === num) ? null : ref;
+    });
+  }
+  refresh();
+}
+function applyPins(src){
+  if(!selComp[src]) return;
+  const j = JS(src);
+  const comp = selComp[src];
+  const rows = document.querySelectorAll('#pineditor_'+src+' .pin-row');
+  const newPins = {};
+  const old2new = {};
+  rows.forEach(r=>{
+    const oldPk = r.querySelector('.p_key').dataset.pk;
+    const pk = safeKey(r.querySelector('.p_key').value);
+    if(!pk || unsafeKey(pk)){ if(pk) alert('pin key 不能包含引号、反斜杠或换行'); return; }
+    newPins[pk] = { pinname: r.querySelector('.p_name').value,
+                    point:{x:+(r.querySelector('.p_x').value||0), y:+(r.querySelector('.p_y').value||0)} };
+    const oldNum = oldPk.replace('pin_',''), newNum = pk.replace('pin_','');
+    if(oldNum !== newNum) old2new[oldNum] = newNum;
+  });
+  j.pins[comp] = newPins;
+  if(Object.keys(old2new).length){
+    const prefix = comp + '.';
+    for(const nk in j.nets){
+      j.nets[nk].hyperGraph = remapHG(j.nets[nk].hyperGraph, ref => {
+        if(!ref.startsWith(prefix)) return ref;
+        const num = ref.slice(prefix.length);
+        return old2new[num] !== undefined ? prefix + old2new[num] : ref;
+      });
+    }
+  }
+  refresh();
+}
+
+// ------- Net editor（每源独立，含每个点/边的开关） -------
+function renderNetEditor(src){
+  const el = $('neteditor_'+src);
+  const j = JS(src);
+  if(!j || !el || !selNet[src]){ if(el) el.innerHTML=''; return; }
+  const key = selNet[src];
+  const net = j.nets[key]; if(!net){ el.innerHTML=''; return; }
+  const refs = parseHG(net.hyperGraph);
+  const refRows = refs.map((r,i)=>{
+    const pid = key+'|'+r;
+    const checked = show[src].pt[pid] ? 'checked' : '';
+    return `<div class="ref-row">
+      <input type="checkbox" ${checked} onchange="toggleShow('${src}','pt','${pid}',this.checked)" title="展示此网点">
+      <input value="${escHtml(r)}" data-i="${i}"><button class="btn danger" onclick="delRef('${src}',${i})">删</button></div>`;
+  }).join('');
+  const edgeRows = Object.keys(net.edges||{}).map(ek=>{
+    const eid = key+'|'+ek;
+    const checked = show[src].edge[eid] ? 'checked' : '';
+    const e = net.edges[ek] || [{x:0,y:0},{x:0,y:0}];
+    const a = e[0] || {x:0,y:0}, b = e[1] || {x:0,y:0};
+    return `<div class="edge-row">
+      <input type="checkbox" ${checked} onchange="toggleShow('${src}','edge','${eid}',this.checked)" title="展示此网边">
+      <span>${ek}</span> x1<input value="${a.x}" class="e_x1"> y1<input value="${a.y}" class="e_y1">
+      x2<input value="${b.x}" class="e_x2"> y2<input value="${b.y}" class="e_y2">
+      <button class="mini-btn" onclick="startPickEdge('${src}','${ek}',0)" title="图上点击设置起点">P1</button>
+      <button class="mini-btn" onclick="startPickEdge('${src}','${ek}',1)" title="图上点击设置终点">P2</button>
+      <button class="btn danger" onclick="delEdge('${src}','${ek}')">删</button></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="row"><label>net key</label><input id="n_key_${src}" value="${escHtml(key)}"></div>
+    <div class="area-head">
+      <span class="muted">网点（勾选=展示）:</span>
+      <button class="mini-btn" onclick="setAll('${src}','pt',true)">全选</button>
+      <button class="mini-btn" onclick="setAll('${src}','pt',false)">全不选</button>
+    </div>
+    <div id="refeditor_${src}">${refRows}</div>
+    <div class="row"><button class="btn ok" onclick="addRef('${src}')">+ 新增引用</button>
+      <button class="btn" onclick="applyNet('${src}')">应用 net 修改</button>
+      <button class="btn danger" onclick="delNet('${src}')">删除 net</button></div>
+    <div class="area-head">
+      <span class="muted">Edges（勾选=展示）:</span>
+      <button class="mini-btn" onclick="setAll('${src}','edge',true)">全选</button>
+      <button class="mini-btn" onclick="setAll('${src}','edge',false)">全不选</button>
+    </div>
+    <div id="edgeeditor_${src}">${edgeRows}</div>
+    <div class="row"><button class="btn ok" onclick="addEdge('${src}')">+ 新增 edge</button></div>`;
+}
+function delNet(src){ if(!selNet[src]) return; const j=JS(src); delete j.nets[selNet[src]]; selNet[src]=null; refresh(); }
+function addRef(src){ const el=$('refeditor_'+src); el.insertAdjacentHTML('beforeend','<div class="ref-row"><input type="checkbox" checked><input value=""><button class="btn danger" onclick="this.parentElement.remove()">删</button></div>'); }
+function delRef(src, i){ document.querySelectorAll('#refeditor_'+src+' .ref-row')[i].remove(); }
+function applyNet(src){
+  if(!selNet[src]) return;
+  const j = JS(src);
+  const newKey = safeKey($('n_key_'+src).value);
+  if(!newKey){ alert('net key 不能为空'); return; }
+  if(unsafeKey(newKey)){ alert('net key 不能包含引号、反斜杠或换行'); return; }
+  if(newKey !== selNet[src]){ j.nets[newKey]=j.nets[selNet[src]]; delete j.nets[selNet[src]]; selNet[src]=newKey; }
+  const refs = [...document.querySelectorAll('#refeditor_'+src+' .ref-row input:not([type=checkbox])')].map(x=>safeRef(x.value)).filter(Boolean);
+  j.nets[selNet[src]].hyperGraph = serializeHG(refs);
+  const edges = {};
+  document.querySelectorAll('#edgeeditor_'+src+' .edge-row').forEach((r)=>{
+    const key = r.querySelector('span').textContent;
+    edges[key] = [ {x:+(r.querySelector('.e_x1').value||0), y:+(r.querySelector('.e_y1').value||0)},
+                   {x:+(r.querySelector('.e_x2').value||0), y:+(r.querySelector('.e_y2').value||0)} ];
+  });
+  j.nets[selNet[src]].edges = edges;
+  refresh();
+}
+function delEdge(src, ek){ if(!selNet[src]) return; const j=JS(src); delete j.nets[selNet[src]].edges[ek]; refresh(); }
+function addEdge(src){
+  if(!selNet[src]) return;
+  const j=JS(src); const net=j.nets[selNet[src]];
+  net.edges = net.edges || {};
+  let n=1;
+  while(net.edges['edge_'+n]) n++;
+  const ek='edge_'+n;
+  net.edges[ek]=[{x:0,y:0},{x:0,y:0}];
+  refresh();
+  startPickEdge(src, ek, 0);
+}
+
+// ------- 新增（到指定源） -------
+function addComp(src){
+  startDrawComp(src, null);
+}
+function addNet(src){
+  const j = JS(src); if(!j) return;
+  let k='nets_1', i=1;
+  while(j.nets[k]) k='nets_'+(++i);
+  j.nets[k]={hyperGraph:'()', edges:{}};
+  refresh(); selectNet(src, k);
+}
+
+// ------- 图上框选 / 取点 -------
+const r1 = x => Math.round(x * 10) / 10;
+
+function cancelDraw(silent){
+  drawState = null; dragStart = null; preview = null;
+  cv.classList.remove('drawing');
+  if(!silent) $('status').textContent = '';
+  redraw();
+}
+
+function startDrawComp(src, targetKey){
+  if(!state) return;
+  drawState = { kind:'comp', src, targetKey: targetKey || null };
+  dragStart = null; preview = null;
+  cv.classList.add('drawing');
+  $('status').textContent = targetKey
+    ? `在图上拖拽重画 ${targetKey} 的 bbox（Esc 取消）`
+    : '在图上拖拽框选新元件（Esc 取消）';
+}
+
+function startPickPin(src, pk){
+  if(!state || !selComp[src]) return;
+  const pin = ((JS(src).pins||{})[selComp[src]]||{})[pk];
+  if(!pin) return;
+  const pt = pin.point || {x:0, y:0};
+  drawState = { kind:'point', src, type:'pin', comp:selComp[src], pin:pk };
+  preview = { kind:'point', x: pt.x, y: state.height - pt.y };
+  cv.classList.add('drawing');
+  $('status').textContent = `在图上点击设置 ${pk} 的坐标（Esc 取消）`;
+  redraw();
+}
+
+function startPickEdge(src, ek, which){
+  if(!state || !selNet[src]) return;
+  const net = (JS(src).nets||{})[selNet[src]];
+  if(!net || !net.edges || !net.edges[ek]) return;
+  drawState = { kind:'point', src, type:'edge', net:selNet[src], edge:ek, which:which };
+  const p = net.edges[ek][which] || {x:0, y:0};
+  preview = { kind:'point', x: p.x, y: state.height - p.y };
+  cv.classList.add('drawing');
+  $('status').textContent = `在图上点击设置 ${ek} 的 ${which===0?'起点':'终点'}（Esc 取消）`;
+  redraw();
+}
+
+function commitCompDraw()
+{
+  if(!dragStart || !preview || preview.kind !== 'rect') { cancelDraw(true); return; }
+  const x1 = Math.min(preview.x1, preview.x2), x2 = Math.max(preview.x1, preview.x2);
+  const iy1 = Math.min(preview.y1, preview.y2), iy2 = Math.max(preview.y1, preview.y2);
+  if(x2 - x1 < 3 || iy2 - iy1 < 3){
+    $('status').textContent = '框太小，已取消';
+    cancelDraw(true);
+    return;
+  }
+  const bbox = [r1(x1), r1(state.height - iy2), r1(x2), r1(state.height - iy1)];
+  const j = JS(drawState.src);
+  if(drawState.targetKey){
+    j.components[drawState.targetKey].bbox = bbox;
+    selComp[drawState.src] = drawState.targetKey;
+    $('status').textContent = `已重画 ${drawState.targetKey} 的 bbox`;
+  } else {
+    let k='U1', i=1;
+    while(j.components[k]) k='U'+(++i);
+    j.components[k] = {Name:k, type:'other', value:null, bbox};
+    j.pins[k] = j.pins[k] || {};
+    selComp[drawState.src] = k;
+    $('status').textContent = `已新增 ${k}，请在右侧填写 Name/type/value 并补充引脚`;
+  }
+  cancelDraw(true);
+  refresh();
+}
+
+function commitPoint(imgX, imgY){
+  if(!drawState || drawState.kind !== 'point') return;
+  const pt = { x: r1(imgX), y: r1(state.height - imgY) };
+  const j = JS(drawState.src);
+  if(drawState.type === 'pin'){
+    j.pins[drawState.comp][drawState.pin].point = pt;
+    $('status').textContent = `已设置 ${drawState.pin} = (${pt.x}, ${pt.y})`;
+    cancelDraw(true); refresh(); return;
+  }
+  if(drawState.type === 'edge'){
+    j.nets[drawState.net].edges[drawState.edge][drawState.which] = pt;
+    if(drawState.which === 0){
+      drawState.which = 1;
+      preview = { kind:'point', x: imgX, y: imgY };
+      $('status').textContent = `已设置 ${drawState.edge} 起点，请点击终点（Esc 取消）`;
+      redraw();
+      return;
+    }
+    $('status').textContent = `已设置 ${drawState.edge} 终点`;
+    cancelDraw(true); refresh(); return;
+  }
+}
+
+cv.addEventListener('click', e=>{
+  if(performance.now() < suppressCanvasClickUntil) return;
+  if(APP_MODE !== 'modify' || drawState || bboxDrag) return;
+  const j = JS('pred'); if(!j) return;
+  const x = e.offsetX, y = e.offsetY;
+  const hits = [];
+  for(const [k,c] of Object.entries(j.components||{})){
+    const b = _displayBbox(k); if(!Array.isArray(b) || b.length < 4) continue;
+    const [x1,y1,x2,y2] = b;
+    if(x >= Math.min(x1,x2) && x <= Math.max(x1,x2) &&
+       y >= Math.min(Y(y1),Y(y2)) && y <= Math.max(Y(y1),Y(y2))){
+      hits.push({k, area: Math.abs((x2-x1)*(y2-y1))});
+    }
+  }
+  if(hits.length){ hits.sort((a,b)=>a.area-b.area); selectComp('pred', hits[0].k); }
+  else { if(bboxDraft) _clearDraft(); selComp.pred = null; _showOnlyComp(null); refresh(); }
+});
+
+cv.addEventListener('mousedown', e=>{
+  if(_startBboxDrag(e)) return;
+  if(!drawState) return;
+  if(drawState.kind === 'point'){ commitPoint(e.offsetX, e.offsetY); e.preventDefault(); return; }
+  dragStart = { x:e.offsetX, y:e.offsetY };
+  preview = { kind:'rect', x1:dragStart.x, y1:dragStart.y, x2:dragStart.x, y2:dragStart.y };
+  redraw();
+  e.preventDefault();
+});
+cv.addEventListener('mousemove', e=>{
+  if(bboxDrag){ _updateBboxDrag(e); return; }
+  if(APP_MODE === 'modify' && !drawState){
+    const hit = _bboxAt(e.offsetX, e.offsetY);
+    cv.style.cursor = hit ? _cursorForMode(_bboxMode(hit, e.offsetX, e.offsetY)) : 'default';
+    return;
+  }
+  if(!drawState) return;
+  if(drawState.kind === 'point'){
+    preview = { kind:'point', x:e.offsetX, y:e.offsetY };
+    redraw();
+  } else if(dragStart){
+    preview = { kind:'rect', x1:dragStart.x, y1:dragStart.y, x2:e.offsetX, y2:e.offsetY };
+    redraw();
+  }
+});
+cv.addEventListener('mouseup', e=>{
+  if(_finishBboxDrag(e)) return;
+  if(drawState && drawState.kind === 'comp' && dragStart){
+    preview = { kind:'rect', x1:dragStart.x, y1:dragStart.y, x2:e.offsetX, y2:e.offsetY };
+    commitCompDraw();
+    e.preventDefault();
+  }
+});
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape' && drawState) cancelDraw(); });
+cv.addEventListener('mouseleave', ()=>{ if(!drawState && !bboxDrag) cv.style.cursor='default'; });
+window.addEventListener('mouseup', ()=>{ if(bboxDrag) _finishBboxDrag(null); });
+
+// ------- 检查模式：上传 / 运行模型 / 导入 / 加入训练集 -------
+async function uploadImages(files){
+  if(!files || !files.length) return;
+  let last = null;
+  for(const f of files){
+    const fd = new FormData(); fd.append('image', f);
+    const r = await fetch('/api/review/upload', {method:'POST', body:fd});
+    const j = await r.json();
+    if(!r.ok){ alert('上传失败：'+(j.error||r.status)); continue; }
+    last = j.case_id;
+  }
+  await loadCases();
+  if(last){ await loadCase(last); $('status').textContent = '上传完成：'+last; }
+}
+async function importPredFile(file){
+  if(!state || !file) return;
+  if(state.has_annotation && !state.has_target && !confirm('该案例已有可编辑 JSON，是否用导入内容覆盖？')) return;
+  const fd = new FormData(); fd.append('json', file);
+  let r = await fetch('/api/review/upload_json/'+state.case_id, {method:'POST', body:fd});
+  if(r.status === 409){
+    if(!confirm('该案例已有保存的标注，是否用导入的 JSON 覆盖？')) return;
+    const fd2 = new FormData(); fd2.append('json', file);
+    r = await fetch('/api/review/upload_json/'+state.case_id+'?overwrite=1', {method:'POST', body:fd2});
+  }
+  const j = await r.json();
+  if(!r.ok){ alert('导入失败：'+(j.error||r.status)); return; }
+  await loadCase(state.case_id);
+  $('status').textContent = '已导入 JSON';
+}
+async function runPredict(){
+  if(!state) return;
+  const btn = $('predictbtn'); if(btn) btn.disabled = true;
+  $('status').textContent = '模型运行中（通常 2~3 分钟）…';
+  try{
+    const r = await fetch('/api/review/predict/'+state.case_id, {method:'POST'});
+    const j = await r.json();
+    if(!r.ok){ alert('推理失败：'+(j.error||r.status)); $('status').textContent = '推理失败'; return; }
+    await loadCase(state.case_id);
+    $('status').textContent = `Pred 完成：${j.components} 元件 / ${j.pins} 引脚 / ${j.nets} 网络（${j.seconds}s）` + (j.warning ? ' · '+j.warning : '');
+  } finally { if(btn) btn.disabled = false; }
+}
+async function promoteCase(){
+  if(!state) return;
+  if(!confirm('将当前标注复制到 200_train_cases，用于扩充训练集？')) return;
+  await save();
+  const r = await fetch('/api/review/promote/'+state.case_id, {method:'POST'});
+  const j = await r.json();
+  if(!r.ok){ alert('加入训练集失败：'+(j.error||r.status)); return; }
+  $('status').textContent = `已加入训练集：${j.train_id} -> ${j.dir}`;
+  alert(`已加入训练集：${j.train_id}\n${j.dir}`);
+}
+
+async function save(){
+  if(!state) return false;
+  if(APP_MODE === 'modify' && bboxDraft){
+    alert('当前有未应用的 bbox 修改：请先点“应用修改”，否则取消选择会还原');
+    return false;
+  }
+  const r = await fetch('/api/save/'+state.case_id+MODE_Q, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(jsonPred)});
+  if(r.ok){
+    $('status').textContent = APP_MODE === 'review' ? '已保存标注 '+state.case_id : (APP_MODE === 'modify' ? '已保存 bbox 标注 '+state.case_id : '已保存 Pred '+state.case_id);
+    return true;
+  }
+  $('status').textContent='保存失败';
+  return false;
+}
+
+$('loadbtn').onclick = () => { const v=$('caseInput').value.trim(); if(v) loadCase(v); };
+$('prevbtn').onclick = () => { if(!state) return; const i=currentIndex(); if(i>0) loadCase(cases[i-1]); };
+$('nextbtn').onclick = () => { if(!state) return; const i=currentIndex(); if(i<cases.length-1) loadCase(cases[i+1]); };
+$('savebtn').onclick = save;
+if($('undobtn')) $('undobtn').onclick = undoBbox;
+if($('uploadbtn')){
+  $('uploadbtn').onclick = () => $('uploadfile').click();
+  $('uploadfile').onchange = e => { uploadImages(e.target.files); e.target.value=''; };
+}
+if($('importjsonbtn')){
+  $('importjsonbtn').onclick = () => $('importjsonfile').click();
+  $('importjsonfile').onchange = e => { importPredFile(e.target.files[0]); e.target.value=''; };
+}
+if($('predictbtn')) $('predictbtn').onclick = runPredict;
+if($('promotebtn')) $('promotebtn').onclick = promoteCase;
+
+(async ()=>{
+  await loadCases();
+  if(cases.length) loadCase(cases[0]);
+  else if(APP_MODE === 'review') $('status').textContent = '请先上传图片，或把图片放到 review_cases/<case>/ 目录';
+})();
+</script>
+</body>
+</html>
