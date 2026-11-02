@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "box",
       "Name": "∅1",
+      "type": "box",
       "value": null,
       "bbox": [
         93.0,
@@ -12,8 +12,8 @@
       ]
     },
     "∅2": {
-      "type": "box",
       "Name": "∅2",
+      "type": "box",
       "value": null,
       "bbox": [
         339.0,
@@ -23,8 +23,8 @@
       ]
     },
     "∅3": {
-      "type": "r",
       "Name": "∅3",
+      "type": "r",
       "value": null,
       "bbox": [
         20.0,
@@ -34,8 +34,8 @@
       ]
     },
     "∅4": {
-      "type": "r",
       "Name": "∅4",
+      "type": "r",
       "value": null,
       "bbox": [
         55.0,
@@ -45,46 +45,46 @@
       ]
     },
     "∅5": {
-      "type": "gnd",
       "Name": "∅5",
+      "type": "gnd",
       "value": null,
       "bbox": [
         412.0,
-        9.0,
-        430.0,
+        2.0,
+        431.0,
         24.0
       ]
     },
     "∅6": {
-      "type": "gnd",
       "Name": "∅6",
+      "type": "gnd",
       "value": null,
       "bbox": [
         21.0,
-        28.0,
-        37.0,
+        21.0,
+        40.0,
         42.0
       ]
     },
     "∅7": {
-      "type": "gnd",
       "Name": "∅7",
+      "type": "gnd",
       "value": null,
       "bbox": [
         56.0,
-        28.0,
-        73.0,
+        19.0,
+        77.0,
         42.0
       ]
     },
     "∅8": {
-      "type": "gnd",
       "Name": "∅8",
+      "type": "gnd",
       "value": null,
       "bbox": [
         156.0,
-        10.0,
-        173.0,
+        2.0,
+        177.0,
         24.0
       ]
     }

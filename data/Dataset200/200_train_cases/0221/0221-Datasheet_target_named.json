@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "box",
       "Name": "∅1",
+      "type": "box",
       "value": null,
       "bbox": [
         261.0,
@@ -12,8 +12,8 @@
       ]
     },
     "∅10": {
-      "type": "gnd",
       "Name": "∅10",
+      "type": "gnd",
       "value": null,
       "bbox": [
         741.0,
@@ -23,19 +23,19 @@
       ]
     },
     "∅11": {
-      "type": "gnd",
       "Name": "∅11",
+      "type": "gnd",
       "value": null,
       "bbox": [
         142.0,
-        136.0,
-        178.0,
+        129.0,
+        182.0,
         163.0
       ]
     },
     "∅2": {
-      "type": "battary",
       "Name": "∅2",
+      "type": "battary",
       "value": null,
       "bbox": [
         963.0,
@@ -45,8 +45,8 @@
       ]
     },
     "∅3": {
-      "type": "c",
       "Name": "∅3",
+      "type": "c",
       "value": "0.1 μF",
       "bbox": [
         839.0,
@@ -56,8 +56,8 @@
       ]
     },
     "∅6": {
-      "type": "gnd",
       "Name": "∅6",
+      "type": "gnd",
       "value": null,
       "bbox": [
         966.0,
@@ -67,8 +67,8 @@
       ]
     },
     "∅7": {
-      "type": "gnd",
       "Name": "∅7",
+      "type": "gnd",
       "value": null,
       "bbox": [
         742.0,
@@ -78,8 +78,8 @@
       ]
     },
     "∅8": {
-      "type": "gnd",
       "Name": "∅8",
+      "type": "gnd",
       "value": null,
       "bbox": [
         842.0,
@@ -89,8 +89,8 @@
       ]
     },
     "∅9": {
-      "type": "gnd",
       "Name": "∅9",
+      "type": "gnd",
       "value": null,
       "bbox": [
         142.0,

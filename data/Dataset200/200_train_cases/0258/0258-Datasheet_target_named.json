@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "box",
       "Name": "∅1",
+      "type": "box",
       "value": null,
       "bbox": [
         121.0,
@@ -12,8 +12,8 @@
       ]
     },
     "∅2": {
-      "type": "r",
       "Name": "∅2",
+      "type": "r",
       "value": null,
       "bbox": [
         25.0,
@@ -23,8 +23,8 @@
       ]
     },
     "∅3": {
-      "type": "r",
       "Name": "∅3",
+      "type": "r",
       "value": null,
       "bbox": [
         70.0,
@@ -34,46 +34,46 @@
       ]
     },
     "∅4": {
-      "type": "gnd",
       "Name": "∅4",
+      "type": "gnd",
       "value": null,
       "bbox": [
         71.0,
-        91.0,
-        96.0,
+        84.0,
+        100.0,
         113.0
       ]
     },
     "∅5": {
-      "type": "gnd",
       "Name": "∅5",
+      "type": "gnd",
       "value": null,
       "bbox": [
         69.0,
-        36.0,
-        92.0,
+        23.0,
+        95.0,
         55.0
       ]
     },
     "∅6": {
-      "type": "gnd",
       "Name": "∅6",
+      "type": "gnd",
       "value": null,
       "bbox": [
         191.0,
-        7.0,
-        215.0,
+        0.0,
+        221.0,
         27.0
       ]
     },
     "∅7": {
-      "type": "gnd",
       "Name": "∅7",
+      "type": "gnd",
       "value": null,
       "bbox": [
         26.0,
-        91.0,
-        49.0,
+        84.0,
+        51.0,
         113.0
       ]
     }
@@ -87,25 +87,11 @@
           "y": 207.0
         }
       },
-      "pin_GND": {
-        "pinname": "TRIP TEST",
-        "point": {
-          "x": 203.0,
-          "y": 34.0
-        }
-      },
       "pin_3": {
         "pinname": "SENSE1",
         "point": {
           "x": 109.0,
           "y": 236.0
-        }
-      },
-      "pin_VDD": {
-        "pinname": "VDD",
-        "point": {
-          "x": 202.0,
-          "y": 273.0
         }
       },
       "pin_5": {
@@ -120,6 +106,20 @@
         "point": {
           "x": 109.0,
           "y": 65.0
+        }
+      },
+      "pin_GND": {
+        "pinname": "TRIP TEST",
+        "point": {
+          "x": 203.0,
+          "y": 34.0
+        }
+      },
+      "pin_VDD": {
+        "pinname": "VDD",
+        "point": {
+          "x": 202.0,
+          "y": 273.0
         }
       }
     },

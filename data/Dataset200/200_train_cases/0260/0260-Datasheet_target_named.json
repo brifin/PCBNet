@@ -1,19 +1,19 @@
 {
   "components": {
     "∅1": {
-      "type": "box",
       "Name": "∅1",
+      "type": "box",
       "value": null,
       "bbox": [
         871.0,
-        399.0,
-        888.0,
+        408.0,
+        887.0,
         465.0
       ]
     },
     "∅11": {
-      "type": "net_input",
       "Name": "∅11",
+      "type": "net_input",
       "value": null,
       "bbox": [
         294.0,
@@ -23,8 +23,8 @@
       ]
     },
     "∅12": {
-      "type": "c",
       "Name": "∅12",
+      "type": "c",
       "value": null,
       "bbox": [
         330.0,
@@ -34,8 +34,8 @@
       ]
     },
     "∅13": {
-      "type": "net_input",
       "Name": "∅13",
+      "type": "net_input",
       "value": null,
       "bbox": [
         297.0,
@@ -45,19 +45,19 @@
       ]
     },
     "∅14": {
-      "type": "gnd",
       "Name": "∅14",
+      "type": "gnd",
       "value": null,
       "bbox": [
         345.0,
-        46.0,
-        370.0,
+        39.0,
+        372.0,
         63.0
       ]
     },
     "∅16": {
-      "type": "net_input",
       "Name": "∅16",
+      "type": "net_input",
       "value": null,
       "bbox": [
         294.0,
@@ -67,8 +67,8 @@
       ]
     },
     "∅17": {
-      "type": "l",
       "Name": "∅17",
+      "type": "l",
       "value": null,
       "bbox": [
         228.0,
@@ -78,8 +78,8 @@
       ]
     },
     "∅18": {
-      "type": "gnd",
       "Name": "∅18",
+      "type": "gnd",
       "value": null,
       "bbox": [
         867.0,
@@ -89,19 +89,19 @@
       ]
     },
     "∅19": {
-      "type": "gnd",
       "Name": "∅19",
+      "type": "gnd",
       "value": null,
       "bbox": [
         728.0,
-        58.0,
-        753.0,
+        53.0,
+        755.0,
         75.0
       ]
     },
     "∅2": {
-      "type": "box",
       "Name": "TPA6140A2",
+      "type": "box",
       "value": null,
       "bbox": [
         397.0,
@@ -111,19 +111,19 @@
       ]
     },
     "∅20": {
-      "type": "gnd",
       "Name": "∅20",
+      "type": "gnd",
       "value": null,
       "bbox": [
         772.0,
-        236.0,
-        797.0,
+        228.0,
+        799.0,
         254.0
       ]
     },
     "∅3": {
-      "type": "box",
       "Name": "∅3",
+      "type": "box",
       "value": null,
       "bbox": [
         9.0,
@@ -133,8 +133,8 @@
       ]
     },
     "∅4": {
-      "type": "c",
       "Name": "∅4",
+      "type": "c",
       "value": null,
       "bbox": [
         330.0,
@@ -144,8 +144,8 @@
       ]
     },
     "∅5": {
-      "type": "c",
       "Name": "∅5",
+      "type": "c",
       "value": null,
       "bbox": [
         330.0,
@@ -155,8 +155,8 @@
       ]
     },
     "∅6": {
-      "type": "c",
       "Name": "∅6",
+      "type": "c",
       "value": null,
       "bbox": [
         329.0,
@@ -166,8 +166,8 @@
       ]
     },
     "∅7": {
-      "type": "c",
       "Name": "∅7",
+      "type": "c",
       "value": "1μF",
       "bbox": [
         575.0,
@@ -177,8 +177,8 @@
       ]
     },
     "∅8": {
-      "type": "c",
       "Name": "∅8",
+      "type": "c",
       "value": "2.2μF",
       "bbox": [
         336.0,
@@ -188,8 +188,8 @@
       ]
     },
     "∅9": {
-      "type": "c",
       "Name": "∅9",
+      "type": "c",
       "value": "2.2 F",
       "bbox": [
         720.0,
@@ -303,6 +303,55 @@
           "y": 259.0
         }
       },
+      "pin_1 μF": {
+        "pinname": "INR+",
+        "point": {
+          "x": 388.0,
+          "y": 515.0
+        }
+      },
+      "pin_10": {
+        "pinname": "AVDD",
+        "point": {
+          "x": 388.0,
+          "y": 221.0
+        }
+      },
+      "pin_11": {
+        "pinname": "HPVSS",
+        "point": {
+          "x": 709.0,
+          "y": 171.0
+        }
+      },
+      "pin_12": {
+        "pinname": "SW",
+        "point": {
+          "x": 388.0,
+          "y": 178.0
+        }
+      },
+      "pin_13": {
+        "pinname": "INL-",
+        "point": {
+          "x": 388.0,
+          "y": 365.0
+        }
+      },
+      "pin_15": {
+        "pinname": "INL+",
+        "point": {
+          "x": 388.0,
+          "y": 415.0
+        }
+      },
+      "pin_16": {
+        "pinname": "INR-",
+        "point": {
+          "x": 388.0,
+          "y": 465.0
+        }
+      },
       "pin_2": {
         "pinname": "SCL",
         "point": {
@@ -357,55 +406,6 @@
         "point": {
           "x": 709.0,
           "y": 284.0
-        }
-      },
-      "pin_10": {
-        "pinname": "AVDD",
-        "point": {
-          "x": 388.0,
-          "y": 221.0
-        }
-      },
-      "pin_11": {
-        "pinname": "HPVSS",
-        "point": {
-          "x": 709.0,
-          "y": 171.0
-        }
-      },
-      "pin_12": {
-        "pinname": "SW",
-        "point": {
-          "x": 388.0,
-          "y": 178.0
-        }
-      },
-      "pin_13": {
-        "pinname": "INL-",
-        "point": {
-          "x": 388.0,
-          "y": 365.0
-        }
-      },
-      "pin_1 μF": {
-        "pinname": "INR+",
-        "point": {
-          "x": 388.0,
-          "y": 515.0
-        }
-      },
-      "pin_15": {
-        "pinname": "INL+",
-        "point": {
-          "x": 388.0,
-          "y": 415.0
-        }
-      },
-      "pin_16": {
-        "pinname": "INR-",
-        "point": {
-          "x": 388.0,
-          "y": 465.0
         }
       }
     },

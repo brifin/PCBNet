@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "buzzer",
       "Name": "∅1",
+      "type": "buzzer",
       "value": null,
       "bbox": [
         833.0,
@@ -12,8 +12,8 @@
       ]
     },
     "∅10": {
-      "type": "net_input",
       "Name": "∅10",
+      "type": "net_input",
       "value": null,
       "bbox": [
         728.0,
@@ -23,8 +23,8 @@
       ]
     },
     "∅11": {
-      "type": "c",
       "Name": "∅11",
+      "type": "c",
       "value": "1 μF",
       "bbox": [
         223.0,
@@ -34,8 +34,8 @@
       ]
     },
     "∅12": {
-      "type": "c",
       "Name": "∅12",
+      "type": "c",
       "value": "1 μF",
       "bbox": [
         283.0,
@@ -45,8 +45,8 @@
       ]
     },
     "∅13": {
-      "type": "l",
       "Name": "∅13",
+      "type": "l",
       "value": null,
       "bbox": [
         689.0,
@@ -56,8 +56,8 @@
       ]
     },
     "∅14": {
-      "type": "net_input",
       "Name": "∅14",
+      "type": "net_input",
       "value": null,
       "bbox": [
         728.0,
@@ -67,8 +67,8 @@
       ]
     },
     "∅15": {
-      "type": "l",
       "Name": "∅15",
+      "type": "l",
       "value": null,
       "bbox": [
         689.0,
@@ -78,8 +78,8 @@
       ]
     },
     "∅16": {
-      "type": "c",
       "Name": "∅16",
+      "type": "c",
       "value": null,
       "bbox": [
         790.0,
@@ -89,30 +89,30 @@
       ]
     },
     "∅17": {
-      "type": "gnd",
       "Name": "∅17",
+      "type": "gnd",
       "value": null,
       "bbox": [
         707.0,
-        172.0,
-        733.0,
+        169.0,
+        734.0,
         190.0
       ]
     },
     "∅18": {
-      "type": "gnd",
       "Name": "∅18",
+      "type": "gnd",
       "value": null,
       "bbox": [
         776.0,
-        493.0,
-        800.0,
-        517.0
+        487.0,
+        805.0,
+        509.0
       ]
     },
     "∅19": {
-      "type": "net_input",
       "Name": "∅19",
+      "type": "net_input",
       "value": null,
       "bbox": [
         730.0,
@@ -122,8 +122,8 @@
       ]
     },
     "∅2": {
-      "type": "buzzer",
       "Name": "∅2",
+      "type": "buzzer",
       "value": null,
       "bbox": [
         833.0,
@@ -133,8 +133,8 @@
       ]
     },
     "∅20": {
-      "type": "c",
       "Name": "∅20",
+      "type": "c",
       "value": null,
       "bbox": [
         293.0,
@@ -144,8 +144,8 @@
       ]
     },
     "∅21": {
-      "type": "c",
       "Name": "∅21",
+      "type": "c",
       "value": null,
       "bbox": [
         734.0,
@@ -155,8 +155,8 @@
       ]
     },
     "∅22": {
-      "type": "c",
       "Name": "∅22",
+      "type": "c",
       "value": "1 μF",
       "bbox": [
         663.0,
@@ -166,8 +166,8 @@
       ]
     },
     "∅24": {
-      "type": "c",
       "Name": "∅24",
+      "type": "c",
       "value": null,
       "bbox": [
         789.0,
@@ -177,8 +177,8 @@
       ]
     },
     "∅25": {
-      "type": "c",
       "Name": "∅25",
+      "type": "c",
       "value": "0.68μF",
       "bbox": [
         734.0,
@@ -188,8 +188,8 @@
       ]
     },
     "∅26": {
-      "type": "gnd",
       "Name": "∅26",
+      "type": "gnd",
       "value": null,
       "bbox": [
         223.0,
@@ -199,19 +199,19 @@
       ]
     },
     "∅27": {
-      "type": "c",
       "Name": "∅27",
+      "type": "c",
       "value": "0.22μF",
       "bbox": [
-        663.0,
-        605.0,
-        693.0,
+        656.0,
+        604.0,
+        679.0,
         635.0
       ]
     },
     "∅3": {
-      "type": "box",
       "Name": "TPA3122D2",
+      "type": "box",
       "value": null,
       "bbox": [
         374.0,
@@ -221,8 +221,8 @@
       ]
     },
     "∅4": {
-      "type": "net_input",
       "Name": "∅4",
+      "type": "net_input",
       "value": null,
       "bbox": [
         127.0,
@@ -232,8 +232,8 @@
       ]
     },
     "∅5": {
-      "type": "net_input",
       "Name": "∅5",
+      "type": "net_input",
       "value": null,
       "bbox": [
         125.0,
@@ -243,8 +243,8 @@
       ]
     },
     "∅6": {
-      "type": "net_input",
       "Name": "∅6",
+      "type": "net_input",
       "value": null,
       "bbox": [
         127.0,
@@ -254,8 +254,8 @@
       ]
     },
     "∅7": {
-      "type": "net_input",
       "Name": "∅7",
+      "type": "net_input",
       "value": null,
       "bbox": [
         127.0,
@@ -265,8 +265,8 @@
       ]
     },
     "∅8": {
-      "type": "net_input",
       "Name": "∅8",
+      "type": "net_input",
       "value": null,
       "bbox": [
         127.0,
@@ -276,13 +276,13 @@
       ]
     },
     "∅9": {
-      "type": "c",
       "Name": "∅9",
+      "type": "c",
       "value": "22μH",
       "bbox": [
-        663.0,
+        653.0,
         414.0,
-        696.0,
+        678.0,
         444.0
       ]
     }
@@ -558,62 +558,6 @@
           "y": 167.0
         }
       },
-      "pin_2": {
-        "pinname": "PGNDR",
-        "point": {
-          "x": 660.0,
-          "y": 544.0
-        }
-      },
-      "pin_3": {
-        "pinname": "PGNDL",
-        "point": {
-          "x": 660.0,
-          "y": 503.0
-        }
-      },
-      "pin_4": {
-        "pinname": "ROUT",
-        "point": {
-          "x": 660.0,
-          "y": 583.0
-        }
-      },
-      "pin_5": {
-        "pinname": "MUTE",
-        "point": {
-          "x": 364.0,
-          "y": 95.0
-        }
-      },
-      "pin_6": {
-        "pinname": "GAIN1",
-        "point": {
-          "x": 660.0,
-          "y": 44.0
-        }
-      },
-      "pin_7": {
-        "pinname": "AVCC",
-        "point": {
-          "x": 364.0,
-          "y": 295.0
-        }
-      },
-      "pin_8": {
-        "pinname": "RIN",
-        "point": {
-          "x": 364.0,
-          "y": 583.0
-        }
-      },
-      "pin_9": {
-        "pinname": "GAINO",
-        "point": {
-          "x": 660.0,
-          "y": 82.0
-        }
-      },
       "pin_1 μF": {
         "pinname": "BYPASS",
         "point": {
@@ -668,6 +612,62 @@
         "point": {
           "x": 660.0,
           "y": 313.0
+        }
+      },
+      "pin_2": {
+        "pinname": "PGNDR",
+        "point": {
+          "x": 660.0,
+          "y": 544.0
+        }
+      },
+      "pin_3": {
+        "pinname": "PGNDL",
+        "point": {
+          "x": 660.0,
+          "y": 503.0
+        }
+      },
+      "pin_4": {
+        "pinname": "ROUT",
+        "point": {
+          "x": 660.0,
+          "y": 583.0
+        }
+      },
+      "pin_5": {
+        "pinname": "MUTE",
+        "point": {
+          "x": 364.0,
+          "y": 95.0
+        }
+      },
+      "pin_6": {
+        "pinname": "GAIN1",
+        "point": {
+          "x": 660.0,
+          "y": 44.0
+        }
+      },
+      "pin_7": {
+        "pinname": "AVCC",
+        "point": {
+          "x": 364.0,
+          "y": 295.0
+        }
+      },
+      "pin_8": {
+        "pinname": "RIN",
+        "point": {
+          "x": 364.0,
+          "y": 583.0
+        }
+      },
+      "pin_9": {
+        "pinname": "GAINO",
+        "point": {
+          "x": 660.0,
+          "y": 82.0
         }
       }
     },

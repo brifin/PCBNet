@@ -1,5 +1,5 @@
 dataset_root: "data/Dataset200/200_train_cases"
-test_root: "data/Dataset200/10gt"
+test_root: "data/Dataset200/10test"
 # 文本框标注目录（真实 + 合成 case 共用），用于导出 YOLO 的 text 类标签
 text_bbox_root: "data/Dataset200/text_bbox"
 

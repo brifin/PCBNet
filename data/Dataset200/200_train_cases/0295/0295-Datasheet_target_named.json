@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "other",
       "Name": "∅1",
+      "type": "other",
       "value": null,
       "bbox": [
         80.0,
@@ -12,8 +12,8 @@
       ]
     },
     "∅10": {
-      "type": "c",
       "Name": "∅10",
+      "type": "c",
       "value": "0.01 μF",
       "bbox": [
         84.0,
@@ -23,8 +23,8 @@
       ]
     },
     "∅11": {
-      "type": "r",
       "Name": "∅11",
+      "type": "r",
       "value": null,
       "bbox": [
         852.0,
@@ -34,8 +34,8 @@
       ]
     },
     "∅12": {
-      "type": "gnd",
       "Name": "∅12",
+      "type": "gnd",
       "value": null,
       "bbox": [
         846.0,
@@ -45,8 +45,8 @@
       ]
     },
     "∅13": {
-      "type": "gnd",
       "Name": "∅13",
+      "type": "gnd",
       "value": null,
       "bbox": [
         29.0,
@@ -56,19 +56,19 @@
       ]
     },
     "∅14": {
-      "type": "gnd",
       "Name": "∅14",
+      "type": "gnd",
       "value": null,
       "bbox": [
-        153.0,
-        485.0,
-        178.0,
-        508.0
+        152.0,
+        479.0,
+        179.0,
+        502.0
       ]
     },
     "∅15": {
-      "type": "c",
       "Name": "∅15",
+      "type": "c",
       "value": "1 μF",
       "bbox": [
         800.0,
@@ -78,8 +78,8 @@
       ]
     },
     "∅16": {
-      "type": "c",
       "Name": "∅16",
+      "type": "c",
       "value": "0.1 μF",
       "bbox": [
         213.0,
@@ -89,8 +89,8 @@
       ]
     },
     "∅17": {
-      "type": "c",
       "Name": "∅17",
+      "type": "c",
       "value": "0.1 μF",
       "bbox": [
         926.0,
@@ -100,8 +100,8 @@
       ]
     },
     "∅18": {
-      "type": "gnd",
       "Name": "∅18",
+      "type": "gnd",
       "value": null,
       "bbox": [
         151.0,
@@ -111,8 +111,8 @@
       ]
     },
     "∅19": {
-      "type": "gnd",
       "Name": "∅19",
+      "type": "gnd",
       "value": null,
       "bbox": [
         87.0,
@@ -122,8 +122,8 @@
       ]
     },
     "∅2": {
-      "type": "box",
       "Name": "∅2",
+      "type": "box",
       "value": null,
       "bbox": [
         330.0,
@@ -133,8 +133,8 @@
       ]
     },
     "∅20": {
-      "type": "c",
       "Name": "∅20",
+      "type": "c",
       "value": "0.01 μF",
       "bbox": [
         148.0,
@@ -144,8 +144,8 @@
       ]
     },
     "∅22": {
-      "type": "gnd",
       "Name": "∅22",
+      "type": "gnd",
       "value": null,
       "bbox": [
         259.0,
@@ -155,8 +155,8 @@
       ]
     },
     "∅23": {
-      "type": "c",
       "Name": "∅23",
+      "type": "c",
       "value": "100 F",
       "bbox": [
         25.0,
@@ -166,8 +166,8 @@
       ]
     },
     "∅25": {
-      "type": "gnd",
       "Name": "∅25",
+      "type": "gnd",
       "value": null,
       "bbox": [
         929.0,
@@ -177,8 +177,8 @@
       ]
     },
     "∅26": {
-      "type": "gnd",
       "Name": "∅26",
+      "type": "gnd",
       "value": null,
       "bbox": [
         153.0,
@@ -188,8 +188,8 @@
       ]
     },
     "∅3": {
-      "type": "l",
       "Name": "∅3",
+      "type": "l",
       "value": null,
       "bbox": [
         161.0,
@@ -199,8 +199,8 @@
       ]
     },
     "∅4": {
-      "type": "l",
       "Name": "∅4",
+      "type": "l",
       "value": null,
       "bbox": [
         89.0,
@@ -210,8 +210,8 @@
       ]
     },
     "∅5": {
-      "type": "r",
       "Name": "∅5",
+      "type": "r",
       "value": null,
       "bbox": [
         852.0,
@@ -221,8 +221,8 @@
       ]
     },
     "∅6": {
-      "type": "r",
       "Name": "∅6",
+      "type": "r",
       "value": "10 kΩ",
       "bbox": [
         727.0,
@@ -232,8 +232,8 @@
       ]
     },
     "∅7": {
-      "type": "gnd",
       "Name": "∅7",
+      "type": "gnd",
       "value": null,
       "bbox": [
         803.0,
@@ -243,8 +243,8 @@
       ]
     },
     "∅8": {
-      "type": "r",
       "Name": "∅8",
+      "type": "r",
       "value": "10 kΩ",
       "bbox": [
         728.0,
@@ -254,8 +254,8 @@
       ]
     },
     "∅9": {
-      "type": "c",
       "Name": "∅9",
+      "type": "c",
       "value": "1 μF",
       "bbox": [
         213.0,
@@ -400,62 +400,6 @@
           "y": 499.0
         }
       },
-      "pin_2": {
-        "pinname": "DIR",
-        "point": {
-          "x": 697.0,
-          "y": 614.0
-        }
-      },
-      "pin_3": {
-        "pinname": "PGNDB",
-        "point": {
-          "x": 317.0,
-          "y": 264.0
-        }
-      },
-      "pin_4": {
-        "pinname": "nFAULT",
-        "point": {
-          "x": 697.0,
-          "y": 267.0
-        }
-      },
-      "pin_5": {
-        "pinname": "STEP",
-        "point": {
-          "x": 697.0,
-          "y": 586.0
-        }
-      },
-      "pin_6": {
-        "pinname": "VM",
-        "point": {
-          "x": 317.0,
-          "y": 213.0
-        }
-      },
-      "pin_7": {
-        "pinname": "BOUT1",
-        "point": {
-          "x": 317.0,
-          "y": 313.0
-        }
-      },
-      "pin_8": {
-        "pinname": "CPH",
-        "point": {
-          "x": 317.0,
-          "y": 663.0
-        }
-      },
-      "pin_9": {
-        "pinname": "SDI",
-        "point": {
-          "x": 697.0,
-          "y": 526.0
-        }
-      },
       "pin_10": {
         "pinname": "nSCS",
         "point": {
@@ -526,6 +470,13 @@
           "y": 613.0
         }
       },
+      "pin_2": {
+        "pinname": "DIR",
+        "point": {
+          "x": 697.0,
+          "y": 614.0
+        }
+      },
       "pin_20": {
         "pinname": "VREF",
         "point": {
@@ -573,6 +524,55 @@
         "point": {
           "x": 317.0,
           "y": 363.0
+        }
+      },
+      "pin_3": {
+        "pinname": "PGNDB",
+        "point": {
+          "x": 317.0,
+          "y": 264.0
+        }
+      },
+      "pin_4": {
+        "pinname": "nFAULT",
+        "point": {
+          "x": 697.0,
+          "y": 267.0
+        }
+      },
+      "pin_5": {
+        "pinname": "STEP",
+        "point": {
+          "x": 697.0,
+          "y": 586.0
+        }
+      },
+      "pin_6": {
+        "pinname": "VM",
+        "point": {
+          "x": 317.0,
+          "y": 213.0
+        }
+      },
+      "pin_7": {
+        "pinname": "BOUT1",
+        "point": {
+          "x": 317.0,
+          "y": 313.0
+        }
+      },
+      "pin_8": {
+        "pinname": "CPH",
+        "point": {
+          "x": 317.0,
+          "y": 663.0
+        }
+      },
+      "pin_9": {
+        "pinname": "SDI",
+        "point": {
+          "x": 697.0,
+          "y": 526.0
         }
       }
     },

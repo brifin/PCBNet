@@ -546,16 +546,18 @@ function renderCompEditor(src){
   const shownBbox = _displayBbox(key);
   const bbox = (Array.isArray(shownBbox) && shownBbox.length === 4) ? shownBbox : [0,0,0,0];
   if(APP_MODE === 'modify'){
-    el.innerHTML = `
-      <div class="row"><label>key</label><span>${escHtml(key)}</span>
-        <span class="muted">type=${escHtml(c.type??'')} · Name=${escHtml(c.Name??'')} · value=${escHtml(c.value??'')}</span></div>
-      <div class="row"><label>bbox</label>
-        <input class="sm" id="c_b0_${src}" value="${bbox[0]}"><input class="sm" id="c_b1_${src}" value="${bbox[1]}">
-        <input class="sm" id="c_b2_${src}" value="${bbox[2]}"><input class="sm" id="c_b3_${src}" value="${bbox[3]}"></div>
-      <div class="row"><button class="btn ok" onclick="applyBbox('${src}')">应用修改</button>
-        <button class="btn" onclick="undoBbox()">撤销上一步</button></div>
-      <div class="muted">框显示后直接拖绿框的边/角改大小，拖绿框内部整体移动；框的显示样式保持不变。也可以改坐标后点“应用修改”。坐标顺序 x1,y1,x2,y2（图像左下原点）。</div>`;
-    return;
+      el.innerHTML = `
+        <div class="row"><label>key</label><span>${escHtml(key)}</span></div>
+        <div class="row"><label>type</label><input id="c_type_${src}" value="${escHtml(c.type??'')}"></div>
+        <div class="row"><label>Name</label><input id="c_name_${src}" value="${escHtml(c.Name??'')}"></div>
+        <div class="row"><label>value</label><input id="c_value_${src}" value="${escHtml(c.value??'')}"></div>
+        <div class="row"><label>bbox</label>
+          <input class="sm" id="c_b0_${src}" value="${bbox[0]}"><input class="sm" id="c_b1_${src}" value="${bbox[1]}">
+          <input class="sm" id="c_b2_${src}" value="${bbox[2]}"><input class="sm" id="c_b3_${src}" value="${bbox[3]}"></div>
+        <div class="row"><button class="btn ok" onclick="applyBbox('${src}')">应用修改</button>
+          <button class="btn" onclick="undoBbox()">撤销上一步</button></div>
+        <div class="muted">框显示后直接拖绿框的边/角改大小，拖绿框内部整体移动；框的显示样式保持不变。也可以改坐标、type、Name、value后点“应用修改”。坐标顺序 x1,y1,x2,y2（图像左下原点）。</div>`;
+      return;
   }
   const pins = j.pins[key]||{};
   const pinRows = Object.keys(pins).map(pk=>{
@@ -637,8 +639,15 @@ async function applyBbox(src){
   }
   const committed = (c.bbox || []).map(Number);
   const changed = committed.length === 4 && committed.some((v,i)=>v !== b[i]);
-  if(!changed && !bboxDraft){ $('status').textContent = 'bbox 没有变化'; return; }
-  if(changed) _pushBboxHistory(src, key, committed);
+  if(!changed && !bboxDraft){
+    // bbox没变，但type/Name/value可能变了，依然允许保存
+  } else {
+    _pushBboxHistory(src, key, committed);
+  }
+  // 新增：读取 type, Name, value
+  c.type = $('c_type_'+src).value;
+  c.Name = $('c_name_'+src).value;
+  c.value = $('c_value_'+src).value || null;
   c.bbox = b;
   bboxDraft = null;
   const ok = await save();
@@ -647,7 +656,7 @@ async function applyBbox(src){
     refresh();
     return;
   }
-  $('status').textContent = `已应用并保存 ${key} 的 bbox 到 JSON`;
+  $('status').textContent = `已应用并保存 ${key} 的 bbox + type/Name/value 到 JSON`;
   refresh();
 }
 
@@ -1075,6 +1084,38 @@ if($('promotebtn')) $('promotebtn').onclick = promoteCase;
   if(cases.length) loadCase(cases[0]);
   else if(APP_MODE === 'review') $('status').textContent = '请先上传图片，或把图片放到 review_cases/<case>/ 目录';
 })();
+// ========== 新增：右键保存、空格切换pred元件全选 ==========
+// 右键 = 保存
+// ========== 新增：右键 = 先应用bbox草稿修改，再保存；空格切换pred元件全选 ==========
+document.addEventListener('contextmenu', async (e) => {
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+  e.preventDefault();
+
+  // modify模式 + 存在未提交草稿：先执行应用修改
+  if (APP_MODE === 'modify' && bboxDraft) {
+    await applyBbox('pred');
+  } else {
+    await save();
+  }
+});
+
+
+// 空格：切换 pred Components 全选 / 全不选
+let predCompAllOn = false;
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space') return;
+  // 输入框内空格放行
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+  e.preventDefault();
+  predCompAllOn = !predCompAllOn;
+  setAll('pred', 'comp', predCompAllOn);
+  $('status').textContent = predCompAllOn ? '[空格] 已全选 pred元件' : '[空格] 已取消全选 pred元件';
+});
+
 </script>
 </body>
 </html>

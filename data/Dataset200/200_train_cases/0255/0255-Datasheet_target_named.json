@@ -1,8 +1,8 @@
 {
   "components": {
     "∅1": {
-      "type": "r",
       "Name": "∅1",
+      "type": "r",
       "value": "24.9 kΩ",
       "bbox": [
         444.0,
@@ -12,19 +12,19 @@
       ]
     },
     "∅10": {
-      "type": "gnd",
       "Name": "∅10",
+      "type": "gnd",
       "value": null,
       "bbox": [
         58.0,
-        84.0,
-        100.0,
+        76.0,
+        103.0,
         119.0
       ]
     },
     "∅11": {
-      "type": "r",
       "Name": "∅11",
+      "type": "r",
       "value": "49.9 kΩ",
       "bbox": [
         597.0,
@@ -34,8 +34,8 @@
       ]
     },
     "∅13": {
-      "type": "r",
       "Name": "∅13",
+      "type": "r",
       "value": null,
       "bbox": [
         509.0,
@@ -45,8 +45,8 @@
       ]
     },
     "∅14": {
-      "type": "box",
       "Name": "∅14",
+      "type": "box",
       "value": null,
       "bbox": [
         886.0,
@@ -56,8 +56,8 @@
       ]
     },
     "∅16": {
-      "type": "box",
       "Name": "∅16",
+      "type": "box",
       "value": null,
       "bbox": [
         296.0,
@@ -67,8 +67,8 @@
       ]
     },
     "∅18": {
-      "type": "box",
       "Name": "∅18",
+      "type": "box",
       "value": null,
       "bbox": [
         513.0,
@@ -78,8 +78,8 @@
       ]
     },
     "∅19": {
-      "type": "box",
       "Name": "∅19",
+      "type": "box",
       "value": null,
       "bbox": [
         296.0,
@@ -89,8 +89,8 @@
       ]
     },
     "∅2": {
-      "type": "ant",
       "Name": "∅2",
+      "type": "ant",
       "value": null,
       "bbox": [
         640.0,
@@ -100,19 +100,19 @@
       ]
     },
     "∅3": {
-      "type": "gnd",
       "Name": "∅3",
+      "type": "gnd",
       "value": null,
       "bbox": [
         322.0,
-        123.0,
-        364.0,
-        159.0
+        141.0,
+        367.0,
+        172.0
       ]
     },
     "∅4": {
-      "type": "ant",
       "Name": "∅4",
+      "type": "ant",
       "value": null,
       "bbox": [
         212.0,
@@ -122,8 +122,8 @@
       ]
     },
     "∅5": {
-      "type": "r",
       "Name": "∅5",
+      "type": "r",
       "value": "200 kΩ",
       "bbox": [
         450.0,
@@ -133,8 +133,8 @@
       ]
     },
     "∅6": {
-      "type": "r",
       "Name": "∅6",
+      "type": "r",
       "value": null,
       "bbox": [
         156.0,
@@ -144,19 +144,19 @@
       ]
     },
     "∅7": {
-      "type": "gnd",
       "Name": "∅7",
+      "type": "gnd",
       "value": null,
       "bbox": [
         589.0,
-        20.0,
-        630.0,
+        13.0,
+        635.0,
         54.0
       ]
     },
     "∅8": {
-      "type": "r",
       "Name": "∅8",
+      "type": "r",
       "value": "49.9Ω",
       "bbox": [
         67.0,
@@ -166,13 +166,13 @@
       ]
     },
     "∅9": {
-      "type": "gnd",
       "Name": "∅9",
+      "type": "gnd",
       "value": null,
       "bbox": [
         147.0,
-        84.0,
-        189.0,
+        78.0,
+        191.0,
         119.0
       ]
     }
