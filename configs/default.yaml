@@ -1,36 +1,32 @@
-dataset_root: "data/Dataset200/200_train_cases"
-test_root: "data/Dataset200/10test"
-# 文本框标注目录（真实 + 合成 case 共用），用于导出 YOLO 的 text 类标签
-text_bbox_root: "data/Dataset200/text_bbox"
-
-output_root: "outputs"
+dataset_root: data/Dataset200/200_train_cases
+test_root: data/Dataset200/10gt
+text_bbox_root: data/Dataset200/text_bbox
+output_root: outputs
 split_seed: 42
-split_ratio: [0.95, 0.05, 0.0]
-
+split_ratio:
+- 0.95
+- 0.05
+- 0.0
 thresholds:
   bbox_px: 20.0
-  pin_px: 10.0
-  line_px: 10.0
+  pin_px: 5.0
+  line_px: 5.0
   pin_wire_eps: 5.0
   rdp_eps: 2.5
-
 weights:
-  component: 0.30
+  component: 0.3
   pin: 0.25
   net_hypergraph: 0.35
-  net_line: 0.10
-
-# NOTE: yolo_weights intentionally empty. The previous best.pt was trained on an
-# obsolete 28-class scheme; the class list is now coarse components + text +
-# pin_tip. Retrain with scripts/train_yolo.py, then point this at the new best.pt.
+  net_line: 0.1
 models:
-  yolo_weights: "outputs/models/yolo/train/weights/best.pt"
-  unet_weights: "outputs/models/unet/best.pt"
-
+  yolo_weights: outputs/models/yolo/train/weights/best.pt
+  yolo_expert_weights: outputs/models/yolo/train/expert_low.pt
+  unet_weights: outputs/models/unet/best.pt
 train:
   yolo:
     model: yolo26x.pt
     epochs: 100
+    patience: 20
     imgsz: 1280
     batch: 8
   unet:
@@ -38,25 +34,68 @@ train:
     size: 512
     batch: 2
     lr: 0.001
-
 ocr:
   enabled: true
-  lang: "en"
-  conf_tau: 0.85          # tokens below this go to stage3 correction
-
+  lang: en
+  conf_tau: 0.85
 vision:
   max_side: 1600
   max_components: 400
   max_segments: 4000
-  pin_snap_px: 5.0        # tip snaps to a wire endpoint within this distance
-  pin_dedup_px: 5.0       # 距离 ≤ 此值的重复引脚只保留置信度最高者
-
+  pin_snap_px: 0.0
+  pin_dedup_px: 5.0
+  yolo_conf: 0.35
+  yolo_imgsz:
+  - 1024
+  - 1536
+  yolo_scale_nms_iou: 0.7
+  yolo_iou: 0.7
+  yolo_expert_conf: 0.25
+  yolo_expert_imgsz:
+  - 1216
+  - 1920
+  expert_low_classes:
+  - capacitor
+  - ground
+  - led
+  - network_input
+  - network_output
+  - resistor
+  - power
+  - switch
+  expert_low_merge:
+    capacitor:
+    - 2.0
+    - 0.3
+    ground:
+    - 2.0
+    - 0.4
+    led:
+    - 6.0
+    - 0.6
+    network_input:
+    - 2.0
+    - 0.3
+    network_output:
+    - 6.0
+    - 0.3
+    power:
+    - 2.0
+    - 0.4
+    resistor:
+    - 0.5
+    - 0.3
+    switch:
+    - 4
+    - 0.7
+  yolo_max_det: 1000
+image_db:
+  threshold: 5
 use_llm: false
-
 stage3:
-  enabled: false          # gated LLM correction; off by default
-  provider: "qwen"
-  model: "qwen3.7-plus"
-  max_calls_per_case: 40  # token/time guard so 30-50 cases finish < 2h
+  enabled: false
+  provider: qwen
+  model: qwen3.7-plus
+  max_calls_per_case: 40
   time_budget_sec: 60
-  use_vlm_crop: false     # send low-conf text crop to a VLM
+  use_vlm_crop: false

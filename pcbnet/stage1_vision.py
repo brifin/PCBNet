@@ -8,12 +8,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any 
+from typing import Any
 from .visual import run_vision_visualize, run_gt_visualize, run_wire_visualize, draw_pcb_pin_net
 from .topo_graph import extract_wire_nets
+from .skele_wire import extract_nets as extract_skele_nets
 from tqdm import tqdm
-from .skele_wire import extract_nets
-from .llm import check_comp_by_llm
 
 import cv2
 import numpy as np
@@ -35,6 +34,8 @@ class TextBox:
     bbox: list[float]
     content: str
     score: float = 1.0
+    angle: int = 0          # 0 = 正向；90/270 = 旋转补充识别的候选
+    source: str = "main"    # main / focus / rescue
 
 
 @dataclass
@@ -43,6 +44,9 @@ class PinBox:
     score: float = 1.0
     number: str | None = None
     name: str | None = None
+    # skele_wire 专属：归属元件在 vision.components 中的下标 / 元件内引脚序号
+    owner: int | None = None
+    idx: int | None = None
 
 
 @dataclass
@@ -57,6 +61,9 @@ class VisionOut:
     wire_segments: list[tuple[tuple[float, float], tuple[float, float]]] = field(default_factory=list)
     # topo_graph.extract_wire_nets 的导线网络重建结果，stage2 优先用它生成 nets
     wire_nets: dict = field(default_factory=dict)
+    # skele_wire.extract_nets 的原始输出（comp_<i>.pin_<j> 引用），stage2 用它做精确映射
+    skele_pins: dict = field(default_factory=dict)
+    skele_nets: dict = field(default_factory=dict)
     img: np.ndarray | None = None
     image_path: str | Path | None = None
 
@@ -123,64 +130,148 @@ def _resolve_yolo_device() -> str:
     print(f"[vision] YOLO device = {_YOLO_DEVICE}", flush=True)
     return _YOLO_DEVICE
 
-def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4) -> list[DetBox]:
+
+_YOLO_MODELS: dict[str, Any] = {}
+
+
+def _get_yolo(weights: str):
+    """按权重路径缓存 YOLO 实例，避免每张图重复加载 100+ MB 权重。"""
+    from ultralytics import YOLO
+
+    model = _YOLO_MODELS.get(weights)
+    if model is None:
+        model = YOLO(weights)
+        _YOLO_MODELS[weights] = model
+    return model
+
+
+def _try_yolo(img: np.ndarray, weights: str, conf: float = 0.4,
+              imgsz: int | None = None, iou: float = 0.7,
+              max_det: int = 1000) -> list[DetBox]:
     if not weights:
         return []
 
-    from ultralytics import YOLO
-
-    model = YOLO(weights)
+    model = _get_yolo(weights)
+    kw = dict(conf=conf, iou=iou, max_det=max_det, verbose=False)
+    if imgsz:
+        kw["imgsz"] = int(imgsz)
     try:
-        res = model.predict(img, conf=conf, device=_resolve_yolo_device(), verbose=False)[0]
+        res = model.predict(img, device=_resolve_yolo_device(), **kw)[0]
     except Exception as exc:  # noqa: BLE001 设备不可用时回退 CPU 再试
         print(f"[vision] 推理设备失败({exc})，回退 CPU", flush=True)
         global _YOLO_DEVICE
         _YOLO_DEVICE = "cpu"
-        res = model.predict(img, conf=conf, device=_resolve_yolo_device(), verbose=False)[0]
-
+        res = model.predict(img, device="cpu", **kw)[0]
     boxes = []
     names = res.names
-    for idx, b in enumerate(res.boxes):
+    for b in res.boxes:
         xyxy = b.xyxy[0].tolist()
         cls = int(b.cls[0])
-        comp = DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0]))
-        boxes.append(comp)
+        boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
     return boxes
 
 
-def _try_yolo_v2(img: np.ndarray, weights: str, comp_conf: float = 0.4, pin_conf: float = 0.05) -> list[DetBox]:
+# 低类专家模型的监督类别（与 scripts_extra/eval_union.py 一致）
+EXPERT_LOW_CLASSES = ("power", "ground", "network_input", "led")
+# 验证集校准的「专家分数权重 + 类内 NMS IoU」：power ×3/0.5、ground ×4/0.4、
+# network_input ×2/0.4、led ×6/0.6
+EXPERT_LOW_MERGE: dict[str, tuple[float, float]] = {
+    "power": (3.0, 0.5),
+    "ground": (4.0, 0.4),
+    "network_input": (2.0, 0.4),
+    "led": (6.0, 0.6),
+}
+
+
+def _iou_xyxy(a: list[float], b: list[float]) -> float:
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 1e-9 else 0.0
+
+
+def _nms_class_iou(boxes: list[DetBox], iou_thr: float) -> list[DetBox]:
+    """标准 IoU 的贪心 NMS（按 score 降序），与 eval_union 的 torchvision nms 等价。"""
+    ordered = sorted(boxes, key=lambda b: -float(b.score))
+    keep: list[DetBox] = []
+    for b in ordered:
+        if all(_iou_xyxy(b.bbox, k.bbox) <= iou_thr for k in keep):
+            keep.append(b)
+    return keep
+
+
+def _try_yolo_multiscale(img: np.ndarray, weights: str, conf: float,
+                         imgsz_list, merge_iou: float, iou: float = 0.7,
+                         max_det: int = 1000) -> list[DetBox]:
+    """多尺度推理后按类别 NMS 合并；避免单尺度漏掉小 R/C 或在另一尺度误检。"""
     if not weights:
         return []
+    if isinstance(imgsz_list, (int, float)):
+        imgsz_list = [int(imgsz_list)]
+    scales = [int(v) for v in (imgsz_list or []) if int(v) > 0]
+    if not scales:
+        return _try_yolo(img, weights, conf=conf, iou=iou, max_det=max_det)
+    dets: list[DetBox] = []
+    for imgsz in scales:
+        dets.extend(_try_yolo(img, weights, conf=conf, imgsz=imgsz, iou=iou, max_det=max_det))
+    return _nms_components(dets, iou_thr=merge_iou)
 
-    from ultralytics import YOLO
 
-    model = YOLO(weights)
-    try:
-        comp_res = model.predict(img, conf=comp_conf, device=_resolve_yolo_device(), verbose=False)[0]
-        pin_res = model.predict(img, conf=pin_conf, device=_resolve_yolo_device(), verbose=False)[0]
-    except Exception as exc:  # noqa: BLE001 设备不可用时回退 CPU 再试
-        print(f"[vision] 推理设备失败({exc})，回退 CPU", flush=True)
-        global _YOLO_DEVICE
-        _YOLO_DEVICE = "cpu"
-        comp_res = model.predict(img, conf=comp_conf, device=_resolve_yolo_device(), verbose=False)[0]
-        pin_res = model.predict(img, conf=pin_conf, device=_resolve_yolo_device(), verbose=False)[0]
+def _try_yolo_union(img: np.ndarray, models: dict, vision_cfg: dict) -> list[DetBox]:
+    """主模型全部类别 + 低类专家模型的并集（规则同 scripts_extra/eval_union.py）。
 
-    boxes = []
-    names = comp_res.names
-    for b in comp_res.boxes:
-        xyxy = b.xyxy[0].tolist()
-        cls = int(b.cls[0])
-        if cls not in [14, 15]:
-            boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
-    
-    for b in pin_res.boxes:
-        xyxy = b.xyxy[0].tolist()
-        cls = int(b.cls[0])
-        if cls in [0, 1]:
-            boxes.append(DetBox(bbox=xyxy, label=str(names.get(cls, cls)), score=float(b.conf[0])))
+    - 主模型：普通推理，全部类别原样保留；
+    - 专家模型：只取 power/ground/network_input/led，分数乘以校准权重；
+    - 低类按类内 NMS 合并主模型与专家结果；高类保持主模型结果不变。
+    """
+    main_w = models.get("yolo_weights") or ""
+    main_conf = float(vision_cfg.get("yolo_conf", 0.15))
+    scale_iou = float(vision_cfg.get("yolo_iou", 0.7))
+    merge_iou = float(vision_cfg.get("yolo_scale_nms_iou", 0.4))
+    max_det = int(vision_cfg.get("yolo_max_det", 1000))
+    scales = vision_cfg.get("yolo_imgsz") or vision_cfg.get("yolo_multiscale") or [640]
+    main = _try_yolo_multiscale(img, main_w, main_conf, scales, merge_iou, iou=scale_iou, max_det=max_det)
+    expert_w = models.get("yolo_expert_weights") or ""
+    if not expert_w:
+        return main
 
-    return boxes
+    low_names = set(vision_cfg.get("expert_low_classes") or EXPERT_LOW_CLASSES)
+    merge_cfg = dict(EXPERT_LOW_MERGE)
+    for k, v in (vision_cfg.get("expert_low_merge") or {}).items():
+        try:
+            merge_cfg[str(k)] = (float(v[0]), float(v[1]))
+        except Exception:  # noqa: BLE001
+            continue
+    expert_conf = float(vision_cfg.get("yolo_expert_conf", 0.10))
+    expert_scales = vision_cfg.get("yolo_expert_imgsz") or scales
+    expert = [
+        d for d in _try_yolo_multiscale(
+            img, expert_w, expert_conf, expert_scales, merge_iou, iou=scale_iou, max_det=max_det
+        )
+        if d.label in low_names
+    ]
 
+    out = [d for d in main if d.label not in low_names]
+    for label in sorted(low_names):
+        mult, niou = merge_cfg.get(label, (2.0, 0.6))
+        items = [d for d in main if d.label == label]
+        items += [
+            DetBox(bbox=list(d.bbox), label=label, score=float(d.score) * mult)
+            for d in expert
+            if d.label == label
+        ]
+        if items:
+            # Rank using the full weighted score. Clipping before NMS turns, for
+            # example, LED .30 and .90 (weight 6) into a tie and can keep the
+            # weaker box. Keep the public score in [0,1] only after selection.
+            out.extend(
+                DetBox(bbox=list(d.bbox), label=d.label, score=min(1.0, d.score))
+                for d in _nms_class_iou(items, niou)
+            )
+    return out
 
 
 def _nms(boxes: list[DetBox], iou_thr: float = 0.35) -> list[DetBox]:
@@ -474,9 +565,20 @@ def _ocr_on_boxes(img: np.ndarray, boxes: list[list[float]], lang: str = "en", p
 def _ocr_subprocess_env(pythonpath: str | None) -> dict[str, str]:
     """OCR 子进程环境：PYTHONPATH 指向 3.7 运行时；容器里补 libgomp 搜索路径。"""
     env = dict(os.environ)
+    # 评测平台会把 stderr 当 ingestion 日志：OCR 子进程里的 paddle/ccache 警告
+    # 不是错误，统一静音；真正的异常仍通过子进程返回码/异常抛出。
+    env.setdefault("PYTHONWARNINGS", "ignore")
+    env.setdefault("GLOG_minloglevel", "2")
+    env.setdefault("FLAGS_logtostderr", "0")
     if pythonpath:
+        # worker 会把这个变量对应的目录显式插到 sys.path[0]；PYTHONPATH 只是兜底，
+        # 避免镜像里的 sitecustomize/.pth 把旧版 paddleocr 抢到前面。
+        env["PCBOCR_RUNTIME_PATH"] = pythonpath
         old = env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = pythonpath + (":" + old if old else "")
+    # CPU OCR 不需要 GPU；隐藏 GPU 可避免驱动/运行库探测带来的偶发导入失败。
+    if not str(env.get("PCBOCR_DEVICE", "")).lower().startswith("gpu"):
+        env.setdefault("CUDA_VISIBLE_DEVICES", "")
     project = Path(__file__).resolve().parent.parent
     libs_dir = project / "libs"
     if libs_dir.is_dir():
@@ -486,43 +588,73 @@ def _ocr_subprocess_env(pythonpath: str | None) -> dict[str, str]:
 
 
 def _probe_ocr_version(pythonpath: str | None) -> str:
-    """用当前解释器 + 指定 PYTHONPATH 探测 paddleocr 版本；失败返回空串。"""
+    """用当前解释器探测 paddleocr 版本；失败返回空串并打印真实错误。"""
+    code = "import sys"
+    if pythonpath:
+        # 显式插到最前面：PYTHONPATH 可能被镜像的 .pth/sitecustomize 垫后。
+        code += f"; sys.path.insert(0, {str(pythonpath)!r})"
+    code += (
+        "; import paddleocr; "
+        "print('PCBOCR_VERSION=' + str(getattr(paddleocr, '__version__', '')))"
+    )
     try:
+        env = _ocr_subprocess_env(pythonpath)
+        if pythonpath:
+            # 探测某个候选目录时不要继承外部 PYTHONPATH，否则别的 3.7 会把
+            # 一个不完整的候选目录“伪装”成可用。
+            env["PYTHONPATH"] = pythonpath
         out = subprocess.run(
-            [sys.executable, "-c", "import paddleocr;print(paddleocr.__version__)"],
-            env=_ocr_subprocess_env(pythonpath),
-            capture_output=True, text=True, timeout=120,
+            ([sys.executable, "-S"] if pythonpath else [sys.executable]) + ["-c", code],
+            env=env,
+            capture_output=True, text=True, errors="replace", timeout=180,
         )
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ocr] 探测 PaddleOCR 失败：{exc}", flush=True)
         return ""
     if out.returncode != 0:
+        err = [x for x in (out.stderr or "").strip().splitlines() if x.strip()]
+        print(
+            f"[ocr] 探测 PaddleOCR 失败（rc={out.returncode}）："
+            + " | ".join(err[-6:]),
+            flush=True,
+        )
         return ""
-    lines = [x.strip() for x in (out.stdout or "").splitlines() if x.strip()]
-    return lines[-1] if lines else ""
+    for line in reversed((out.stdout or "").splitlines()):
+        if line.strip().startswith("PCBOCR_VERSION="):
+            return line.strip().split("=", 1)[1].strip()
+    return ""
+
+
+def _pylibs_dir() -> Path | None:
+    """随包 OCR 运行时目录（提交镜像里构建阶段已装好，无需再探测/联网安装）。"""
+    d = Path(__file__).resolve().parent.parent / "pylibs"
+    return d if (d / "paddleocr").is_dir() else None
 
 
 def _ensure_ocr37() -> str:
     """确保存在 PaddleOCR 3.7 运行时，返回需要加到 PYTHONPATH 的目录。
 
     不依赖任何特定虚拟环境：
-      1. 容器/打包目录里有 pylibs 且已是 3.7 → 直接用；
+      1. 容器/打包目录里有 pylibs（已装 3.7）→ 直接用，不探测、不联网；
       2. 通用缓存目录 ~/.cache/pcbnet/ocr37 已是 3.7 → 直接用；
       3. 当前解释器本身已是 3.7 → 不加 PYTHONPATH；
-      4. 都没有 → pip 安装到通用缓存目录（帮助用户自动装好）。
+      4. 都没有 → pip 安装到通用缓存目录（帮助本地用户自动装好）。
     """
     global _OCR_PYTHONPATH
     if _OCR_PYTHONPATH is not None:
         return _OCR_PYTHONPATH
 
-    project = Path(__file__).resolve().parent.parent
-    for candidate in (project / "pylibs", _OCR_RUNTIME_DIR):
-        if not candidate.is_dir():
-            continue
-        ver = _probe_ocr_version(str(candidate))
-        if ver.startswith("3.7"):
-            _OCR_PYTHONPATH = str(candidate)
-            print(f"[ocr] PaddleOCR {ver}：{candidate}", flush=True)
-            return _OCR_PYTHONPATH
+    bundled = _pylibs_dir()
+    if bundled is not None:
+        _OCR_PYTHONPATH = str(bundled)
+        print(f"[ocr] 使用随包 PaddleOCR 3.7：{bundled}", flush=True)
+        return _OCR_PYTHONPATH
+
+    ver = _probe_ocr_version(str(_OCR_RUNTIME_DIR))
+    if ver.startswith("3.7"):
+        _OCR_PYTHONPATH = str(_OCR_RUNTIME_DIR)
+        print(f"[ocr] PaddleOCR {ver}：{_OCR_RUNTIME_DIR}", flush=True)
+        return _OCR_PYTHONPATH
 
     ver = _probe_ocr_version(None)
     if ver.startswith("3.7"):
@@ -592,9 +724,16 @@ def _ensure_ocr_models() -> None:
         print(f"[ocr] 复制 OCR 模型失败（将由 PaddleX 尝试下载）：{exc}", flush=True)
 
 
-def _full_image_ocr(image_path: str | Path, lang: str = "en") -> list[TextBox]:
+def _full_image_ocr(
+    image_path: str | Path,
+    lang: str = "en",
+    focus_boxes: list[dict] | None = None,
+) -> list[TextBox]:
 
     """每次推理都做一次**全图 OCR**（不读缓存）。
+
+    focus_boxes 为需要局部补识别的元件框（box / gnd / v / net_label），worker
+    会对这些区域放大后重新 det+rec，并对竖排文字做旋转识别，补回小字/竖排内容。
 
     torch 已加载时（主推理进程），paddlepaddle 与 torch 的 CUDA/运行库可能冲突，
     改用独立子进程跑 OCR（pcbnet/_ocr_worker.py）；OCR 固定使用 PaddleOCR 3.7，
@@ -618,22 +757,44 @@ def _full_image_ocr(image_path: str | Path, lang: str = "en") -> list[TextBox]:
         interpreter = sys.executable
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as fh:
             out_path = fh.name
+        focus_path = ""
+        if focus_boxes:
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w", encoding="utf-8") as fh:
+                json.dump(focus_boxes, fh, ensure_ascii=False)
+                focus_path = fh.name
         try:
             env = _ocr_subprocess_env(pythonpath)
             env.setdefault("PCBOCR_LANG", lang)
             # 自动安装的是 paddlepaddle 3.3.0 CPU；需要 GPU 时可显式设 PCBOCR_DEVICE=gpu:0。
             env.setdefault("PCBOCR_DEVICE", "cpu")
-            subprocess.run(
-                [interpreter, str(worker), str(image_path), out_path],
-                check=True, env=env, timeout=1800,
-            )
+            # 有显式 OCR 运行库时用 -S 隔离：只加载标准库 + pylibs/缓存目录，
+            # 不导入镜像 site-packages，彻底避开镜像里旧版 paddleocr/冲突包。
+            cmd = [interpreter]
+            if pythonpath:
+                cmd.append("-S")
+            cmd += [str(worker), str(image_path), out_path]
+            if focus_path:
+                cmd.append(focus_path)
+            subprocess.run(cmd, check=True, env=env, timeout=1800)
             data = json.loads(Path(out_path).read_text(encoding="utf-8"))
         finally:
-            try:
-                Path(out_path).unlink()
-            except OSError:
-                pass
-        return [TextBox(bbox=list(d["bbox"]), content=d["content"], score=float(d["score"])) for d in data]
+            for p in (out_path, focus_path):
+                if not p:
+                    continue
+                try:
+                    Path(p).unlink()
+                except OSError:
+                    pass
+        return [
+            TextBox(
+                bbox=list(d["bbox"]),
+                content=d["content"],
+                score=float(d["score"]),
+                angle=int(d.get("angle") or 0),
+                source=str(d.get("src") or "main"),
+            )
+            for d in data
+        ]
     img = _read_image(image_path)
     return _ocr_texts(img, enabled=True, lang=lang)
 
@@ -908,6 +1069,7 @@ def _clean_components(
     return final
 
 
+
 def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox], list[PinBox]]:
     comp_labels = _component_labels()
     comps: list[DetBox] = []
@@ -949,32 +1111,63 @@ def _load_cached_ocr(image_path: str | Path, cfg: dict[str, Any]) -> list[TextBo
         return None
 
 
-def compute_iou(box_a: list[float], box_b: list[float]) -> float:
-    """IoU计算，DetBox.bbox格式：[x1,y1,x2,y2]"""
-    x1a, y1a, x2a, y2a = box_a
-    x1b, y1b, x2b, y2b = box_b
-    # 交集
-    x1 = max(x1a, x1b)
-    y1 = max(y1a, y1b)
-    x2 = min(x2a, x2b)
-    y2 = min(y2a, y2b)
-    inter_w = max(0.0, x2 - x1)
-    inter_h = max(0.0, y2 - y1)
-    inter_area = inter_w * inter_h
-    # 两个框面积
-    area_a = (x2a - x1a) * (y2a - y1a)
-    area_b = (x2b - x1b) * (y2b - y1b)
-    union_area = area_a + area_b - inter_area
-    if union_area < 1e-8:
-        return 0.0
-    return inter_area / union_area
+def _adapt_skele_output(
+    pins_dict: dict, nets_dict: dict
+) -> tuple[list[PinBox], dict]:
+    """把 skele_wire.extract_nets 的输出适配成 VisionOut 需要的结构。
+
+    skele_wire 输出：
+        pins_dict = {"comp_<i>": {"pin_<j>": {"point": {"x","y"}}}}
+        nets_dict = {"net_<k>": {"hyperGraph": "(comp_1.pin_0,...)",
+                                 "edges": {"edge_0": [{"x","y"}, {"x","y"}]}}}
+    这里生成：
+      - pins: PinBox 列表（带 owner=元件下标 / idx=元件内引脚序号），供 stage2
+        生成 pins 并在构建 nets 时按 ref 精确映射；
+      - wire_nets: 兼容旧 topo_graph 的坐标格式（all_pins + edges），作为兜底。
+    """
+    pins: list[PinBox] = []
+    pos: dict[str, tuple[float, float]] = {}
+    for ckey, pin_map in (pins_dict or {}).items():
+        try:
+            cid = int(str(ckey).rsplit("_", 1)[1])
+        except Exception:  # noqa: BLE001
+            continue
+        for pkey, info in (pin_map or {}).items():
+            pt = (info or {}).get("point") or {}
+            if "x" not in pt or "y" not in pt:
+                continue
+            xy = (float(pt["x"]), float(pt["y"]))
+            try:
+                pidx = int(str(pkey).rsplit("_", 1)[1])
+            except Exception:  # noqa: BLE001
+                pidx = None
+            pins.append(PinBox(xy=xy, score=1.0, owner=cid, idx=pidx))
+            pos[f"{ckey}.{pkey}"] = xy
+
+    wire_nets: dict = {}
+    for net_key, net in (nets_dict or {}).items():
+        net = net or {}
+        refs = [r.strip() for r in str(net.get("hyperGraph") or "").strip("()").split(",") if r.strip()]
+        all_pins = []
+        for ref in refs:
+            xy = pos.get(ref)
+            if xy is not None:
+                all_pins.append({"x": xy[0], "y": xy[1], "type": "pin", "ref": ref})
+        edges: dict = {}
+        for ek, seg in (net.get("edges") or {}).items():
+            pts = [{"x": float(p["x"]), "y": float(p["y"])} for p in seg if "x" in p and "y" in p]
+            if pts:
+                edges[str(ek)] = pts
+        if all_pins or edges:
+            wire_nets[str(net_key)] = {"all_pins": all_pins, "edges": edges}
+    return pins, wire_nets
 
 
 def extract_vision(
     image_path: str | Path, cfg: dict[str, Any] | None = None, visualize: bool = True
-# ) -> VisionOut:
-):
+) -> VisionOut:
     cfg = cfg or {}
+    image_path = Path(image_path)
     img = _read_image(image_path)
     h, w = img.shape[:2]
     models = cfg.get("models") or {}
@@ -985,91 +1178,17 @@ def extract_vision(
     ocr_cfg = cfg.get("ocr") or {}
     ocr_enabled = bool(ocr_cfg.get("enabled", True))
     lang = str(ocr_cfg.get("lang") or "en")
-    img_name = Path(image_path).parent.name
 
-    # dets = _try_yolo_v2(img, models.get("yolo_weights") or "", comp_conf=float(vision_cfg.get("yolo_comp_conf", 0.05)), pin_conf=float(vision_cfg.get("yolo_pin_conf", 0.2)))
-    # comps, text_boxes, pins, endpoints = _split_detections(dets)
-    # comps = _clean_components(comps, text_boxes, cross_class_iou_thr=0.2)
-    # comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.01)))
+    # 元件检测：主模型（32 类全部类别）+ 低类专家模型（power/ground/
+    # network_input/led 并集）。新模型不预测 pin_tip / wire_endpoint / text，
+    # 引脚与网络完全交给 skele_wire.extract_nets。
+    dets = _try_yolo_union(img, models, vision_cfg)
+    comps, text_boxes, pins, endpoints = _split_detections(dets)
+    comps = _clean_components(comps, text_boxes)
+    comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.5)))
+    # 新方案不再使用 YOLO 的 pin_tip / wire_endpoint，也不做 box 引脚裁剪补检
+    pins, endpoints = [], []
 
-    # ========== 迭代检测逻辑（直接粘贴到你原有代码后面） ==========
-    # 复制原图作为迭代图像，保护原始img不被涂白修改
-    img_iter = img.copy()
-
-    total_rounds = 0
-    total_new_comps = 0
-    comps = []  # 保存已经识别过的器件框，用来判断是否新增
-    yolo_confs = [None, 0.4, 0.25]
-    while True:
-        total_rounds += 1
-        # 复用你原有的YOLO推理+后处理流水线
-        dets = _try_yolo(img_iter, models.get("yolo_weights") or "", conf=yolo_confs[min(total_rounds, len(yolo_confs)-1)])
-        if total_rounds == 1:
-            comp, text_boxes, pins, endpoints = _split_detections(dets)
-        else:
-            comp, _, _, _ = _split_detections(dets)
-        comp = _clean_components(comp, text_boxes)
-        comp = _nms_components(comp, iou_thr=0.01)
-
-        # 判断本轮哪些器件是【新增】：与历史所有框IoU都小于阈值才算新目标
-        new_in_round = []
-        for box in comp:
-            new_flag = True
-            for seen_box in comps:
-                iou = compute_iou(box.bbox, seen_box.bbox)
-                if iou > 0.01:
-                    new_flag = False
-                    break
-            if new_flag:
-                new_in_round.append(box)
-
-        # 本轮无新增器件，终止迭代
-        if len(new_in_round) == 0:
-            break
-
-        if total_rounds > 1:
-            total_new_comps += len(new_in_round)
-        comps.extend(new_in_round)
-
-        # 涂白本轮新检测出来的器件bbox
-        h, w = img_iter.shape[:2]
-        for b in new_in_round:
-            x1, y1, x2, y2 = b.bbox
-            # 浮点坐标转像素，clip边界防止越界
-            x1i = max(0, int(round(x1 - 0)))
-            y1i = max(0, int(round(y1 - 0)))
-            x2i = min(w, int(round(x2 + 0)))
-            y2i = min(h, int(round(y2 + 0)))
-
-            # 填充白色矩形
-            cv2.rectangle(img_iter, (x1i, y1i), (x2i, y2i), (255,255,255), thickness=-1)
-
-        # import os
-        # save_path = os.path.join(f"iter_{total_rounds}.png")
-        # cv2.imwrite(save_path, img_iter)
-    print(f"迭代器件检测结束 | 总轮次: {total_rounds}, 第二轮后累计新增器件数量: {total_new_comps}")
-
-    # 两阶段检测：对检出的 ic（box）裁剪放大再检一次 pin_tip（含 NMS 去重），补充/细化 IC 引脚
-    # if vision_cfg.get("box_pin_crop", True) and comps:
-    #     extra_pins = _detect_ic_pins_crop(img, comps, models.get("yolo_weights") or "",
-    #                                       conf=float(vision_cfg.get("box_pin_conf", 0.15)))
-    #     if extra_pins:
-    #         # 合并策略：全图 pin 优先保留；裁剪 pin 只在 8px 内没有现有点时补充
-    #         # （裁剪高置信度点若挤掉全图点，反而会让 tip 漂移）
-    #         merged = list(pins)
-    #         for pp in extra_pins:
-    #             if any((pp.xy[0] - q.xy[0]) ** 2 + (pp.xy[1] - q.xy[1]) ** 2 < 64 for q in merged):
-    #                 continue
-    #             merged.append(pp)
-    #         pins = merged
-
-    # --------- LLM Check ---------
-    # for idx, comp in enumerate(comps):
-    #     print(comp)
-    #     if comp.label == 'other':
-    #         if comp.score < 100:
-    #             comp = check_comp_by_llm(img, comp, f'viz/{img_name}/crops/{idx}_comp.png')
-        
     if not comps:
         # No detector: rule-based component fallback (weak, low score expected).
         work, scale = _maybe_resize(img, max_side)
@@ -1081,33 +1200,66 @@ def extract_vision(
     # 文字识别完全由整图 PaddleOCR 完成：
     #   - 不读 ocr_cache（每次推理都重新识别）；
     #   - 不依赖 YOLO 的 text 框（YOLO 不预测 text 类）；
-    #   - 对**原分辨率整图**做 det+rec（paddle 内部自行缩放，det_limit_side_len 控制），
-    #     不再额外预缩放（预缩放会把字缩太小，大图识别率暴跌）。
+    #   - 整图 det+rec；再对 box 内部、缺标签的 gnd/v/net 元件做局部放大识别，
+    #     并对竖排文本框旋转补识别（小字/竖排 GND、IC pinname/pin_number）。
     texts: list[TextBox] = []
-    # if ocr_enabled:
-        # texts = _full_image_ocr(image_path, lang=lang)
+    if ocr_enabled:
+        focus = [
+            {"bbox": list(c.bbox), "label": c.label}
+            for c in comps
+            if c.label in {"ic", "gnd", "vcc", "net_label",
+                           "ground", "power", "network_input", "network_output",
+                           "network_short", "network_bidirection"}
+        ]
+        texts = _full_image_ocr(image_path, lang=lang, focus_boxes=focus)
 
-    skel, segs = None, None
-    # wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
-    # unet_points: list[tuple[float, float]] = []
-    # if wired is None:
-    #     skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
-    # else:
-    #     skel, segs, unet_points = wired
-
-    # UNet 连接点并入端点列表（网络重建时作为 wire_endpoint 节点参与）
-    all_endpoints = list(endpoints)
-    # for (px, py) in unet_points:
-    #     all_endpoints.append(PinBox(xy=(px, py), score=0.6))
+    wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
+    unet_points: list[tuple[float, float]] = []
+    if wired is None:
+        skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
+    else:
+        skel, segs, unet_points = wired
 
     # 可视化（agents/ 批量跑时可用 visualize=False 跳过，不影响检测结果）
     if visualize:
-        run_vision_visualize(image_path, img, comps, texts, pins, endpoints)
+        run_vision_visualize(image_path, img, comps, texts, skel, pins, endpoints)
         run_gt_visualize(image_path, img)
 
-    pins_dict, nets_dict = extract_nets(img, comps, texts, img_name)
-    # out = extract_wire_nets(img, image_path, pins, comps, all_endpoints)
-    # if visualize:
-    #     run_wire_visualize(out, img, image_path)
+    # pin / net 主路径：skele_wire.extract_nets（fix net extraction）
+    skele_pins_raw: dict = {}
+    skele_nets_raw: dict = {}
+    wire_nets: dict = {}
+    skele_pins: list[PinBox] = []
+    try:
+        skele_pins_raw, skele_nets_raw = extract_skele_nets(
+            img, comps, texts, str(image_path), visualize=visualize
+        )
+        skele_pins, wire_nets = _adapt_skele_output(skele_pins_raw, skele_nets_raw)
+    except Exception as exc:  # noqa: BLE001 异常兜底：退回旧的 topo_graph
+        print(f"[vision] skele_wire.extract_nets 失败({type(exc).__name__}: {exc})，退回 topo_graph", flush=True)
+        import traceback
 
-    # return VisionOut(height=h, width=w, components=comps, texts=texts, pins=pins, endpoints=endpoints, skeleton=skel, wire_segments=segs, wire_nets=out or {}, img=img, image_path=image_path)
+        traceback.print_exc(limit=5)
+        all_endpoints = list(endpoints) + [PinBox(xy=(px, py), score=0.6) for (px, py) in unet_points]
+        try:
+            wire_nets = extract_wire_nets(img, image_path, pins, comps, all_endpoints, visualize=False) or {}
+        except Exception as exc2:  # noqa: BLE001
+            print(f"[vision] topo_graph 兜底也失败({exc2})，nets 置空", flush=True)
+            wire_nets = {}
+
+    if visualize and wire_nets:
+        run_wire_visualize(wire_nets, img, image_path)
+        if skele_pins_raw and skele_nets_raw:
+            try:
+                draw_pcb_pin_net(img, skele_pins_raw, skele_nets_raw,
+                                 Path(image_path).parent.name, output_root="outputs/viz")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[viz] pin_net_visual 生成失败: {exc}")
+
+    return VisionOut(
+        height=h, width=w, components=comps, texts=texts,
+        pins=skele_pins, endpoints=endpoints,
+        skeleton=skel, wire_segments=segs, wire_nets=wire_nets,
+        skele_pins=skele_pins_raw, skele_nets=skele_nets_raw,
+        img=img, image_path=image_path,
+    )

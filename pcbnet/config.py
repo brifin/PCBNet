@@ -17,7 +17,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
         if v and not Path(v).is_absolute():
             cfg[key] = str((root / v).resolve())
     models = cfg.get("models") or {}
-    for k in ("yolo_weights", "unet_weights"):
+    for k in ("yolo_weights", "yolo_expert_weights", "unet_weights"):
         w = models.get(k)
         if w and not Path(w).is_absolute():
             models[k] = str((root / w).resolve())

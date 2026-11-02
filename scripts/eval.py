@@ -53,7 +53,11 @@ def main() -> int:
         if args.self_check:
             pred = gt
         else:
-            pred_path = out_root / "pred" / cid / f"{cid}.json"
+            # 本地测试统一写成 pred/<case>.json（不再套一层 <case>/）
+            pred_path = out_root / "pred" / f"{cid}.json"
+            legacy = out_root / "pred" / cid / f"{cid}.json"
+            if args.reuse_pred and not pred_path.exists() and legacy.exists():
+                pred_path = legacy
             if args.reuse_pred and pred_path.exists():
                 pred = load_json(pred_path)
             else:
@@ -63,8 +67,8 @@ def main() -> int:
     thr = cfg.get("thresholds") or {}
     kw = dict(
         bbox_thr=float(thr.get("bbox_px", 20)),
-        pin_thr=float(thr.get("pin_px", 20)),
-        line_thr=float(thr.get("line_px", 20)),
+        pin_thr=float(thr.get("pin_px", 5)),
+        line_thr=float(thr.get("line_px", 5)),
         weights=cfg.get("weights"),
     )
     report = score_batch(items, **kw)
@@ -74,6 +78,9 @@ def main() -> int:
         f"# Score report ({args.split}{' / GT self-check' if args.self_check else ''})",
         "",
         f"- n = {report.get('n', 0)}",
+        f"- thresholds: bbox {kw['bbox_thr']:.0f} px / pin {kw['pin_thr']:.0f} px / line {kw['line_thr']:.0f} px",
+        f"- yolo_weights: `{cfg.get('models', {}).get('yolo_weights')}`",
+        f"- OCR: full-image PaddleOCR (lang={cfg.get('ocr', {}).get('lang', 'en')})",
         f"- mean Score = {report.get('mean', {}).get('Score', 0):.3f}",
         f"- ComponentF1 = {report.get('mean', {}).get('ComponentF1', 0):.3f}",
         f"- PinF1 = {report.get('mean', {}).get('PinF1', 0):.3f}",
