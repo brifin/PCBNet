@@ -6,7 +6,7 @@ Draws predicted component boxes (+designator), pin tips and non-degenerate net
 edges. Small images are upscaled for legibility, and component labels are placed
 with greedy anti-overlap so they don't pile on top of each other.
 
-Reads pred JSON from outputs/pred/<id>.json; runs the pipeline if missing.
+Reads pred JSON from outputs/pred/<id>/<id>.json; runs the pipeline if missing.
 Output PNGs go to outputs/viz/<id>.png.
 
 Usage:
@@ -206,11 +206,7 @@ def main() -> int:
         s = max(1.0, args.min_width / float(w))
         if s > 1.0:
             img = cv2.resize(img, (int(w * s), int(h * s)), interpolation=cv2.INTER_CUBIC)
-        # 本地测试现在是扁平 pred/<case>.json；兼容旧的 pred/<case>/<case>.json
-        pred_path = out_root / "pred" / f"{cid}.json"
-        legacy = out_root / "pred" / cid / f"{cid}.json"
-        if not pred_path.exists() and legacy.exists():
-            pred_path = legacy
+        pred_path = out_root / "pred" / cid / f"{cid}.json"
         if pred_path.exists():
             pred = load_json(pred_path)
         else:

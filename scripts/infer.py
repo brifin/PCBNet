@@ -31,7 +31,7 @@ def main() -> int:
         if not case:
             print(f"[skip] {cid}")
             continue
-        dest = out_root / "pred" / f"{cid}.json"
+        dest = out_root / "pred" / cid / f"{cid}.json"
         print(f"[infer] {cid} -> {dest}")
         infer_image(case.image, cfg, dest)
     return 0

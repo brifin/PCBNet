@@ -66,32 +66,6 @@ def load_box_name_kb() -> dict[str, Any]:
     return json.loads(BOX_LIB.read_text(encoding="utf-8"))
 
 
-def load_inference_asset(name: str) -> dict[str, Any]:
-    """Load a value-prior style JSON asset used by stage2.
-
-    The training-side asset is kept as ``data/type_value_priors.json``; the
-    submission package carries it under the same relative path.  Unknown
-    names fall back to ``data/<name>`` and fail loudly if absent.
-    """
-    key = str(name or "")
-    if key in {"value_priors.json", "type_value_priors.json"}:
-        candidates = [
-            _DATA_DIR.parent / "type_value_priors.json",
-            _DATA_DIR / "value_priors.json",
-            Path(__file__).resolve().parent.parent / "data" / "type_value_priors.json",
-        ]
-    else:
-        candidates = [
-            _DATA_DIR.parent / key,
-            _DATA_DIR / key,
-            Path(__file__).resolve().parent.parent / "data" / key,
-        ]
-    for path in candidates:
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-    raise FileNotFoundError(f"未找到推理知识库 {key}，候选路径: {[str(p) for p in candidates]}")
-
-
 def known_box_names() -> set[str]:
     """Whitelist of box model names (keys of BoxICLibrary.json)."""
     global _box_name_cache

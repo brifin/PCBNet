@@ -2,20 +2,14 @@ import cv2
 import numpy as np
 import heapq
 import os
-try:  # 当前实现未使用 skeletonize；避免提交镜像缺 scikit-image 时 import 失败
-    from skimage.morphology import skeletonize
-except Exception:  # noqa: BLE001
-    skeletonize = None
+from skimage.morphology import skeletonize
 from collections import deque
 from typing import List, Tuple, Dict, Any, Set
 from tqdm import tqdm
 import math
 from pathlib import Path
-
-try:  # KMeans 目前只在注释掉的旧版 comp_binary 逻辑里用到；缺失时不影响推理
-    from sklearn.cluster import KMeans
-except Exception:  # noqa: BLE001
-    KMeans = None
+from sklearn.cluster import KMeans
+from .llm import fix_pin_by_llm
 
 # ===================== PCB走线提取配置参数区（统一管理） =====================
 # _get_wire_binary
@@ -387,8 +381,7 @@ def extract_comp_pins_straight_hsv(
                     delta = abs(h_pre_avg - h_post_avg)
                     delta = min(delta, 180 - delta)
                     if delta > diff_thresh:
-                        comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "gradient", "side": side,
-                                                    "start_x": sx, "start_y": sy})
+                        comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "gradient", "side": side})
                         break
 
                 # ========== 相遇逻辑修复 ==========
@@ -402,18 +395,15 @@ def extract_comp_pins_straight_hsv(
                             mid_idx = len(path) // 2
                             mx, my = path[mid_idx]
                             # 两个pin都带上各自的side！refine需要side
-                            comp_pins[comp_idx].append({"x": mx, "y": my, "type": "meet", "side": side,
-                                                        "start_x": sx, "start_y": sy})
-                            comp_pins[other_cid].append({"x": mx, "y": my, "type": "meet", "side": other_side,
-                                                         "start_x": cx, "start_y": cy})
+                            comp_pins[comp_idx].append({"x": mx, "y": my, "type": "meet", "side": side})
+                            comp_pins[other_cid].append({"x": mx, "y": my, "type": "meet", "side": other_side})
                         break
 
                 # 向前走一步
                 nx = cx + dx
                 ny = cy + dy
                 if not (0 <= nx < w and 0 <= ny < h and wire_binary[ny, nx] > 0):
-                    comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "dead_end", "side": side,
-                                                "start_x": sx, "start_y": sy})
+                    comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "dead_end", "side": side})
                     break
                 cx, cy = nx, ny
             # end while
@@ -611,9 +601,6 @@ def prepare_pin_data(
                 "pin_idx": pin_idx,
                 "x": int(pin["x"]),
                 "y": int(pin["y"]),
-                # 起点（器件 bbox 边界处的真实引脚位置）；x/y 是沿导线追踪/吸附后的节点位置
-                "start_x": int(pin.get("start_x", pin["x"])),
-                "start_y": int(pin.get("start_y", pin["y"])),
                 "type": pin.get("type", ""),
                 "side": pin.get("side", ""),
                 "full_id": full_id,
@@ -637,8 +624,6 @@ def prepare_pin_data(
         pins_dict[comp_key] = {}
         for idx, pin in enumerate(pin_list):
             pins_dict[comp_key][f"pin_{idx}"] = {
-                # x/y 是沿引脚引线追踪后的位置（HSV 颜色跳变处 ≈ 引脚端点，与 GT 一致）；
-                # start_x/start_y 仅保留 bbox 边界起点信息
                 "point": {"x": int(pin["x"]), "y": int(pin["y"])}
             }
     return meet_pins, normal_pins, pos_to_pins, pins_dict
@@ -990,7 +975,7 @@ def trace_single_net_dfs(
         stop_x, stop_y = curr_x, curr_y
         
         while True:
-            # print(f" -> ({curr_x}, {curr_y})")  # 上游调试输出，逐像素打印会刷屏
+            print(f" -> ({curr_x}, {curr_y})")
             # if 1250 < curr_x < 1300 and 100 < curr_y < 150:
             #     import pdb; pdb.set_trace()
             
@@ -1265,11 +1250,8 @@ def extract_nets(
     img: np.ndarray,
     comps: List[Any],
     texts: List[Any],
-    img_path : str,
-    visualize: bool = True,
-    viz_root: str = "outputs/viz",
+    img_name : str
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    img_name = Path(img_path).parent.name
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = img.shape[:2]
 
@@ -1299,6 +1281,7 @@ def extract_nets(
         scan_range=RCP_SCAN_RANGE,
         max_back_step=RCP_MAX_BACK_STEP
     )
+    comp_pins = fix_pin_by_llm(binary_raw, img, comps, comp_pins, img_name)
     pins_dict, nets_dict = build_pcb_nets(
         comp_pins=comp_pins,
         wire_binary=binary_raw,
@@ -1314,15 +1297,13 @@ def extract_nets(
         stop_near_win=BN_STOP_NEAR_WIN
     )
 
-    if visualize:
-        visualize_start_points_with_pins(
-            wire_binary=intersect,
-            comp_start_pts=comp_start_pts,
-            comp_pins=comp_pins,
-            nets_dict=nets_dict,
-            case_name=img_name,
-            out_root=viz_root,
-        )
+    visualize_start_points_with_pins(
+        wire_binary=intersect,
+        comp_start_pts=comp_start_pts,
+        comp_pins=comp_pins,
+        nets_dict=nets_dict,
+        case_name=img_name
+    )
 
     return pins_dict, nets_dict
 

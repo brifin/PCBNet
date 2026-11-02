@@ -72,10 +72,7 @@ def main() -> int:
         row: dict = {"case_id": cid}
         for level in levels:
             if level == "L0":
-                pred_path = out_root / "pred" / f"{cid}.json"
-                legacy = out_root / "pred" / cid / f"{cid}.json"
-                if not pred_path.exists() and legacy.exists():
-                    pred_path = legacy
+                pred_path = out_root / "pred" / cid / f"{cid}.json"
                 pred = load_json(pred_path) if pred_path.exists() else infer_image(case.image, cfg, pred_path)
             else:
                 pred = build_level(case.cvjson, level, cfg)

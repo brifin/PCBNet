@@ -1,16 +1,10 @@
-"""Contest-style scoring for 赛题六 PCB 原理图解析（2026-10-20《评测要求》版）。
+"""Contest-style scoring: Component / Pin / NetHypergraph / NetLine F1.
 
-与 2026-10-14 版的主要变化：
-① 位置阈值：元件 bbox 四坐标最大误差 ≤ 20 px；IC 引脚点 ≤ 5 px；导线端点 ≤ 5 px；
-② 元件比较：IC（box）只比 Name + type；其余元件比 type + Name + value；
-   VCC/GND/net_input/net_output/net_short/net_bidirection 作为独立符号，按
-   类别 + 位置一对一匹配，自动编号/自动名称不参与；
-③ 有标识符的元件必须 key 精确匹配（R1 写成 R7 不算匹配），不再做命名元件宽松匹配；
-④ 网络：先按全局网络身份（GND / 电源 value / net label value）合并原始分支，
-   IC 顶点 = key.port，普通元件 = key；空集或零重合网不参与匹配，匈牙利最大化
-   重合度之和，NetHypergraphF1 使用软 F1（部分重合给部分分）；
-⑤ 导线：只在已匹配逻辑网对内比较，汇总原始分支线段后一对一匹配，
-   max 端点误差 ≤ 5 px，方向可交换。
+2026-10-14 版评测标准（相对上一版的四点变化）：
+① 空间阈值统一为 20 px——元件 bbox、IC 引脚端点、导线线段端点共用同一阈值；
+② 普通元件（非 box）的 pin 不再计位置分，也不再按 pin 计连接关系分（PinF1 只统计 box IC 引脚）；
+③ 连接关系分两级：box IC 按 pin 对齐（`U1.7`），普通元件按元件整体对齐（`C6`，多引脚折叠成一个节点）；
+④ GND/电源符号（type `gnd`/`v`）不再按自动编号的 key 对齐，改按 类别 + value + 几何位置 匹配。
 """
 
 from __future__ import annotations
@@ -24,30 +18,22 @@ from .coords import bbox_center, point_dist
 PIN_REF_RE = re.compile(r"^\((.*)\)$")
 DESIGNATOR_RE = re.compile(r"^[A-Z]{1,3}\d+$|^[A-Za-z]{1,4}\d+_\d+$")
 
-IC_TYPES = frozenset({"box", "ic"})
-# VCC/GND + 网络标签符号：自动编号/自动名称不参与，按类别+位置匹配
-SYMBOL_TYPES = frozenset({
-    "gnd", "v", "vcc",
-    "net_input", "net_output", "net_short", "net_bidirection",
-})
-# 兼容旧代码里的名字
-POWER_TYPES = SYMBOL_TYPES
-
-
-def _is_ic_type(ctype: str | None) -> bool:
-    return str(ctype or "").strip().lower() in IC_TYPES
-
-
-def _is_symbol_type(ctype: str | None) -> bool:
-    return str(ctype or "").strip().lower() in SYMBOL_TYPES
+# ④ GND/电源符号：按类别+值+几何匹配，不走 ∅ 自动编号对齐，也不比 Name
+POWER_TYPES = frozenset({"gnd", "v"})
 
 
 def _is_power_type(ctype: str | None) -> bool:
-    return _is_symbol_type(ctype)
+    return str(ctype or "") in POWER_TYPES
 
 
 def filter_confident(contest: dict[str, Any]) -> dict[str, Any]:
-    """Keep only components whose key is a real designator (diagnostic helper)."""
+    """Keep only components whose key is a real designator (e.g. U3, R1, RUN_1).
+
+    Components keyed by a cvjson fallback id (e.g. C_15) are not recoverable from
+    the image, so scoring against them is not meaningful. This yields an honest
+    upper-bound metric on the designator-recoverable universe. Pins/nets are
+    restricted to the surviving components.
+    """
     import copy
 
     comps = contest.get("components") or {}
@@ -61,28 +47,18 @@ def filter_confident(contest: dict[str, Any]) -> dict[str, Any]:
         refs = [r for r in _parse_hypergraph(net.get("hyperGraph", "")) if r.split(".", 1)[0] in keep]
         if not refs:
             continue
-        out["nets"][nk] = {"hyperGraph": "(" + ",".join(sorted(refs)) + ")",
-                           "edges": copy.deepcopy(net.get("edges") or {})}
+        out["nets"][nk] = {"hyperGraph": "(" + ",".join(sorted(refs)) + ")", "edges": copy.deepcopy(net.get("edges") or {})}
     return out
 
 
-def _f1(tp: float, fp: float, fn: float) -> float:
+def _f1(tp: int, fp: int, fn: int) -> float:
     if tp == 0 and fp == 0 and fn == 0:
         return 1.0
-    p = tp / (tp + fp) if tp + fp else 0.0
-    r = tp / (tp + fn) if tp + fn else 0.0
-    return 2 * p * r / (p + r) if p + r else 0.0
-
-
-def _prf_soft(tp: float, pred_n: int, gt_n: int) -> float:
-    """软 F1：tp 为所有匹配网对的集合重合度之和。"""
-    if gt_n == 0 and pred_n == 0:
-        return 1.0
-    if gt_n == 0 or pred_n == 0:
+    prec = tp / (tp + fp) if tp + fp else 0.0
+    rec = tp / (tp + fn) if tp + fn else 0.0
+    if prec + rec == 0:
         return 0.0
-    p = tp / pred_n
-    r = tp / gt_n
-    return 2 * p * r / (p + r) if p + r else 0.0
+    return 2 * prec * rec / (prec + rec)
 
 
 def _parse_hypergraph(text: str) -> frozenset[str]:
@@ -121,47 +97,46 @@ def _hungarian(cost: list[list[float]]) -> list[tuple[int, int]]:
 
 
 def _bbox_ok(pred: list[float], gt: list[float], thr: float) -> bool:
-    """四对应坐标绝对误差均不超过阈值（不能用中心距/重叠替代）。"""
-    if len(pred) != 4 or len(gt) != 4:
-        return False
-    return all(abs(float(pred[i]) - float(gt[i])) <= thr for i in range(4))
-
-
-def _bbox_max_err(pred: list[float], gt: list[float]) -> float:
-    return max(abs(float(pred[i]) - float(gt[i])) for i in range(4))
+    pc, gc = bbox_center(pred), bbox_center(gt)
+    if math.hypot(pc[0] - gc[0], pc[1] - gc[1]) <= thr:
+        return True
+    return all(abs(pred[i] - gt[i]) <= thr for i in range(4))
 
 
 def _need_text(ctype: str) -> str | None:
-    if _is_ic_type(ctype):
+    if ctype == "box":
         return "Name"
-    return "value"
+    if ctype in {"r", "c"}:
+        return "value"
+    return None
 
 
 def _component_ok(key: str, pred: dict, gt: dict, bbox_thr: float, relax_name: bool = False) -> bool:
-    """身份/计分属性/位置同时满足。relax_name 仅为兼容旧调用，已不生效。"""
-    ctype = str(gt.get("type") or "")
-    if str(pred.get("type") or "") != ctype:
+    if pred.get("type") != gt.get("type"):
         return False
-    pb, gb = pred.get("bbox") or [0, 0, 0, 0], gt.get("bbox") or [0, 0, 0, 0]
-    if not _bbox_ok(pb, gb, bbox_thr):
+    if not _bbox_ok(pred.get("bbox") or [0, 0, 0, 0], gt.get("bbox") or [0, 0, 0, 0], bbox_thr):
         return False
-
-    if _is_symbol_type(ctype):
-        # VCC/GND/net_*：自动编号/自动名称不参与，value 仍按原文比较
+    if _is_power_type(gt.get("type")):
+        # ④ GND/电源符号：类别+bbox 之外 value 也参与（对齐阶段已按 type/value/几何 配对）
         return str(pred.get("value") or "") == str(gt.get("value") or "")
     if str(key).startswith("∅"):
-        # ∅ 普通元件：只比较 type + bbox + value 是否存在
-        return (gt.get("value") not in (None, "")) == (pred.get("value") not in (None, ""))
-    if _is_ic_type(ctype):
-        # IC：只比较 Name + type，value 不参与
-        return str(pred.get("Name") or "") == str(gt.get("Name") or "")
-    # 其余元件：type + Name + value
-    return (str(pred.get("Name") or "") == str(gt.get("Name") or "")
-            and str(pred.get("value") or "") == str(gt.get("value") or ""))
+        # 其余 ∅ 元件：只比较 type + bbox + value（是否存在），Name/key 不比较
+        gt_has = gt.get("value") not in (None, "")
+        pred_has = pred.get("value") not in (None, "")
+        return gt_has == pred_has
+    if relax_name:
+        # 命名元件 bbox 宽松匹配（key 前缀合法但编号不同）：不比较 Name，只比 value
+        return str(pred.get("value") or "") == str(gt.get("value") or "")
+    # 非 ∅ 元件：Name 与 value 均严格匹配
+    if str(pred.get("Name") or "") != str(gt.get("Name") or ""):
+        return False
+    return str(pred.get("value") or "") == str(gt.get("value") or "")
 
 
 def apply_empty_gt_text_policy(pred: dict[str, Any], gt: dict[str, Any]) -> dict[str, Any]:
-    """GT 文本为空时不要求 pred 也空（仅本地评测辅助，不改变提交 JSON）。"""
+    """GT-empty text policy: if the annotation has no name/value, do not compare
+    against a filled prediction. Used only at local eval (Dataset300 often leaves
+    those fields blank). Submission JSON is unchanged."""
     import copy
 
     out = copy.deepcopy(pred)
@@ -178,27 +153,17 @@ def apply_empty_gt_text_policy(pred: dict[str, Any], gt: dict[str, Any]) -> dict
 def _pin_ok(pred: dict, gt: dict, pin_thr: float) -> bool:
     if str(pred.get("pinname") or "") != str(gt.get("pinname") or ""):
         return False
-    return point_dist(pred.get("point") or {"x": 0, "y": 0},
-                      gt.get("point") or {"x": 0, "y": 0}) <= pin_thr
+    return point_dist(pred.get("point") or {"x": 0, "y": 0}, gt.get("point") or {"x": 0, "y": 0}) <= pin_thr
 
 
-def _seg_error(a, b) -> float:
-    try:
-        if not (isinstance(a, list) and isinstance(b, list) and len(a) == 2 and len(b) == 2):
-            return float("inf")
-        d1 = max(point_dist(a[0], b[0]), point_dist(a[1], b[1]))
-        d2 = max(point_dist(a[0], b[1]), point_dist(a[1], b[0]))
-        return min(d1, d2)
-    except Exception:
-        return float("inf")
-
-
-def _seg_match(a, b, thr: float) -> bool:
-    return _seg_error(a, b) <= thr
+def _seg_match(a: list[dict], b: list[dict], thr: float) -> bool:
+    d1 = point_dist(a[0], b[0]) + point_dist(a[1], b[1])
+    d2 = point_dist(a[0], b[1]) + point_dist(a[1], b[0])
+    return min(d1, d2) <= 2 * thr
 
 
 def align_prediction(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> dict[str, Any]:
-    """Legacy diagnostic: remap pred keys by type + bbox. 官方 score_case 不使用。"""
+    """Remap pred component keys onto GT keys by type + bbox. For Dataset300 local eval only."""
     import copy
 
     p_comp = pred.get("components") or {}
@@ -212,18 +177,18 @@ def align_prediction(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float =
         row = []
         for pk in p_keys:
             pc = p_comp[pk]
-            if pc.get("type") != gc.get("type") or not _bbox_ok(
-                pc.get("bbox") or [0, 0, 0, 0], gc.get("bbox") or [0, 0, 0, 0], bbox_thr
-            ):
+            if pc.get("type") != gc.get("type") or not _bbox_ok(pc.get("bbox") or [0, 0, 0, 0], gc.get("bbox") or [0, 0, 0, 0], bbox_thr):
                 row.append(1e6)
                 continue
             pc_, gc_ = bbox_center(pc.get("bbox") or [0, 0, 0, 0]), bbox_center(gc.get("bbox") or [0, 0, 0, 0])
             row.append(math.hypot(pc_[0] - gc_[0], pc_[1] - gc_[1]))
         cost.append(row)
     mapping: dict[str, str] = {}
+    used_gt: set[str] = set()
     for i, j in _hungarian(cost):
         if i < len(g_keys) and j < len(p_keys) and cost[i][j] < 1e5:
             mapping[p_keys[j]] = g_keys[i]
+            used_gt.add(g_keys[i])
 
     def remap_ref(ref: str) -> str:
         if "." not in ref:
@@ -238,19 +203,20 @@ def align_prediction(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float =
         if nk in new_comps and pk not in mapping:
             continue
         new_comps[nk] = copy.deepcopy(comp)
-        new_pins[nk] = copy.deepcopy((pred.get("pins") or {}).get(pk) or {})
+        pins = copy.deepcopy((pred.get("pins") or {}).get(pk) or {})
+        new_pins[nk] = pins
     new_nets = {}
     for i, (_nk, net) in enumerate((pred.get("nets") or {}).items(), start=1):
         refs = [remap_ref(x) for x in _parse_hypergraph(net.get("hyperGraph", ""))]
-        new_nets[f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")",
-                                "edges": copy.deepcopy(net.get("edges") or {})}
+        name = f"NET_{i}"
+        new_nets[name] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": copy.deepcopy(net.get("edges") or {})}
     out["components"], out["pins"], out["nets"] = new_comps, new_pins, new_nets
     out["_key_map"] = mapping
     return out
 
 
 def _apply_key_mapping(pred: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
-    """把 pred 的元件 key 按 mapping 重映射，并同步 pins / nets.hyperGraph。"""
+    """把 pred 的元件 key 按 mapping 重映射，并同步 pins / nets.hyperGraph 的引用。"""
     import copy
 
     if not mapping:
@@ -271,21 +237,22 @@ def _apply_key_mapping(pred: dict[str, Any], mapping: dict[str, str]) -> dict[st
     new_nets = {}
     for i, (_nk, net) in enumerate((pred.get("nets") or {}).items(), start=1):
         refs = [remap_ref(x) for x in _parse_hypergraph(net.get("hyperGraph", ""))]
-        new_nets[f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")",
-                                "edges": copy.deepcopy(net.get("edges") or {})}
+        new_nets[f"NET_{i}"] = {"hyperGraph": "(" + ",".join(refs) + ")", "edges": copy.deepcopy(net.get("edges") or {})}
     out["components"], out["pins"], out["nets"] = new_comps, new_pins, new_nets
     return out
 
 
-def _align_bbox_typematch(p_sub: dict, g_sub: dict, bbox_thr: float,
-                          extra_gate=None) -> dict[str, str]:
+def _align_bbox_typematch(
+    p_sub: dict, g_sub: dict, bbox_thr: float, extra_gate=None
+) -> dict[str, str]:
+    """type + bbox 匈牙利匹配（可加 extra_gate(pc, gc) 额外门槛），返回 pred_key -> gt_key。"""
     p_keys, g_keys = list(p_sub), list(g_sub)
     if not p_keys or not g_keys:
         return {}
-    cost = []
+    cost: list[list[float]] = []
     for gk in g_keys:
         gc = g_sub[gk]
-        row = []
+        row: list[float] = []
         for pk in p_keys:
             pc = p_sub[pk]
             if pc.get("type") != gc.get("type") or not _bbox_ok(
@@ -306,192 +273,151 @@ def _align_bbox_typematch(p_sub: dict, g_sub: dict, bbox_thr: float,
     return mapping
 
 
-def _align_symbols(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> dict[str, Any]:
-    """VCC/GND/net_*：类别 + 位置一对一；自动 key/Name 不做比较。"""
+def _align_power_symbols(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> dict[str, Any]:
+    """④ GND/电源符号（type `gnd`/`v`）：不按自动编号的 key 对齐，
+    改按 **类别 + value + 几何位置** 匹配（value 不同的不配对，几何最近者优先）。
+    """
     p_comp = pred.get("components") or {}
     g_comp = gt.get("components") or {}
-    p_sym = {k: v for k, v in p_comp.items() if _is_symbol_type(v.get("type"))}
-    g_sym = {k: v for k, v in g_comp.items() if _is_symbol_type(v.get("type"))}
-    if not p_sym or not g_sym:
+    p_pow = {k: v for k, v in p_comp.items() if _is_power_type(v.get("type"))}
+    g_pow = {k: v for k, v in g_comp.items() if _is_power_type(v.get("type"))}
+    if not p_pow or not g_pow:
         return pred
-    mapping = _align_bbox_typematch(p_sym, g_sym, bbox_thr)
+
+    mapping = _align_bbox_typematch(
+        p_pow,
+        g_pow,
+        bbox_thr,
+        extra_gate=lambda pc, gc: str(pc.get("value") or "") == str(gc.get("value") or ""),
+    )
     out = _apply_key_mapping(pred, mapping)
-    out["_symbol_key_map"] = mapping
+    out["_power_key_map"] = mapping
     return out
 
 
-# 兼容旧名字
-_align_power_symbols = _align_symbols
-
-
 def _align_empty_keys(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> dict[str, Any]:
-    """`∅<编号>`（非符号类）：key 不比较，只按 type+bbox 匈牙利匹配。"""
+    """`∅<编号>` 元件的 key 不做对比，只按 type+bbox 匈牙利匹配（评测标准 §2.3）。
+
+    把 pred 的 ∅ key 重映射到 GT 的 ∅ key，并同步 remap pins / nets.hyperGraph 里的
+    component key 引用；命名元件（R5/U1/…）key 严格匹配，不受此函数影响。
+    ④ 之后 GND/电源符号（gnd/v）不走这里，改由 `_align_power_symbols` 按 type+value+几何匹配。
+    """
     p_comp = pred.get("components") or {}
     g_comp = gt.get("components") or {}
-    p_empty = {k: v for k, v in p_comp.items()
-               if str(k).startswith("∅") and not _is_symbol_type(v.get("type"))}
-    g_empty = {k: v for k, v in g_comp.items()
-               if str(k).startswith("∅") and not _is_symbol_type(v.get("type"))}
+    p_empty = {k: v for k, v in p_comp.items() if str(k).startswith("∅") and not _is_power_type(v.get("type"))}
+    g_empty = {k: v for k, v in g_comp.items() if str(k).startswith("∅") and not _is_power_type(v.get("type"))}
     if not p_empty or not g_empty:
         return pred
+
     mapping = _align_bbox_typematch(p_empty, g_empty, bbox_thr)
     out = _apply_key_mapping(pred, mapping)
     out["_empty_key_map"] = mapping
     return out
 
 
-def align_for_scoring(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0):
-    """打分前对齐：符号类 → 其余 ∅ 元件；命名元件 key 必须精确（不做宽松匹配）。
+_PREFIX_CACHE: dict[str, set[str]] | None = None
 
-    返回 (aligned_pred, relaxed_named_keys)；第二个值恒为空集，保留是为了兼容旧调用。
+
+def _canonical_prefixes(ctype: str) -> set[str]:
+    """type 的合法 key 前缀集合（来自 type_list.md 的 canonical_prefix）。"""
+    global _PREFIX_CACHE
+    if _PREFIX_CACHE is None:
+        try:
+            from .knowledge_base import load_key_type_kb
+
+            kb = load_key_type_kb()
+            _PREFIX_CACHE = {t: set(p) for t, p in (kb.get("canonical_prefix") or {}).items() if p}
+        except Exception:
+            _PREFIX_CACHE = {}
+    return _PREFIX_CACHE.get(ctype, set())
+
+
+def _key_prefix(key: str) -> str:
+    m = re.match(r"^([A-Za-z]{1,3})", key or "")
+    return m.group(1).upper() if m else ""
+
+
+def _align_named_keys(pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0) -> tuple[dict[str, Any], set[str]]:
+    """命名元件 key 匹配不到时，按 bbox 宽松匹配（评测标准扩展）。
+
+    GT 命名元件（非 ∅）在 pred 中无同名 key 时，在 pred 的命名元件里找 type 相同、
+    bbox 匹配、value 一致、且 key 前缀满足 type_list 规范者，建立 key 映射并 remap。
+    返回 (remap 后的 pred, 走宽松匹配的 GT key 集合)。
     """
-    pred = _align_symbols(pred, gt, bbox_thr)
-    pred = _align_empty_keys(pred, gt, bbox_thr)
-    return pred, set()
+    import copy
 
+    p_comp = pred.get("components") or {}
+    g_comp = gt.get("components") or {}
 
-def _global_identity(comp: dict, key: str) -> str | None:
-    """全局网络身份：GND / 电源 value / 网络标签 value。"""
-    ctype = str(comp.get("type") or "")
-    if ctype == "gnd":
-        return "GLOBAL:GND"
-    if ctype in {"v", "vcc"}:
-        return "GLOBAL:SUPPLY:" + str(comp.get("value") or "VCC")
-    if ctype in {"net_input", "net_output", "net_short", "net_bidirection"}:
-        val = comp.get("value")
-        if val not in (None, ""):
-            return "GLOBAL:LABEL:" + str(val)
-        return "SYMBOL:" + str(key)  # 没有 value 时只保留自身，不做合并
-    return None
+    g_named_missing = {k: v for k, v in g_comp.items() if not str(k).startswith("∅") and k not in p_comp}
+    p_named_extra = {k: v for k, v in p_comp.items() if not str(k).startswith("∅") and k not in g_comp}
+    if not g_named_missing or not p_named_extra:
+        return pred, set()
+
+    def gate(pc: dict, gc: dict) -> bool:
+        if str(pc.get("value") or "") != str(gc.get("value") or ""):
+            return False
+        # pred key 前缀必须满足该 type 的 type_list 规范
+        return _key_prefix(str(pc.get("_key") or "")) in _canonical_prefixes(gc.get("type"))
+
+    p_gated = {k: {**v, "_key": k} for k, v in p_named_extra.items()}
+    mapping = _align_bbox_typematch(p_gated, g_named_missing, bbox_thr, extra_gate=gate)
+    if not mapping:
+        return pred, set()
+
+    out = _apply_key_mapping(pred, mapping)
+    return out, set(mapping.values())
 
 
 def _net_nodes(hypergraph_text: str, comps: dict[str, Any]) -> frozenset[str]:
-    """网络顶点：IC=key.port；普通元件=key；符号=全局网络身份。"""
+    """③ 连接关系的两级节点：box IC 用 `<comp>.<pin>`，普通元件折叠成 `<comp>` 一个节点。
+
+    即普通元件不看具体哪个 pin 接入，只按元件整体对齐；IC 仍按 pin 对齐。
+    """
     nodes: set[str] = set()
     for ref in _parse_hypergraph(hypergraph_text):
         ck, _, pin = ref.partition(".")
-        comp = comps.get(ck) or {}
-        if _is_ic_type(comp.get("type")) and pin:
-            nodes.add(f"{ck}.{pin}")
-        else:
-            gid = _global_identity(comp, ck)
-            nodes.add(gid or ck)
+        ctype = str((comps.get(ck) or {}).get("type") or "")
+        nodes.add(f"{ck}.{pin}" if ctype == "box" and pin else ck)
     return frozenset(nodes)
 
 
-def _logical_nets(comps: dict[str, Any], nets: dict[str, Any]) -> list[dict]:
-    """先合并共享全局网络身份的原始分支，返回逻辑网列表。"""
-    ids = list(nets)
-    if not ids:
-        return []
-    parent = {i: i for i in ids}
+def align_for_scoring(
+    pred: dict[str, Any], gt: dict[str, Any], bbox_thr: float = 20.0
+) -> tuple[dict[str, Any], set[str]]:
+    """打分前的统一对齐：GND/电源符号 → 其余 ∅ 元件 → 命名元件宽松匹配。
 
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def union(a, b):
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    raw = {nid: _net_nodes((nets.get(nid) or {}).get("hyperGraph", ""), comps) for nid in ids}
-    by_gid: dict[str, list[str]] = {}
-    for nid in ids:
-        for v in raw[nid]:
-            if v.startswith("GLOBAL:"):
-                by_gid.setdefault(v, []).append(nid)
-    for lst in by_gid.values():
-        for x in lst[1:]:
-            union(lst[0], x)
-
-    groups: dict[str, list[str]] = {}
-    for nid in ids:
-        groups.setdefault(find(nid), []).append(nid)
-
-    out = []
-    for gids in groups.values():
-        verts: set[str] = set()
-        edges = []
-        for nid in gids:
-            verts |= set(raw[nid])
-            for eid, seg in ((nets.get(nid) or {}).get("edges") or {}).items():
-                edges.append({"net": nid, "edge": eid, "seg": seg})
-        out.append({"ids": sorted(gids), "vertices": frozenset(verts), "edges": edges})
-    out.sort(key=lambda g: g["ids"][0] if g["ids"] else "")
-    return out
-
-
-def _match_logical_nets(gt_groups: list[dict], pred_groups: list[dict]) -> list[tuple[int, int, float]]:
-    if not gt_groups or not pred_groups:
-        return []
-    cost = []
-    for g in gt_groups:
-        row = []
-        for p in pred_groups:
-            inter = len(g["vertices"] & p["vertices"])
-            denom = len(g["vertices"]) + len(p["vertices"])
-            if inter == 0 or denom == 0:
-                row.append(1e6)
-            else:
-                row.append(1.0 - 2.0 * inter / denom)
-        cost.append(row)
-    pairs = []
-    for i, j in _hungarian(cost):
-        if i < len(gt_groups) and j < len(pred_groups) and cost[i][j] < 1e5:
-            inter = len(gt_groups[i]["vertices"] & pred_groups[j]["vertices"])
-            denom = len(gt_groups[i]["vertices"]) + len(pred_groups[j]["vertices"])
-            pairs.append((i, j, 2.0 * inter / denom if denom else 0.0))
-    return pairs
-
-
-def _match_edges(gt_edges: list[dict], pred_edges: list[dict], thr: float):
-    cands = []
-    for i, ge in enumerate(gt_edges):
-        for j, pe in enumerate(pred_edges):
-            err = _seg_error(ge.get("seg"), pe.get("seg"))
-            if err <= thr:
-                cands.append((err, i, j))
-    cands.sort(key=lambda x: (x[0], x[1], x[2]))
-    ug, up = set(), set()
-    matched = []
-    for err, i, j in cands:
-        if i in ug or j in up:
-            continue
-        ug.add(i)
-        up.add(j)
-        matched.append({"gt": gt_edges[i], "pred": pred_edges[j], "err": round(err, 4)})
-    gt_un = [e for i, e in enumerate(gt_edges) if i not in ug]
-    pred_un = [e for i, e in enumerate(pred_edges) if i not in up]
-    return matched, gt_un, pred_un
+    返回 (对齐后的 pred, 走命名宽松匹配的 GT key 集合)。scorer 与 detailed_report 共用，
+    保证报告口径与分数口径一致。
+    """
+    pred = _align_power_symbols(pred, gt, bbox_thr)
+    pred = _align_empty_keys(pred, gt, bbox_thr)
+    return _align_named_keys(pred, gt, bbox_thr)
 
 
 def score_case(
     pred: dict[str, Any],
     gt: dict[str, Any],
     bbox_thr: float = 20.0,
-    pin_thr: float = 5.0,
-    line_thr: float = 5.0,
+    pin_thr: float = 20.0,
+    line_thr: float = 20.0,
     weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     weights = weights or {"component": 0.30, "pin": 0.25, "net_hypergraph": 0.35, "net_line": 0.10}
-    pred, _ = align_for_scoring(pred, gt, bbox_thr)
+    # 对齐：④ GND/电源符号（type+value+几何）→ §2.3 其余 ∅ 元件 → 命名元件 bbox 宽松匹配
+    pred, relaxed_named = align_for_scoring(pred, gt, bbox_thr)
     p_comp, g_comp = pred.get("components") or {}, gt.get("components") or {}
     p_pins, g_pins = pred.get("pins") or {}, gt.get("pins") or {}
     p_nets, g_nets = pred.get("nets") or {}, gt.get("nets") or {}
 
-    # ---------------- Component ----------------
     tp = fp = fn = 0
     key_fail = 0
     for key, gc in g_comp.items():
-        pc = p_comp.get(key)
-        if pc is None:
+        if key not in p_comp:
             fn += 1
             key_fail += 1
             continue
-        if _component_ok(key, pc, gc, bbox_thr):
+        if _component_ok(key, p_comp[key], gc, bbox_thr, relax_name=key in relaxed_named):
             tp += 1
         else:
             fn += 1
@@ -501,67 +427,86 @@ def score_case(
             fp += 1
     component_f1 = _f1(tp, fp, fn)
 
-    # ---------------- Pin（仅 IC） ----------------
+    # ② PinF1 只统计 box IC 引脚：普通元件的 pin 不再计位置分
     ptp = pfp = pfn = 0
-    gt_scored = pred_scored = 0
     for ck, gpins in g_pins.items():
-        gc = g_comp.get(ck) or {}
-        if not _is_ic_type(gc.get("type")):
+        ppins = p_pins.get(ck) or {}
+        is_box = str((g_comp.get(ck) or {}).get("type") or "") == "box"
+        if not is_box:
             continue
-        gt_scored += len(gpins or {})
-        owner_ok = ck in p_comp
-        ppins = (p_pins.get(ck) or {}) if owner_ok else {}
-        pred_scored += len(ppins)
-        for pk, gpin in (gpins or {}).items():
-            pp = ppins.get(pk)
-            if pp is None:
+        # box 类：pin key（pin_<pin_id>）+ pinname + point 匹配（阈值 20 px）
+        for pk, gpin in gpins.items():
+            pred_pin = ppins.get(pk)
+            if pred_pin is None:
                 pfn += 1
                 continue
-            if _pin_ok(pp, gpin, pin_thr):
+            if _pin_ok(pred_pin, gpin, pin_thr):
                 ptp += 1
             else:
                 pfn += 1
                 pfp += 1
-        if owner_ok:
-            for pk in ppins:
-                if pk not in (gpins or {}):
-                    pfp += 1
-        else:
-            # GT 元件在 pred components 中不存在：其下若还有无主 pins，全部计 FP
-            stray = p_pins.get(ck) or {}
-            pred_scored += len(stray)
-            pfp += len(stray)
-    # 预测多出的 IC 元件（未与 GT 对齐）的引脚也计 FP
-    for pk, pc in p_comp.items():
-        if not _is_ic_type(pc.get("type")) or pk in g_comp:
-            continue
-        pins = p_pins.get(pk) or {}
-        pred_scored += len(pins)
-        pfp += len(pins)
-    pin_f1 = 0.0 if (gt_scored == 0 and pred_scored == 0) else _f1(ptp, pfp, pfn)
+        for pk in ppins:
+            if pk not in gpins:
+                pfp += 1
+    pin_f1 = _f1(ptp, pfp, pfn)
 
-    # ---------------- Net（并全局网 + 软 F1） ----------------
-    gt_groups = _logical_nets(g_comp, g_nets)
-    pred_groups = _logical_nets(p_comp, p_nets)
-    net_pairs = _match_logical_nets(gt_groups, pred_groups)
-    soft_tp = sum(sim for _, _, sim in net_pairs)
-    net_f1 = _prf_soft(soft_tp, len(pred_groups), len(gt_groups))
+    # ③ 连接关系两级：IC 按 pin 节点，普通元件折叠成元件节点
+    g_sets = {nk: _net_nodes(nv.get("hyperGraph", ""), g_comp) for nk, nv in g_nets.items()}
+    p_sets = {nk: _net_nodes(nv.get("hyperGraph", ""), p_comp) for nk, nv in p_nets.items()}
+    g_keys, p_keys = list(g_sets), list(p_sets)
+    matched_pairs: list[tuple[str, str]] = []
+    if g_keys and p_keys:
+        cost = []
+        for gk in g_keys:
+            row = []
+            for pk in p_keys:
+                inter = len(g_sets[gk] & p_sets[pk])
+                union = len(g_sets[gk] | p_sets[pk]) or 1
+                row.append(1.0 - inter / union)
+            cost.append(row)
+        for i, j in _hungarian(cost):
+            if i < len(g_keys) and j < len(p_keys):
+                matched_pairs.append((g_keys[i], p_keys[j]))
+    used_p = {p for _, p in matched_pairs}
+    ntp = nfp = nfn = 0
+    for gk, pk in matched_pairs:
+        gs, ps = g_sets[gk], p_sets[pk]
+        ntp += len(gs & ps)
+        nfp += len(ps - gs)
+        nfn += len(gs - ps)
+    for gk in g_keys:
+        if gk not in {a for a, _ in matched_pairs}:
+            nfn += len(g_sets[gk])
+    for pk in p_keys:
+        if pk not in used_p:
+            nfp += len(p_sets[pk])
+    net_f1 = _f1(ntp, nfp, nfn)
 
-    # ---------------- Wire（只在匹配网对里比较） ----------------
     ltp = lfp = lfn = 0
-    matched_g = {i for i, _, _ in net_pairs}
-    matched_p = {j for _, j, _ in net_pairs}
-    for i, j, _ in net_pairs:
-        m, gun, pun = _match_edges(gt_groups[i]["edges"], pred_groups[j]["edges"], line_thr)
-        ltp += len(m)
-        lfn += len(gun)
-        lfp += len(pun)
-    for i, g in enumerate(gt_groups):
-        if i not in matched_g:
-            lfn += len(g["edges"])
-    for j, p in enumerate(pred_groups):
-        if j not in matched_p:
-            lfp += len(p["edges"])
+    for gk, pk in matched_pairs:
+        g_edges = list((g_nets[gk].get("edges") or {}).values())
+        p_edges = list((p_nets[pk].get("edges") or {}).values())
+        used = set()
+        for ge in g_edges:
+            hit = None
+            for j, pe in enumerate(p_edges):
+                if j in used:
+                    continue
+                if isinstance(ge, list) and isinstance(pe, list) and len(ge) == 2 and len(pe) == 2 and _seg_match(ge, pe, line_thr):
+                    hit = j
+                    break
+            if hit is None:
+                lfn += 1
+            else:
+                ltp += 1
+                used.add(hit)
+        lfp += max(0, len(p_edges) - len(used))
+    for gk in g_keys:
+        if gk not in {a for a, _ in matched_pairs}:
+            lfn += len(g_nets[gk].get("edges") or {})
+    for pk in p_keys:
+        if pk not in used_p:
+            lfp += len(p_nets[pk].get("edges") or {})
     line_f1 = _f1(ltp, lfp, lfn)
 
     score = 100.0 * (
@@ -579,14 +524,11 @@ def score_case(
         "diag": {
             "component_tp_fp_fn": [tp, fp, fn],
             "pin_tp_fp_fn": [ptp, pfp, pfn],
-            "net_tp_fp_fn": [round(soft_tp, 6), round(len(pred_groups) - soft_tp, 6),
-                            round(len(gt_groups) - soft_tp, 6)],
+            "net_tp_fp_fn": [ntp, nfp, nfn],
             "line_tp_fp_fn": [ltp, lfp, lfn],
             "key_fail": key_fail,
             "n_pred_comp": len(p_comp),
             "n_gt_comp": len(g_comp),
-            "n_gt_nets": len(gt_groups),
-            "n_pred_nets": len(pred_groups),
         },
     }
 

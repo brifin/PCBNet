@@ -48,7 +48,7 @@ def main() -> int:
             ok = False
         if args.skip_infer:
             continue
-        pred = infer_image(case.image, cfg, out_root / "pred" / f"{cid}.json")
+        pred = infer_image(case.image, cfg, out_root / "pred" / cid / f"{cid}.json")
         pred_score = score_case(pred, gt)
         aligned = score_case_aligned(pred, gt)
         print(f"  contest_score={pred_score['Score']:.2f} { {k: round(pred_score[k],3) for k in ('ComponentF1','PinF1','NetHypergraphF1','NetLineF1')} }")
