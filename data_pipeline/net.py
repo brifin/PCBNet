@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterable
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from tqdm import tqdm
 
 
@@ -34,6 +34,7 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 BASE_COMPS_DIR = PROJECT_DIR / "data/base_comps"
 PINS_JSON_PATH = BASE_COMPS_DIR / "pins.json"
 OUTPUT_DIR = PROJECT_DIR / "data/Synthetic_Data"
+WRITE_DEBUG = True  # 生成后校验比例，训练前删除 debug.json
 
 # Number of requested outputs. Sample IDs use 1-based, four-digit folders.
 NUM_SAMPLES = 600
@@ -45,56 +46,92 @@ BOARD_WIDTH_RANGE = (1500, 2500)
 BOARD_HEIGHT_RANGE = (1000, 1500)
 
 # The box's longer image edge occupies this fraction of the matching canvas edge.
-BOX_LONG_EDGE_FRACTION = (0.2, 0.3)
+BOX_LONG_EDGE_FRACTION = (0.07, 0.10)
 BOX_CENTER_JITTER_FRACTION = 0.045
 
 # Non-box sizing: type-specific height ratio times BASE_COMPONENT_HEIGHT.
-BASE_COMPONENT_HEIGHT = 100
+BASE_COMPONENT_HEIGHT = 60
 COMPONENT_HEIGHT_RATIO = {
-    # 原有
+    # 由真实训练图（Dataset200 0001-0300 + data/Dataset 298）的
+    # bbox 高度 / 图像高度中位数反推，贴近真实图纸比例。
     "amp": 0.8,
-    "led": 0.5,
+    "led": 0.74,
     "m3螺丝": 0.8,
     "mosfet": 0.8,
     "motor": 0.6,
-    "net_bidirection": 0.2,
-    "net_short": 0.2,
-    "opt": 0.5,
-    "r": 0.2,
-    "switch": 0.2,
+    "net_bidirection": 0.4,
+    "net_short": 0.3,
+    "opt": 0.9,
+    "r": 0.42,
+    "switch": 0.68,
     "testpoint": 0.3,
-    "transformer": 1,
-    "v": 0.3,
-    "gnd": 0.3,
+    "transformer": 1.5,
+    "v": 0.50,
+    "gnd": 0.56,
     "buzzer": 0.5,
-    "crystal_2pin": 0.5,
+    "crystal_2pin": 0.6,
     "amp_3pin": 0.8,
-    "l": 0.1,
-    "c": 0.3,
-    "block": 0.2,
-    "ant": 0.3,
-    "esd": 0.3,
-    "crystal_4pin": 0.5,
-    "transfomer": 0.9, # 拼写错误变体
-    "jumper": 0.7,
+    "l": 0.36,
+    "c": 0.60,
+    "block": 0.4,
+    "ant": 0.8,
+    "esd": 0.8,
+    "crystal_4pin": 0.6,
+    "transfomer": 1.5,  # 拼写错误变体
+    "jumper": 0.6,
     "amp_5pin": 0.8,
-    "battary": 0.3,
+    "battary": 0.5,
     "bjt": 0.8,
-    "fuse": 0.2,
-    "d": 0.3,
+    "fuse": 0.3,
+    "d": 0.58,
     "bjt_npn": 0.8,
-    "circle_header": 0.3,
-    "dc": 0.5,
+    "circle_header": 1.0,
+    "dc": 0.6,
     "bjt_pnp": 0.8,
-    "crystal_3pin": 0.5,
-    "net_input": 0.2,
-    "net_output": 0.2,
+    "crystal_3pin": 0.6,
+    "net_input": 0.48,
+    "net_output": 0.42,
     "mosfet_npn": 0.8,
     # "box": 0.8,
 }
-HEIGHT_JITTER = (0.80, 1.20)
-NON_BOX_DEFORMATION_PROBABILITY = 0.16
-DEFORMATION_SCALE_RANGE = (0.82, 1.18)
+HEIGHT_JITTER = (1.0, 1.0)
+# 非 box 器件统一按 0.80~1.40 的离散倍数缩放（步长 0.02），不做额外宽高变形。
+NON_BOX_DEFORMATION_PROBABILITY = 0.0
+DEFORMATION_SCALE_RANGE = (1.0, 1.0)
+SCALE_STEPS = tuple(round(0.80 + 0.02 * i, 2) for i in range(31))
+ROTATION_STEPS = (0, 90, 180, 270)
+_SCALE_QUEUE: list[float] = []
+_ROTATION_QUEUE: list[int] = []
+
+
+def next_scale() -> float:
+    global _SCALE_QUEUE
+    if not _SCALE_QUEUE:
+        _SCALE_QUEUE = list(SCALE_STEPS)
+        random.shuffle(_SCALE_QUEUE)
+    return _SCALE_QUEUE.pop(0)
+
+
+def next_rotation() -> int:
+    global _ROTATION_QUEUE
+    if not _ROTATION_QUEUE:
+        _ROTATION_QUEUE = list(ROTATION_STEPS)
+        random.shuffle(_ROTATION_QUEUE)
+    return _ROTATION_QUEUE.pop(0)
+
+# 每个用例随机放置的器件总数（含 box）。
+MIN_COMPONENTS_PER_SAMPLE = 35
+MAX_COMPONENTS_PER_SAMPLE = 80
+MAX_FREE_PLACEMENT_ATTEMPTS = 240
+
+# 噪声：孤立元件之间的横平竖直模拟连线 + 元件框外的大号随机文字。
+COMPONENT_NOISE_PROBABILITY = 0.22
+COMPONENT_NOISE_SIGMA_RANGE = (4.0, 12.0)
+NEARBY_TEXT_PROBABILITY = 0.30
+NEARBY_TEXT_FONT_RANGE = (16, 30)
+NEARBY_TEXT_GAP_RANGE = (1, 5)
+NOISE_WIRE_WIDTH_RANGE = (2, 4)
+LED_PAIR_COUNT_RANGE = (2, 3)
 
 # Non-box orientation distribution: unchanged, 90, 180, and 270 degrees.
 ROTATION_ANGLES = (0, 90, 180, 270)
@@ -103,7 +140,15 @@ ROTATION_WEIGHTS = (0.70, 0.10, 0.10, 0.10)
 # Layout and routing.
 COMPONENT_SAFETY_GAP = 30
 BOARD_EDGE_MARGIN = 24
-ROUTE_GRID_SPACING = 20
+CONTENT_MARGIN_FRACTION = 0.10
+
+
+def content_margins(board_width: int, board_height: int) -> tuple[int, int]:
+    return (
+        int(round(board_width * CONTENT_MARGIN_FRACTION)),
+        int(round(board_height * CONTENT_MARGIN_FRACTION)),
+    )
+ROUTE_GRID_SPACING = 30
 PIN_EXTENSION_LENGTH = 8
 PIN_RECTIFICATION_MAX = 10
 PIN_RECTIFICATION_PROBE_LENGTH = 7
@@ -112,9 +157,12 @@ WIRE_WIDTH = 3
 WIRE_GAP = 8
 JUNCTION_RADIUS = 5
 BEND_PENALTY = 24
-MAX_LAYOUT_ATTEMPTS = 24
+MAX_LAYOUT_ATTEMPTS = 20
 MAX_COMPONENT_PLACE_ATTEMPTS = 180
 MAX_ASTAR_VISITS = 180_000
+# 大 box 只选一部分引脚参与布线；其余引脚保留为开路线/噪声连线，
+# 这样 72 pin 的大 IC 也能成功放进画布并覆盖所有 box 样例。
+MAX_BOX_PINS_USED = 16
 MAX_CONSECUTIVE_SAMPLE_FAILURES = 3
 
 # Device actions for a d-operation. Every pin of each placed device joins the
@@ -133,7 +181,7 @@ OPEN_MARKER_CROSS_WIDTH = 3
 
 # Exactly one or two routed nets per sample are assigned a deliberate,
 # electrically unconnected crossing when the layout can support it.
-CROSSING_NET_COUNT_RANGE = (1, 2)
+CROSSING_NET_COUNT_RANGE = (0, 1)
 CROSSING_CANDIDATE_LIMIT = 16
 CROSSING_ENDPOINT_PAIR_LIMIT = 6
 CROSSING_ROUTE_ATTEMPT_LIMIT = 12
@@ -142,8 +190,8 @@ B_VARIANTS_PER_CANDIDATE = 4
 
 # Palette is selected once per sample. The first palette uses the requested
 # red component color and green wires; blue components use black wires.
-PALETTE_CHOICES = ("red", "blue", "random")
-PALETTE_WEIGHTS = (0.59, 0.40, 0.01)
+PALETTE_CHOICES = ("red", "blue")
+PALETTE_WEIGHTS = (0.50, 0.50)
 PALETTE_COMPONENT_COLORS = {
     "red": (0x8D, 0x1F, 0x1E),
     "blue": (0x24, 0x63, 0xB7),
@@ -154,17 +202,41 @@ PALETTE_WIRE_COLORS = {
 }
 
 # b-operation candidates are selected from images with exactly one pin.
-# d-operation type weights favor the common passive and supply symbols.
+# 低检测率类别加权，并给每个 case 设最低出现次数（冷门样例多放几个）。
 D_TYPE_WEIGHTS = {
-    "c": 1,
-    "led": 1.5,
-    "r": 1,
-    "v": 1,
-    "gnd": 1,
+    "c": 2.0,
+    "led": 7.0,
+    "r": 2.0,
+    "v": 10.0,
+    "gnd": 10.0,
     "battary": 1,
-    "d": 1.5,
+    "d": 2.5,
+    "switch": 3.5,
+    "circle_header": 1.0,
+    "l": 3.0,
+    "net_input": 8.0,
+    "net_output": 6.0,
 }
-OTHER_D_TYPE_WEIGHT = 0.3
+OTHER_D_TYPE_WEIGHT = 0.4
+
+# 低 mAP50 类别的样例权重：gnd 0003 占 75%，v 的 0009/0011 各 45%。
+TYPE_SAMPLE_WEIGHTS = {
+    "gnd": {"0003_∅438": 0.85},
+    "v": {"0009_∅124": 0.45, "0011_∅611": 0.45, "0001_∅580": 0.10},
+}
+COLD_MIN_COUNTS = {
+    "v": 16,
+    "gnd": 18,
+    "r": 3,
+    "c": 3,
+    "l": 3,
+    "led": 12,
+    "d": 2,
+    "switch": 3,
+    "circle_header": 1,
+    "net_input": 10,
+    "net_output": 6,
+}
 
 # Set to an integer for reproducible output, or None for fresh randomness.
 RANDOM_SEED = None
@@ -213,18 +285,46 @@ def collect_candidates(files_by_type: dict[str, list[Path]], pins_info: dict):
             if source_name in seen:
                 continue
             info = pins_info.get(source_name)
-            if not info or not info.get("pins") or not info.get("comp_bbox"):
-                continue
-            if not all(
-                isinstance(pin.get("relative"), dict)
-                and "x" in pin["relative"]
-                and "y" in pin["relative"]
-                for pin in info["pins"].values()
-            ):
-                continue
-            bbox = info["comp_bbox"]
-            if not all(key in bbox for key in ("x1", "y1", "x2", "y2")):
-                continue
+            valid = bool(
+                info and info.get("pins") and info.get("comp_bbox")
+                and all(
+                    isinstance(pin.get("relative"), dict)
+                    and "x" in pin["relative"]
+                    and "y" in pin["relative"]
+                    for pin in info["pins"].values()
+                )
+                and all(key in info["comp_bbox"] for key in ("x1", "y1", "x2", "y2"))
+            )
+            if not valid:
+                # 没有 pins.json 的稀有样例（例如 v/0009_∅124）：用 alpha bbox
+                # 生成 comp_bbox，并在 bbox 底边中点补一个伪引脚，只用于合成布局。
+                if comp_type == "box":
+                    continue
+                try:
+                    with Image.open(image_path) as image:
+                        alpha_box = image.convert("RGBA").getchannel("A").getbbox()
+                except Exception:
+                    alpha_box = None
+                if not alpha_box:
+                    continue
+                x0, y0, x1, y1 = alpha_box
+                if x1 <= x0 or y1 <= y0:
+                    continue
+                info = {
+                    "comp_name": source_name,
+                    "num_pins": 1,
+                    "comp_bbox": {"x1": float(x0), "y1": float(y0),
+                                  "x2": float(x1 - 1), "y2": float(y1 - 1)},
+                    "pins": {
+                        "pin_1": {
+                            "pinname": "P_1",
+                            "relative": {
+                                "x": float((x0 + x1 - 1) / 2),
+                                "y": float(y1 - 1),
+                            },
+                        }
+                    },
+                }
             seen.add(source_name)
             candidates.append({
                 "source_name": source_name,
@@ -256,6 +356,49 @@ def recolor_alpha(image: Image.Image, color: tuple[int, int, int]) -> Image.Imag
     solid = Image.new("RGBA", rgba.size, (*color, 255))
     solid.putalpha(alpha)
     return solid
+
+
+_ALNUM_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+
+def _random_alnum() -> str:
+    return "".join(random.choice(_ALNUM_CHARS) for _ in range(random.randint(1, 4)))
+
+
+def _load_font(size: int) -> ImageFont.ImageFont:
+    try:
+        return ImageFont.load_default(size=max(8, int(size)))
+    except TypeError:
+        # Pillow < 10.1 没有 size 参数
+        return ImageFont.load_default()
+
+
+def add_component_noise(image: Image.Image) -> Image.Image:
+    """在器件 PNG 的非透明区域叠加少量高斯噪声（alpha 不变）。"""
+    array = np.asarray(image.convert("RGBA")).astype(np.int16)
+    sigma = random.uniform(*COMPONENT_NOISE_SIGMA_RANGE)
+    noise = np.random.normal(0.0, sigma, array[:, :, :3].shape)
+    array[:, :, :3] = np.clip(array[:, :, :3] + noise, 0, 255)
+    return Image.fromarray(array.astype(np.uint8), "RGBA")
+
+
+def add_component_text(image: Image.Image) -> Image.Image:
+    """在器件 PNG 内部随机位置写黑色英文/数字。"""
+    text = _random_alnum()
+    font = _load_font(max(8, min(18, image.height // 8)))
+    draw = ImageDraw.Draw(image)
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+    except Exception:
+        return image
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    if text_width + 4 >= image.width or text_height + 4 >= image.height:
+        return image
+    x = random.randint(1, image.width - text_width - 2)
+    y = random.randint(1, image.height - text_height - 2)
+    draw.text((x, y), text, font=font, fill=(0, 0, 0, 255))
+    return image
 
 
 def transformed_rect(raw: dict, scale_x: float, scale_y: float,
@@ -311,10 +454,12 @@ def rectify_pin_point(image: Image.Image, point: Point, body: Rect) -> Point:
 
 
 def prepare_component(candidate: dict, palette_color: tuple[int, int, int],
-                      *, is_box: bool = False, box_scale: float | None = None):
+                      *, is_box: bool = False, box_scale: float | None = None,
+                      scale_mult: float | None = None, rotation: int | None = None):
     with Image.open(candidate["path"]) as source:
         image = source.convert("RGBA")
     original_width, original_height = image.size
+    used_scale = None
 
     if is_box:
         if box_scale is None:
@@ -324,9 +469,10 @@ def prepare_component(candidate: dict, palette_color: tuple[int, int, int],
         angle = 0
     else:
         ratio = COMPONENT_HEIGHT_RATIO.get(candidate["type"], 0.7)
+        used_scale = scale_mult if scale_mult is not None else next_scale()
         target_height = max(
             2,
-            round(BASE_COMPONENT_HEIGHT * ratio * random.uniform(*HEIGHT_JITTER)),
+            round(BASE_COMPONENT_HEIGHT * ratio * used_scale),
         )
         target_width = max(2, round(target_height * original_width / original_height))
         if random.random() < NON_BOX_DEFORMATION_PROBABILITY:
@@ -339,13 +485,16 @@ def prepare_component(candidate: dict, palette_color: tuple[int, int, int],
                 2,
                 round(target_height * random.uniform(*DEFORMATION_SCALE_RANGE)),
             )
-        angle = random.choices(ROTATION_ANGLES, weights=ROTATION_WEIGHTS, k=1)[0]
+        angle = rotation if rotation is not None else next_rotation()
 
     scale_x = target_width / original_width
     scale_y = target_height / original_height
     image = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
     if not is_box:
         image = recolor_alpha(image, palette_color)
+    # 随机高斯噪声在旋转前加入；文字噪声改为绘制在元件框外。
+    if random.random() < COMPONENT_NOISE_PROBABILITY:
+        image = add_component_noise(image)
 
     transpose = {
         90: Image.Transpose.ROTATE_90,
@@ -380,6 +529,7 @@ def prepare_component(candidate: dict, palette_color: tuple[int, int, int],
     return {
         "source_name": candidate["source_name"],
         "type": candidate["type"],
+        "scale_mult": used_scale,
         "image": image,
         "rotation": angle,
         "scale_xy": (scale_x, scale_y),
@@ -423,39 +573,53 @@ def materialize_component(prepared: dict, origin: Point, display_name: str):
     }
 
 
+def component_content_ok(component: dict, board_size: tuple[int, int]) -> bool:
+    """器件本身、body bbox 和所有 pin 都必须在画布中心 80% 区域内。"""
+    width, height = board_size
+    margin_x, margin_y = content_margins(width, height)
+    for x0, y0, x1, y1 in (component["extent"], component["bbox"]):
+        if x0 < margin_x or y0 < margin_y or x1 > width - margin_x or y1 > height - margin_y:
+            return False
+    for pin in component["pins"].values():
+        x, y = pin["point"]
+        if x < margin_x or x > width - margin_x or y < margin_y or y > height - margin_y:
+            return False
+    return True
+
+
+_BOX_QUEUE: list[dict] = []
+
+
 def choose_box_candidate(candidates: list[dict]) -> dict:
+    global _BOX_QUEUE
     boxes = [candidate for candidate in candidates if candidate["type"] == "box"]
     if not boxes:
         raise RuntimeError("base_comps/box 中没有带有效引脚信息的元件")
-    # Large high-pin-count boxes remain possible, while compact packages are
-    # sampled more often so their complete wiring can fit the canvas.
-    weights = [1.0 / max(1, len(candidate["info"]["pins"])) ** 1.5 for candidate in boxes]
-    return random.choices(boxes, weights=weights, k=1)[0]
+    # 轮转所有 box 样例，保证每个 box PNG 都被用到。
+    if not _BOX_QUEUE:
+        _BOX_QUEUE = boxes.copy()
+        random.shuffle(_BOX_QUEUE)
+    return _BOX_QUEUE.pop(0)
 
 
 def choose_palette():
     name = random.choices(PALETTE_CHOICES, weights=PALETTE_WEIGHTS, k=1)[0]
-    if name == "random":
-        component_color = tuple(random.randint(32, 220) for _ in range(3))
-        wire_color = component_color
-    else:
-        component_color = PALETTE_COMPONENT_COLORS[name]
-        wire_color = PALETTE_WIRE_COLORS[name]
-    return name, component_color, wire_color
+    return name, PALETTE_COMPONENT_COLORS[name], PALETTE_WIRE_COLORS[name]
 
 
 def pick_box_component(candidate: dict, board_size: tuple[int, int],
                        palette_color: tuple[int, int, int]):
     board_width, board_height = board_size
+    margin_x, margin_y = content_margins(board_width, board_height)
     with Image.open(candidate["path"]) as source:
         original_width, original_height = source.size
     # matching_edge = board_width if original_width >= original_height else board_height
     matching_edge = board_height
     target_long = matching_edge * random.uniform(*BOX_LONG_EDGE_FRACTION)
-    box_scale = target_long / max(original_width, original_height)
+    box_scale = target_long / max(original_width, original_height) * next_scale()
     prepared = prepare_component(candidate, palette_color, is_box=True, box_scale=box_scale)
     width, height = prepared["extent_size"]
-    if width + 2 * BOARD_EDGE_MARGIN >= board_width or height + 2 * BOARD_EDGE_MARGIN >= board_height:
+    if width + 2 * margin_x >= board_width or height + 2 * margin_y >= board_height:
         return None
     center_x = board_width / 2 + random.uniform(-BOX_CENTER_JITTER_FRACTION,
                                                 BOX_CENTER_JITTER_FRACTION) * board_width
@@ -463,9 +627,10 @@ def pick_box_component(candidate: dict, board_size: tuple[int, int],
                                                   BOX_CENTER_JITTER_FRACTION) * board_height
     x = round(center_x - width / 2)
     y = round(center_y - height / 2)
-    x = min(max(BOARD_EDGE_MARGIN, x), board_width - BOARD_EDGE_MARGIN - width)
-    y = min(max(BOARD_EDGE_MARGIN, y), board_height - BOARD_EDGE_MARGIN - height)
-    return materialize_component(prepared, (x, y), "U1")
+    x = min(max(margin_x, x), board_width - margin_x - width)
+    y = min(max(margin_y, y), board_height - margin_y - height)
+    component = materialize_component(prepared, (x, y), "U1")
+    return component if component_content_ok(component, board_size) else None
 
 
 def make_display_name(comp_type: str, counters: defaultdict[str, int]) -> str:
@@ -545,6 +710,14 @@ def choose_d_candidate(candidates: list[dict]) -> dict | None:
     comp_types = list(groups)
     weights = [D_TYPE_WEIGHTS.get(comp_type, OTHER_D_TYPE_WEIGHT) for comp_type in comp_types]
     chosen_type = random.choices(comp_types, weights=weights, k=1)[0]
+    if chosen_type in TYPE_SAMPLE_WEIGHTS:
+        pref = TYPE_SAMPLE_WEIGHTS[chosen_type]
+        group = groups[chosen_type]
+        return random.choices(
+            group,
+            weights=[pref.get(c["source_name"], 0.05) for c in group],
+            k=1,
+        )[0]
     return random.choice(groups[chosen_type])
 
 
@@ -560,6 +733,7 @@ def place_device_near_pin(candidate: dict, anchor: Point, direction: Point,
                           board_size: tuple[int, int], placed: list[dict],
                           palette_color: tuple[int, int, int], display_name: str):
     board_width, board_height = board_size
+    margin_x, margin_y = content_margins(board_width, board_height)
     prepared = prepare_component(candidate, palette_color)
     width, height = prepared["extent_size"]
     local_cx, local_cy = (width - 1) / 2, (height - 1) / 2
@@ -575,10 +749,10 @@ def place_device_near_pin(candidate: dict, anchor: Point, direction: Point,
         y = round(center_y - local_cy)
         extent = (x, y, x + width - 1, y + height - 1)
         if (
-            extent[0] < BOARD_EDGE_MARGIN
-            or extent[1] < BOARD_EDGE_MARGIN
-            or extent[2] >= board_width - BOARD_EDGE_MARGIN
-            or extent[3] >= board_height - BOARD_EDGE_MARGIN
+            extent[0] < margin_x
+            or extent[1] < margin_y
+            or extent[2] >= board_width - margin_x
+            or extent[3] >= board_height - margin_y
         ):
             continue
         if any(
@@ -586,7 +760,10 @@ def place_device_near_pin(candidate: dict, anchor: Point, direction: Point,
             for old in placed
         ):
             continue
-        return materialize_component(prepared, (x, y), display_name)
+        component = materialize_component(prepared, (x, y), display_name)
+        if not component_content_ok(component, board_size):
+            continue
+        return component
     return None
 
 
@@ -596,6 +773,7 @@ def place_single_pin_component(candidates: list[dict], anchor: Point,
                                board_size: tuple[int, int], placed: list[dict]):
     """Place a b-operation device on the box pin without overlapping any bbox."""
     board_width, board_height = board_size
+    margin_x, margin_y = content_margins(board_width, board_height)
     candidate_order = list(candidates)
     random.shuffle(candidate_order)
     candidate_order = candidate_order[:B_COMPONENT_CANDIDATE_LIMIT]
@@ -607,15 +785,20 @@ def place_single_pin_component(candidates: list[dict], anchor: Point,
             origin = (anchor[0] - pin["point"][0], anchor[1] - pin["point"][1])
             width, height = prepared["extent_size"]
             if (
-                origin[0] < BOARD_EDGE_MARGIN
-                or origin[1] < BOARD_EDGE_MARGIN
-                or origin[0] + width >= board_width - BOARD_EDGE_MARGIN
-                or origin[1] + height >= board_height - BOARD_EDGE_MARGIN
+                origin[0] < margin_x
+                or origin[1] < margin_y
+                or origin[0] + width >= board_width - margin_x
+                or origin[1] + height >= board_height - margin_y
             ):
                 continue
 
             component = materialize_component(prepared, origin, "")
-            if any(rects_overlap(component["bbox"], old["bbox"]) for old in placed):
+            if not component_content_ok(component, board_size):
+                continue
+            if any(
+                rects_overlap(expand_rect(component["extent"], COMPONENT_SAFETY_GAP), old["extent"])
+                for old in placed
+            ):
                 continue
 
             component["name"] = make_display_name(candidate["type"], counters)
@@ -626,6 +809,143 @@ def place_single_pin_component(candidates: list[dict], anchor: Point,
                 continue
             return component
     return None
+
+
+_FILLER_QUEUE: list[dict] = []
+_TYPE_QUEUES: dict[str, list[dict]] = {}
+
+
+_VARIANT_QUEUE: list[tuple[dict, int]] = []
+
+
+def choose_filler_variant(candidates: list[dict]):
+    """轮转所有 (非 box 样例, 旋转方向)，保证样例和四方向都覆盖。"""
+    global _VARIANT_QUEUE
+    usable = [c for c in candidates if c["type"] != "box"]
+    if not usable:
+        return None
+    if not _VARIANT_QUEUE:
+        _VARIANT_QUEUE = [(c, r) for c in usable for r in ROTATION_STEPS]
+        random.shuffle(_VARIANT_QUEUE)
+    return _VARIANT_QUEUE.pop(0)
+
+
+def choose_type_candidate(candidates: list[dict], comp_type: str) -> dict | None:
+    usable = [c for c in candidates if c["type"] == comp_type]
+    if not usable:
+        return None
+    if comp_type in TYPE_SAMPLE_WEIGHTS:
+        pref = TYPE_SAMPLE_WEIGHTS[comp_type]
+        return random.choices(
+            usable,
+            weights=[pref.get(c["source_name"], 0.05) for c in usable],
+            k=1,
+        )[0]
+    queue = _TYPE_QUEUES.setdefault(comp_type, [])
+    if not queue:
+        queue.extend(usable)
+        random.shuffle(queue)
+    return queue.pop(0)
+
+
+def place_free_component(candidates: list[dict],
+                         palette_color: tuple[int, int, int],
+                         counters: defaultdict[str, int],
+                         board_size: tuple[int, int], placed: list[dict],
+                         candidate: dict | None = None,
+                         scale_mult: float | None = None, rotation: int | None = None):
+    """在画布任意空余位置放一个非 box 器件（不参与网络连接）。"""
+    if candidate is None:
+        variant = choose_filler_variant(candidates)
+        if variant is None:
+            return None
+        candidate, forced_rotation = variant
+        if rotation is None:
+            rotation = forced_rotation
+    if candidate is None:
+        return None
+    board_width, board_height = board_size
+    margin_x, margin_y = content_margins(board_width, board_height)
+    prepared = prepare_component(candidate, palette_color, scale_mult=scale_mult, rotation=rotation)
+    width, height = prepared["extent_size"]
+    if (
+        width + 2 * margin_x >= board_width
+        or height + 2 * margin_y >= board_height
+    ):
+        return None
+    for _ in range(MAX_FREE_PLACEMENT_ATTEMPTS):
+        x = random.randint(margin_x, board_width - margin_x - width)
+        y = random.randint(margin_y, board_height - margin_y - height)
+        extent = (x, y, x + width - 1, y + height - 1)
+        if any(
+            rects_overlap(expand_rect(extent, COMPONENT_SAFETY_GAP), old["extent"])
+            for old in placed
+        ):
+            continue
+        component = materialize_component(prepared, (x, y), "")
+        if not component_content_ok(component, board_size):
+            continue
+        component["name"] = make_display_name(candidate["type"], counters)
+        return component
+    return None
+
+
+def place_led_pair(candidates: list[dict], palette_color: tuple[int, int, int],
+                   counters: defaultdict[str, int], board_size: tuple[int, int],
+                   placed: list[dict]) -> list[dict]:
+    """放一对紧挨的 LED：两者相差 180°，长边贴长边对齐。"""
+    candidate = choose_type_candidate(candidates, "led")
+    if candidate is None:
+        return []
+    scale = next_scale()
+    angle = random.choice((0, 90))
+    prepared = [
+        prepare_component(candidate, palette_color, scale_mult=scale, rotation=angle),
+        prepare_component(candidate, palette_color, scale_mult=scale,
+                          rotation=(angle + 180) % 360),
+    ]
+    width, height = prepared[0]["extent_size"]
+    gap = random.randint(6, 10)
+    bw, bh = board_size
+    margin_x, margin_y = content_margins(bw, bh)
+    for _ in range(MAX_FREE_PLACEMENT_ATTEMPTS):
+        x = random.randint(margin_x, bw - margin_x - width)
+        y = random.randint(margin_y, bh - margin_y - height)
+        # 长边相邻：横向元件左右贴，纵向元件上下贴
+        if width >= height:
+            if random.random() < 0.5 and x + width + gap + width <= bw - margin_x:
+                origins = [(x, y), (x + width + gap, y)]
+            elif x - width - gap >= margin_x:
+                origins = [(x, y), (x - width - gap, y)]
+            else:
+                continue
+        else:
+            if random.random() < 0.5 and y + height + gap + height <= bh - margin_y:
+                origins = [(x, y), (x, y + height + gap)]
+            elif y - height - gap >= margin_y:
+                origins = [(x, y), (x, y - height - gap)]
+            else:
+                continue
+        pair = []
+        for prep, origin, name in zip(
+            prepared, origins,
+            (make_display_name("led", counters), make_display_name("led", counters)),
+        ):
+            comp = materialize_component(prep, origin, name)
+            if not component_content_ok(comp, board_size):
+                pair = []
+                break
+            comp["is_filler"] = True
+            pair.append(comp)
+        if len(pair) != 2:
+            continue
+        if any(
+            rects_overlap(expand_rect(comp["extent"], COMPONENT_SAFETY_GAP), old["extent"])
+            for comp in pair for old in placed
+        ):
+            continue
+        return pair
+    return []
 
 
 def make_terminal(component: dict, pin_key: str, board_size: tuple[int, int]):
@@ -767,10 +1087,11 @@ class RoutingGrid:
 
     def __init__(self, board_size: tuple[int, int], components: list[dict], terminals: list[dict]):
         self.width, self.height = board_size
-        xs = set(range(0, self.width, ROUTE_GRID_SPACING))
-        ys = set(range(0, self.height, ROUTE_GRID_SPACING))
-        xs.add(self.width - 1)
-        ys.add(self.height - 1)
+        margin_x, margin_y = content_margins(self.width, self.height)
+        xs = set(range(margin_x, self.width - margin_x, ROUTE_GRID_SPACING))
+        ys = set(range(margin_y, self.height - margin_y, ROUTE_GRID_SPACING))
+        xs.add(self.width - margin_x - 1)
+        ys.add(self.height - margin_y - 1)
         for terminal in terminals:
             for x, y in (terminal["point"], terminal["route_start"]):
                 xs.add(x)
@@ -1307,7 +1628,7 @@ def attempt_layout(candidates: list[dict]):
     pin_nets: list[dict] = []
     open_pins: set[PinId] = set()
     consumed: set[str] = set()
-    ordered_keys = order_box_pins(box)
+    ordered_keys = order_box_pins(box)[:MAX_BOX_PINS_USED]
     single_pin_candidates = [
         candidate for candidate in candidates
         if candidate["type"] != "box" and len(candidate["info"]["pins"]) == 1
@@ -1470,6 +1791,71 @@ def attempt_layout(candidates: list[dict]):
             key = frozenset(terminal["id"] for terminal in net["terminals"])
             net["route"] = route_by_pinset[key]
 
+    # 在已布好的网络之外补充随机空余器件，使每个用例的器件数落在 10~50。
+    # 这些器件只写 components/pins，不加入任何网络。
+    if len(components) > MAX_COMPONENTS_PER_SAMPLE:
+        return None
+    # 先保证低检测率类别的最低出现次数（同一张图里多放几个冷门样例）。
+    for cold_type, minimum in COLD_MIN_COUNTS.items():
+        while (
+            sum(1 for c in components if c["type"] == cold_type) < minimum
+            and len(components) < MAX_COMPONENTS_PER_SAMPLE
+        ):
+            cand = choose_type_candidate(candidates, cold_type)
+            if cand is None:
+                break
+            filler = place_free_component(
+                candidates, palette_color, counters, board_size, components,
+                candidate=cand,
+            )
+            if filler is None:
+                break
+            filler["is_filler"] = True
+            components.append(filler)
+    # v/gnd/led：每张图都补齐 0/90/180/270 四个方向。
+    for cold_type in ("v", "gnd", "led"):
+        existing = {c.get("rotation") for c in components if c["type"] == cold_type}
+        for angle in ROTATION_STEPS:
+            if angle in existing or len(components) >= MAX_COMPONENTS_PER_SAMPLE:
+                continue
+            cand = choose_type_candidate(candidates, cold_type)
+            if cand is None:
+                break
+            filler = place_free_component(
+                candidates, palette_color, counters, board_size, components,
+                candidate=cand, rotation=angle,
+            )
+            if filler is None:
+                continue
+            filler["is_filler"] = True
+            components.append(filler)
+            existing.add(angle)
+    # 增加 LED 成对样例：两枚相差 180°、长边相邻。
+    for _ in range(random.randint(*LED_PAIR_COUNT_RANGE)):
+        if len(components) + 2 > MAX_COMPONENTS_PER_SAMPLE:
+            break
+        pair = place_led_pair(candidates, palette_color, counters, board_size, components)
+        if not pair:
+            continue
+        components.extend(pair)
+    if len(components) > MAX_COMPONENTS_PER_SAMPLE:
+        return None
+    target_components = max(
+        len(components),
+        random.randint(MIN_COMPONENTS_PER_SAMPLE, MAX_COMPONENTS_PER_SAMPLE),
+    )
+    target_components = min(target_components, MAX_COMPONENTS_PER_SAMPLE)
+    while len(components) < target_components:
+        filler = place_free_component(
+            candidates, palette_color, counters, board_size, components
+        )
+        if filler is None:
+            break
+        filler["is_filler"] = True
+        components.append(filler)
+    if len(components) < MIN_COMPONENTS_PER_SAMPLE:
+        return None
+
     return {
         "board_size": board_size,
         "palette": palette_name,
@@ -1480,10 +1866,253 @@ def attempt_layout(candidates: list[dict]):
         "pin_nets": pin_nets,
         "open_pins": open_pins,
         "routes": routes,
+        "noise_wires": ensure_component_wires(
+            components, pin_nets,
+            build_noise_wires(components, pin_nets, board_size), board_size
+        ),
     }
 
 
 # ================================= Rendering ==================================
+
+def build_noise_wires(components: list[dict], pin_nets: list[dict],
+                      board_size: tuple[int, int]) -> list[list[Point]]:
+    """给每个尚未接入 GT 网络的元件补一条完整折线，绕开所有元件 bbox。
+
+    每个未连接元件取一个代表引脚，和最近的另一个元件代表引脚相连。
+    返回多条 polyline；渲染时每条线用统一线宽和圆角连接，避免断断续续。
+    """
+    connected = {
+        tuple(terminal["id"])
+        for net in pin_nets
+        for terminal in net.get("terminals", [])
+    }
+    connected_comps = {component for component, _ in connected}
+    boxes = [component["bbox"] for component in components]
+    terms = []
+    for component in components:
+        if component["name"] in connected_comps or not component["pins"]:
+            continue
+        pin_key = next(iter(component["pins"]))
+        terminal = make_terminal(component, pin_key, board_size)
+        if terminal is None:
+            continue
+        direction = terminal["direction"]
+        distance = max(PIN_EXTENSION_LENGTH, 20)
+        while distance < 120 and any(
+            segment_hits_rect(terminal["point"], terminal["route_start"], box)
+            for box in boxes
+        ):
+            distance += 2
+            terminal["route_start"] = (
+                terminal["point"][0] + direction[0] * distance,
+                terminal["point"][1] + direction[1] * distance,
+            )
+        if any(segment_hits_rect(terminal["point"], terminal["route_start"], box) for box in boxes):
+            continue
+        if not (0 <= terminal["route_start"][0] < board_size[0]
+                and 0 <= terminal["route_start"][1] < board_size[1]):
+            continue
+        terms.append(terminal)
+    if len(terms) < 2:
+        return []
+
+    grid = RoutingGrid(board_size, components, terms)
+    blocked = build_component_obstacles(board_size, components, [])
+    lines: list[list[Point]] = []
+
+    def clean(points: list[Point]) -> list[Point]:
+        out = []
+        for point in points:
+            if not out or point != out[-1]:
+                out.append(point)
+        return out
+
+    def l_path_clear(a: Point, b: Point) -> list[Point] | None:
+        for corner in ((a[0], b[1]), (b[0], a[1])):
+            path = clean([a, corner, b])
+            if all(
+                not any(segment_hits_rect(p, q, box) for box in boxes)
+                for p, q in zip(path, path[1:])
+            ):
+                return path
+        return None
+
+    def stubs_ok(a, b) -> bool:
+        return not any(
+            segment_hits_rect(p, q, box)
+            for p, q in ((a["point"], a["route_start"]), (b["route_start"], b["point"]))
+            for box in boxes
+        )
+
+    def connect(a, b) -> bool:
+        if not stubs_ok(a, b):
+            return False
+        path = astar_route(a["route_start"], {b["route_start"]}, grid, blocked)
+        if path:
+            lines.append(clean([a["point"], a["route_start"]] + path + [b["point"]]))
+            return True
+        fallback = l_path_clear(a["route_start"], b["route_start"])
+        if fallback is not None:
+            lines.append(clean([a["point"], a["route_start"]] + fallback + [b["point"]]))
+            return True
+        return False
+
+    remaining = list(range(len(terms)))
+    while len(remaining) >= 2:
+        i = remaining.pop(0)
+        order = sorted(
+            remaining,
+            key=lambda j: (terms[j]["route_start"][0] - terms[i]["route_start"][0]) ** 2
+            + (terms[j]["route_start"][1] - terms[i]["route_start"][1]) ** 2,
+        )
+        for j in order:
+            if connect(terms[i], terms[j]):
+                remaining.remove(j)
+                break
+    if remaining:
+        i = remaining[0]
+        order = sorted(
+            (j for j in range(len(terms)) if j != i),
+            key=lambda j: (terms[j]["route_start"][0] - terms[i]["route_start"][0]) ** 2
+            + (terms[j]["route_start"][1] - terms[i]["route_start"][1]) ** 2,
+        )
+        for j in order:
+            if connect(terms[i], terms[j]):
+                break
+    # 极端拥挤时给还没连上的元件一条向外短引线。
+    endpoints = {p for line in lines for p in line}
+    for term in terms:
+        if term["point"] in endpoints:
+            continue
+        direction = term["direction"]
+        stub = (
+            term["point"][0] + direction[0] * 24,
+            term["point"][1] + direction[1] * 24,
+        )
+        if not any(segment_hits_rect(term["point"], stub, box) for box in boxes):
+            lines.append([term["point"], stub])
+    return lines
+
+def ensure_component_wires(components: list[dict], pin_nets: list[dict],
+                           wires: list[list[Point]],
+                           board_size: tuple[int, int]) -> list[list[Point]]:
+    """兜底：任何仍未出现在 GT 网络/噪声线端点上的元件补一条向外短引线。"""
+    connected = {
+        tuple(terminal["id"])
+        for net in pin_nets
+        for terminal in net.get("terminals", [])
+    }
+    endpoints = {p for seg in wires for p in seg}
+    boxes = [component["bbox"] for component in components]
+    all_pins = [
+        (component, pin_key, pin["point"])
+        for component in components
+        for pin_key, pin in component["pins"].items()
+    ]
+    for component in components:
+        if not component["pins"]:
+            continue
+        if any(
+            (component["name"], key) in connected or pin["point"] in endpoints
+            for key, pin in component["pins"].items()
+        ):
+            continue
+        # 先尝试连到非常近的另一个元件引脚（例如 LED 对中间的 2~10px 间隙）。
+        best = None
+        for key, pin in component["pins"].items():
+            point = pin["point"]
+            for other, other_key, other_point in all_pins:
+                if other["name"] == component["name"]:
+                    continue
+                distance = math.hypot(point[0] - other_point[0], point[1] - other_point[1])
+                if distance <= 14 and (best is None or distance < best[0]):
+                    best = (distance, point, other_point)
+        if best is not None:
+            _, point, other_point = best
+            if not any(segment_hits_rect(point, other_point, box) for box in boxes):
+                wires.append([point, other_point])
+                continue
+        added = False
+        for pin in component["pins"].values():
+            point = pin["point"]
+            for direction in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                stub = (point[0] + direction[0] * 24, point[1] + direction[1] * 24)
+                if not (0 <= stub[0] < board_size[0] and 0 <= stub[1] < board_size[1]):
+                    continue
+                if any(segment_hits_rect(point, stub, box) for box in boxes):
+                    continue
+                wires.append([point, stub])
+                added = True
+                break
+            if added:
+                break
+    return wires
+
+
+def draw_nearby_texts(board: Image.Image, sample: dict) -> None:
+    """为每个元件在 bbox 外部写一个较小的 type 文字，绝不压住自身 bbox。"""
+    width, height = sample["board_size"]
+    margin_x, margin_y = content_margins(width, height)
+    draw = ImageDraw.Draw(board)
+    all_boxes = [component["bbox"] for component in sample["components"]]
+
+    def overlaps(rect, boxes):
+        x0, y0, x1, y1 = rect
+        return any(
+            x0 < b[2] and x1 > b[0] and y0 < b[3] and y1 > b[1]
+            for b in boxes
+        )
+
+    def try_place(component, font, check_all):
+        text = str(component["type"])
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        if tw + 2 * margin_x >= width or th + 2 * margin_y >= height:
+            return None
+        bx0, by0, bx1, by1 = component["bbox"]
+        sides = ["top", "bottom", "left", "right"]
+        random.shuffle(sides)
+        for side in sides:
+            gap = random.randint(*NEARBY_TEXT_GAP_RANGE)
+            if side == "top":
+                x, y = random.randint(bx0, bx1), by0 - th - gap
+            elif side == "bottom":
+                x, y = random.randint(bx0, bx1), by1 + gap
+            elif side == "left":
+                x, y = bx0 - tw - gap, random.randint(by0, by1)
+            else:
+                x, y = bx1 + gap, random.randint(by0, by1)
+            x = min(max(margin_x, x), width - margin_x - tw - 1)
+            y = min(max(margin_y, y), height - margin_y - th - 1)
+            rect = (x, y, x + tw, y + th)
+            if overlaps(rect, [component["bbox"]]):
+                continue
+            if check_all and overlaps(rect, all_boxes):
+                continue
+            return rect, font
+        return None
+
+    records = []
+    for component in sample["components"]:
+        placed = None
+        used_font = None
+        # 先尽量避开所有元件 bbox；放不下时退化为只避开自身 bbox。
+        for check_all in (True, False):
+            for size in (random.randint(*NEARBY_TEXT_FONT_RANGE), 14, 12, 10, 8):
+                font = _load_font(size)
+                placed = try_place(component, font, check_all)
+                if placed:
+                    placed, used_font = placed
+                    break
+            if placed:
+                break
+        if not placed:
+            continue
+        text = str(component["type"])
+        draw.text((placed[0], placed[1]), text, font=used_font, fill=(0, 0, 0))
+        records.append({"component": component["name"], "text": text, "bbox": list(placed)})
+    sample["noise_texts"] = records
 
 def render_sample(sample: dict) -> Image.Image:
     width, height = sample["board_size"]
@@ -1502,9 +2131,21 @@ def render_sample(sample: dict) -> Image.Image:
                  x + JUNCTION_RADIUS, y + JUNCTION_RADIUS),
                 fill=component_color,
             )
+    # 模拟连线画在元件之后：路径已绕开 bbox，这样不会被元件盖断。
+    for line in sample.get("noise_wires", []):
+        if len(line) >= 2:
+            draw.line(
+                line,
+                fill=color,
+                width=random.randint(*NOISE_WIRE_WIDTH_RANGE),
+                joint="curve",
+            )
 
     for component in sample["components"]:
         board.paste(component["image"], component["origin"], component["image"])
+
+    # 干扰线画在器件之上（可穿过 PNG），再补器件附近的黑色随机文字。
+    draw_nearby_texts(board, sample)
 
     draw = ImageDraw.Draw(board)
     for pin_id in sample["open_pins"]:
@@ -1563,7 +2204,7 @@ def build_annotation(sample: dict):
         components[component["name"]] = {
             "Name": component["name"],
             "type": component["type"],
-            "value": component["value"],
+            "value": None,
             "bbox": [
                 int(x0),
                 int(board_height - y1),
@@ -1573,20 +2214,21 @@ def build_annotation(sample: dict):
         }
         pins[component["name"]] = {}
         for pin_key, pin in component["pins"].items():
-            record = {
+            pins[component["name"]][pin_key] = {
                 "pinname": pin["pinname"],
                 "point": point_to_json(pin["point"], board_height),
             }
-            if pin.get("open"):
-                record["open"] = True
-            pins[component["name"]][pin_key] = record
 
     for index, net in enumerate(sample["pin_nets"], start=1):
-        net_pins = net["terminals"]
-        hypergraph = [f"{terminal['component']}.{terminal['pin_key']}" for terminal in net_pins]
+        refs = []
+        for terminal in net["terminals"]:
+            pin_key = str(terminal["pin_key"])
+            if pin_key.startswith("pin_"):
+                pin_key = pin_key[len("pin_"):]
+            refs.append(f"{terminal['component']}.{pin_key}")
         route = net.get("route")
         nets[f"net_{index}"] = {
-            "hypergraph": hypergraph,
+            "hyperGraph": "(" + ",".join(refs) + ")",
             "edges": edge_list_for_annotation(route, board_height) if route else {},
         }
 
@@ -1605,6 +2247,9 @@ def generate_one_sample(sample_id: int, candidates: list[dict], *, verbose: bool
         sample = attempt_layout(candidates)
         if sample is None:
             continue
+        component_count = len(sample["components"])
+        if not (MIN_COMPONENTS_PER_SAMPLE <= component_count <= MAX_COMPONENTS_PER_SAMPLE):
+            continue
         board = render_sample(sample)
         annotation = build_annotation(sample)
         target_dir = OUTPUT_DIR / f"{sample_id:04d}"
@@ -1615,6 +2260,30 @@ def generate_one_sample(sample_id: int, candidates: list[dict], *, verbose: bool
             board.save(temporary_dir / "circuit.png", format="PNG")
             with (temporary_dir / "annotation.json").open("w", encoding="utf-8") as handle:
                 json.dump(annotation, handle, ensure_ascii=False, indent=2)
+            if WRITE_DEBUG:
+                debug = {
+                    "components": [
+                        {
+                            "name": c["name"], "type": c["type"],
+                            "source_name": c["source_name"],
+                            "rotation": c.get("rotation"),
+                            "scale_mult": c.get("scale_mult"),
+                            "is_filler": bool(c.get("is_filler")),
+                        }
+                        for c in sample["components"]
+                    ],
+                    "noise_wires": sample.get("noise_wires", []),
+                    "noise_texts": sample.get("noise_texts", []),
+                    "net_pins": [
+                        list(pair) for pair in sorted({
+                            (t["component"], t["pin_key"])
+                            for net in sample["pin_nets"]
+                            for t in net["terminals"]
+                        })
+                    ],
+                }
+                with (temporary_dir / "debug.json").open("w", encoding="utf-8") as handle:
+                    json.dump(debug, handle, ensure_ascii=False, indent=2)
             os.replace(temporary_dir, target_dir)
         finally:
             if temporary_dir.exists():
