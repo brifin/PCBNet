@@ -68,7 +68,7 @@
     },
     "U1_1": {
       "Name": "LM50/LM50-Q1",
-      "type": "box",
+      "type": "pin",
       "value": null,
       "bbox": [
         108.0,
@@ -101,7 +101,7 @@
     },
     "U3": {
       "Name": "LM4040",
-      "type": "box",
+      "type": "pin",
       "value": null,
       "bbox": [
         163.0,

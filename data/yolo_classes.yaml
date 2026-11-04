@@ -6,7 +6,7 @@
 # Do not reorder after a training run starts. Rare CVJsonStd categories collapse
 # into `other` (contest does not compare text for `other`).
 names:
-  - pin
+  # - pin
   # - wire_endpoint
   - opamp                  # 对应 amp / amp_3pin / amp_5pin
   - antenna                # 对应 ant

@@ -25,11 +25,11 @@ def run_vision_visualize(img_path, img, comps, texts, skel, pins, endpoints):
         cv2.putText(vis_comp, cmap.get(comp.label, comp.label), (x1, max(y1 - 5, 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         
-    for t in texts:
-        x1, y1, x2, y2 = map(int, t.bbox)
-        cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (0, 0, 255), 1)
-        cv2.putText(vis_comp, f"{t.content}", (x1, max(y1 - 5, 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+    # for t in texts:
+    #     x1, y1, x2, y2 = map(int, t.bbox)
+    #     cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (0, 0, 255), 1)
+    #     cv2.putText(vis_comp, f"{t.content}", (x1, max(y1 - 5, 10)),
+    #                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
     for pin in pins:
         x, y = pin.xy
         cx, cy = int(round(x)), int(round(y))

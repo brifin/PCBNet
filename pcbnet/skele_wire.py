@@ -7,44 +7,32 @@ try:  # 当前实现未使用 skeletonize；避免提交镜像缺 scikit-image �
 except Exception:  # noqa: BLE001
     skeletonize = None
 from collections import deque
-from typing import List, Tuple, Dict, Any, Set
+from typing import List, Tuple, Dict, Any, Set, Optional
 from tqdm import tqdm
 import math
 from pathlib import Path
-
-try:  # KMeans 目前只在注释掉的旧版 comp_binary 逻辑里用到；缺失时不影响推理
-    from sklearn.cluster import KMeans
-except Exception:  # noqa: BLE001
-    KMeans = None
+from sklearn.cluster import KMeans
+from .llm import fix_pin_by_llm, PIN_NUMBER
+import matplotlib.pyplot as plt
 
 # ===================== PCB走线提取配置参数区（统一管理） =====================
-# _get_wire_binary
-WB_OFFSET = 5
-
-# _get_cross_mask
-CM_SCALE = 0.8
-CM_CROSS_WIDTH = 2
-
-# _get_comp_start_points
+TEXT_CM_BORDER_PX = 5
+COMP_CM_BORDER_PX = 3
 CSP_STEP_CFG = {
-    "default": (-2, 15),
-    "ground": (0, 15),
-    "inductor": (-1, 5)
+    "default": (0, 15),
+    "resistor": (0, 10)
 }
-CSP_BOUNDARY_RATIO_THRESH = 0.9
-
-# extract_comp_pins_straight_hsv
-EP_DIFF_THRESH = 20
-
-# refine_and_cluster_pins
+CSP_EDGE_PAD_PX = 5
+CSP_TRY_BOUNDRY = ['ic']
+CSP_BACK_SEARCH_COMP = ['capacitor']
+EP_DIFF_THRESH = 40
 RCP_SCAN_RANGE = 10
 RCP_MAX_BACK_STEP = 10
 
 # build_pcb_nets
 BN_SCAN_RANGE = 15
 BN_THRES = 0.99
-BN_FORK_PAD = 5
-BN_DIFF_THRESH = 30
+BN_DIFF_THRESH = 40
 BN_NEAR_WIN = 5
 BN_STOP_NEAR_WIN = 5
 
@@ -58,7 +46,7 @@ def _get_wire_binary(
     comps: List[Any],
     smooth_win: int = 3,
     offset: int = 5
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+) -> Tuple[np.ndarray, int]:
     """
     返回：
         binary_raw: 单纯去掉背景的前景二值图 (1=器件+走线前景)
@@ -86,113 +74,65 @@ def _get_wire_binary(
     final_t = int(np.clip(slowdown_t - offset, 0, 255))
     binary_raw = np.where(gray <= final_t, 1, 0).astype(np.uint8)
 
-    # ========== 构造 comp_binary ==========
-    # comp_binary = np.zeros_like(binary_raw)
-    # # 第一步：生成所有器件bbox的联合mask
-    # comp_mask = np.zeros_like(binary_raw, dtype=bool)
-    # for c in comps:
-    #     x1, y1, x2, y2 = c.bbox
-    #     x1 = max(0, int(x1))
-    #     y1 = max(0, int(y1))
-    #     x2 = min(w, int(x2))
-    #     y2 = min(h, int(y2))
-    #     comp_mask[y1:y2, x1:x2] = True
-
-    # # 感兴趣区域：同时满足【前景】AND【在器件bbox内】
-    # roi_mask = (binary_raw == 1) & comp_mask
-    # roi_y, roi_x = np.where(roi_mask)
-    # if len(roi_y) < 2:
-    #     # 像素太少无法聚类，comp_binary直接全0
-    #     wire_binary = binary_raw.copy()
-    #     return binary_raw, comp_binary, wire_binary, final_t
-
-    # # 取出BGR彩色像素做聚类
-    # roi_pixels = img[roi_y, roi_x, :].astype(np.float32)
-    # kmeans = KMeans(n_clusters=2, n_init="auto", random_state=42)
-    # labels = kmeans.fit_predict(roi_pixels)
-
-    # # 统计两类数量
-    # cnt0 = np.sum(labels == 0)
-    # cnt1 = np.sum(labels == 1)
-    # # 保留像素多的一类作为器件主体，少的一类（走线）置0
-    # keep_label = 0 if cnt0 > cnt1 else 1
-
-    # # 回填 comp_binary
-    # keep_idx = labels == keep_label
-    # comp_binary[roi_y[keep_idx], roi_x[keep_idx]] = 1
-
-    # # wire_binary = binary_raw 减去 comp_binary
-    # wire_binary = np.where((binary_raw == 1) & (comp_binary == 0), 1, 0).astype(np.uint8)
-    comp_binary, wire_binary = np.array([]), np.array([])
-    return binary_raw, comp_binary, wire_binary, final_t
+    return binary_raw, final_t
 
 
 def _get_cross_mask(
     img_shape: Tuple[int, int],
-    texts: List[Any],
-    comps: List[Any],
-    use_cross: bool,    # True：十字消除；False：整个缩框全消除
-    scale=0.9,
-    cross_width=2
+    bboxs: List[Any],
+    is_cross: bool,
+    cross_width=2,
+    border_px=5  # is_cross=False：外围保留border_px边框；is_cross=True：在向内缩border_px后的区域内画米字
 ) -> np.ndarray:
     """
     mask规则：
     1. 原图mask默认 255
-    2. 每个text bbox：先等比例缩放到 scale
-       - use_cross=True：缩框内部不整体置0，只在缩后bbox中心画十字，十字区域置0
-       - use_cross=False：缩框内部全部置0（全消除）
-    3. comps暂时先传入预留，如果你后续要对器件框做同样逻辑可以扩展；当前版本仅text生效
+    2. 每个bbox使用原始[x1,y1,x2,y2]
+       - is_cross=False：外框保留 border_px 一圈边框，内部全部挖空置0
+       - is_cross=True：先向内收缩 border_px 得到内框，**只在这个内框里面画米字**，原bbox其余区域保持255
     """
     h, w = img_shape[:2]
     mask = np.full((h, w), 255, dtype=np.uint8)
     half_cross = cross_width // 2
 
-    for ele in texts + comps:
+    for ele in bboxs:
         x1, y1, x2, y2 = map(int, ele.bbox)
-        cx = (x1 + x2) / 2.0
-        cy = (y1 + y2) / 2.0
-        bw = x2 - x1
-        bh = y2 - y1
+        # 边界裁剪
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 - x1 <= 0 or y2 - y1 <= 0:
+            continue
 
-        new_bw = bw * scale
-        new_bh = bh * scale
-        sx1 = cx - new_bw / 2
-        sy1 = cy - new_bh / 2
-        sx2 = cx + new_bw / 2
-        sy2 = cy + new_bh / 2
+        # 向内收缩 border_px 得到内框（米字的有效范围）
+        inner_x1 = x1 + border_px
+        inner_y1 = y1 + border_px
+        inner_x2 = x2 - border_px
+        inner_y2 = y2 - border_px
+        if inner_x2 <= inner_x1 or inner_y2 <= inner_y1:
+            continue
 
-        sx1, sy1 = max(0, int(sx1)), max(0, int(sy1))
-        sx2, sy2 = min(w, int(sx2)), min(h, int(sy2))
+        cx = (inner_x1 + inner_x2) / 2.0
+        cy = (inner_y1 + inner_y2) / 2.0
+        cx_int = int(round(cx))
+        cy_int = int(round(cy))
 
-        if not use_cross:
-            # 全消除模式：缩框整块置0
-            mask[sy1:sy2, sx1:sx2] = 0
+        if not is_cross:
+            # 保留外围border_px边框，内部挖空
+            mask[inner_y1:inner_y2, inner_x1:inner_x2] = 0
         else:
-            # 十字消除模式：只画十字，框本体保留255
-            cx_int = int(round(cx))
-            # 水平十字线：横向穿过中心，y范围为原始text bbox y1~y2
-            x_c1 = max(0, cx_int - half_cross)
-            x_c2 = min(w, cx_int + half_cross + 1)
-            mask[y1:y2, x_c1:x_c2] = 0
-
-            cy_int = int(round(cy))
-            # 垂直十字线：纵向穿过中心，x范围为原始text bbox x1~x2
-            y_c1 = max(0, cy_int - half_cross)
-            y_c2 = min(h, cy_int + half_cross + 1)
-            mask[y_c1:y_c2, x1:x2] = 0
+            # 米字只画在收缩后的内框 [inner_x1, inner_y1, inner_x2, inner_y2] 内部
+            # 水平中线
+            xc1 = max(0, cx_int - half_cross)
+            xc2 = min(w, cx_int + half_cross + 1)
+            mask[inner_y1:inner_y2, xc1:xc2] = 0
+            # 垂直中线
+            yc1 = max(0, cy_int - half_cross)
+            yc2 = min(h, cy_int + half_cross + 1)
+            mask[yc1:yc2, inner_x1:inner_x2] = 0
+            # 两条对角线（内框四角）
+            cv2.line(mask, (inner_x1, inner_y1), (inner_x2, inner_y2), 0, thickness=cross_width)
+            cv2.line(mask, (inner_x2, inner_y1), (inner_x1, inner_y2), 0, thickness=cross_width)
     return mask
-
-
-
-def visualize_pcb_debug(gray: np.ndarray, wire_binary: np.ndarray, skel: np.ndarray, intersect: np.ndarray, case_name: str, out_root="debug"):
-    os.makedirs(out_root, exist_ok=True)
-    bin255 = (wire_binary * 255).astype(np.uint8)
-    skel255 = (skel * 255).astype(np.uint8)
-    inter255 = (intersect * 255).astype(np.uint8)
-    canvas = np.hstack([gray, bin255, skel255, inter255])
-    out_path = os.path.join(out_root, f"{case_name}_debug.png")
-    cv2.imwrite(out_path, canvas)
-    return out_path
 
 
 def _split_continuous_segments(vals: List[int]) -> List[List[int]]:
@@ -220,7 +160,7 @@ def _process_horizontal_edge(
     total_steps: int,
     dx: int,
     side: str,
-    boundary_ratio_thresh: float = 0.9,
+    guess_boundry_len: float,
 ) -> List[Tuple[int, int, str]]:
     h, w = wire_binary.shape
     survived_ys = None
@@ -237,8 +177,7 @@ def _process_horizontal_edge(
         if y_start >= y_end:
             continue
         col = wire_binary[y_start: y_end + 1, curr_x]
-        ratio = np.sum(col > 0) / len(col)
-        if ratio > boundary_ratio_thresh:
+        if np.sum(col > 0) > guess_boundry_len:
             survived_ys = None
             run_cnt = 0
             continue
@@ -271,7 +210,7 @@ def _process_vertical_edge(
     total_steps: int,
     dy: int,
     side: str,
-    boundary_ratio_thresh: float = 0.9,
+    guess_boundry_len: float,
 ) -> List[Tuple[int, int, str]]:
     h, w = wire_binary.shape
     survived_xs = None
@@ -288,8 +227,7 @@ def _process_vertical_edge(
         if x_start >= x_end:
             continue
         row = wire_binary[curr_y, x_start: x_end + 1]
-        ratio = np.sum(row > 0) / len(row)
-        if ratio > boundary_ratio_thresh:
+        if np.sum(row > 0) > guess_boundry_len:
             survived_xs = None
             run_cnt = 0
             continue
@@ -313,111 +251,472 @@ def _process_vertical_edge(
     return candidate_points
 
 
+def _find_border_x_y(
+    border1,
+    border2,
+    move,
+    try_boundry,
+    edge_pad_px,
+    wire_binary,
+    boundary_ratio_thresh,
+    is_vertical: bool,   # True:固定x扫y区间(竖列)；False:固定y扫x区间(横行)
+    search_dir: int      # 向外扩张方向 +1 / -1
+):
+    use_move = None
+    h, w = wire_binary.shape[:2]
+
+    # 原有边缘padding逻辑保留
+    if border1 + 2 * edge_pad_px < border2:
+        border1 = border1 + edge_pad_px
+        border2 = border2 - edge_pad_px
+
+    if border1 >= border2 or not try_boundry:
+        return border1, border2, move
+
+    # ========== 阶段1：就近探测，按顺序 0, +1, -1, +2, -2, +3, -3, +4, -4, +5, -5 找第一个合格边界点 ==========
+    probe_offsets = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]
+    start_bound = None
+    for off in probe_offsets:
+        pos = move + off
+        # 越界检查
+        if is_vertical:
+            if not (0 <= pos < w):
+                continue
+            roi = wire_binary[border1:border2+1, pos]
+        else:
+            if not (0 <= pos < h):
+                continue
+            roi = wire_binary[pos, border1:border2+1]
+
+        ratio = np.sum(roi > 0) / roi.size
+        if ratio > boundary_ratio_thresh:
+            start_bound = pos
+            break
+    # 就近探测没找到合格点，直接返回原值
+    if start_bound is None:
+        return border1, border2, move
+
+    # ========== 阶段2：从找到的start_bound，沿着search_dir单向外扩，直到不满足阈值，取上一个合格位置 ==========
+    current_pos = start_bound
+    last_good = start_bound
+    max_extend = 10  # 最大外扩步数，防止死循环，按需调
+
+    for _ in range(max_extend):
+        next_pos = current_pos + search_dir
+        # 越界保护
+        if is_vertical:
+            if not (0 <= next_pos < w):
+                break
+            roi = wire_binary[border1:border2+1, next_pos]
+        else:
+            if not (0 <= next_pos < h):
+                break
+            roi = wire_binary[next_pos, border1:border2+1]
+        last_good = next_pos
+        current_pos = next_pos
+        ratio = np.sum(roi > 0) / roi.size
+        if ratio < boundary_ratio_thresh:
+            break
+
+    use_move = last_good
+    if use_move is not None:
+        move = use_move
+    return border1, border2, move
+
+
 def _get_comp_start_points(
     wire_binary: np.ndarray,
     comps: List[Any],
     step_cfg: Dict[str, Tuple[int, int]],
     boundary_ratio_thresh: float = 0.9,
+    edge_pad_px: int = 5,
+    max_edge_pad_ratio: float = 0.1
 ) -> Dict[int, List[Tuple[int, int, str]]]:
     start_points = {}
+
     for comp_idx, comp in enumerate(comps):
         start_step, total_steps = step_cfg.get(comp.label, step_cfg['default'])
         x1, y1, x2, y2 = map(int, comp.bbox)
         pts = []
-        pts.extend(_process_horizontal_edge(wire_binary, x2, y1, y2, start_step, total_steps, dx=1, side="right", boundary_ratio_thresh=boundary_ratio_thresh))
-        pts.extend(_process_horizontal_edge(wire_binary, x1, y1, y2, start_step, total_steps, dx=-1, side="left", boundary_ratio_thresh=boundary_ratio_thresh))
-        pts.extend(_process_vertical_edge(wire_binary, y2, x1, x2, start_step, total_steps, dy=1, side="bottom", boundary_ratio_thresh=boundary_ratio_thresh))
-        pts.extend(_process_vertical_edge(wire_binary, y1, x1, x2, start_step, total_steps, dy=-1, side="top", boundary_ratio_thresh=boundary_ratio_thresh))
+        try_boundry = (comp.label in CSP_TRY_BOUNDRY)
+
+        hor_bound_len = (y2 - y1) * boundary_ratio_thresh
+        fix_edge_pad_px = min(int((y2 - y1) * max_edge_pad_ratio), edge_pad_px)
+        re_y1, re_y2, use_x = _find_border_x_y(
+            border1=y1, border2=y2, move=x2,
+            try_boundry=try_boundry, edge_pad_px=fix_edge_pad_px,
+            wire_binary=wire_binary, boundary_ratio_thresh=boundary_ratio_thresh,
+            is_vertical=True, search_dir=+1
+        )
+        pts.extend(_process_horizontal_edge(
+            wire_binary, use_x, re_y1, re_y2,
+            start_step, total_steps, dx=1, side="right",
+            guess_boundry_len=hor_bound_len
+        ))
+
+        le_y1, le_y2, use_x = _find_border_x_y(
+            border1=y1, border2=y2, move=x1,
+            try_boundry=try_boundry, edge_pad_px=fix_edge_pad_px,
+            wire_binary=wire_binary, boundary_ratio_thresh=boundary_ratio_thresh,
+            is_vertical=True, search_dir=-1
+        )
+        pts.extend(_process_horizontal_edge(
+            wire_binary, use_x, le_y1, le_y2,
+            start_step, total_steps, dx=-1, side="left",
+            guess_boundry_len=hor_bound_len
+        ))
+
+        ver_boundry_len = (x2 - x1) * boundary_ratio_thresh
+        fix_edge_pad_px = min(int((x2 - x1) * max_edge_pad_ratio), edge_pad_px)
+        be_x1, be_x2, use_y = _find_border_x_y(
+            border1=x1, border2=x2, move=y2,
+            try_boundry=try_boundry, edge_pad_px=fix_edge_pad_px,
+            wire_binary=wire_binary, boundary_ratio_thresh=boundary_ratio_thresh,
+            is_vertical=False, search_dir=1
+        )
+        pts.extend(_process_vertical_edge(
+            wire_binary, use_y, be_x1, be_x2,
+            start_step, total_steps, dy=1, side="bottom",
+            guess_boundry_len=ver_boundry_len
+        ))
+
+        te_x1, te_x2, use_y = _find_border_x_y(
+            border1=x1, border2=x2, move=y1,
+            try_boundry=try_boundry, edge_pad_px=fix_edge_pad_px,
+            wire_binary=wire_binary, boundary_ratio_thresh=boundary_ratio_thresh,
+            is_vertical=False, search_dir=-1
+        )
+        pts.extend(_process_vertical_edge(
+            wire_binary, use_y, te_x1, te_x2,
+            start_step, total_steps, dy=-1, side="top",
+            guess_boundry_len=ver_boundry_len
+        ))
+
         start_points[comp_idx] = pts
     return start_points
 
 
-def extract_comp_pins_straight_hsv(
-    gray: np.ndarray,
-    bgr_img: np.ndarray,
-    comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
+def refine_comp_and_start_ps(
     wire_binary: np.ndarray,
-    diff_thresh: int = 20,
-    max_step: int = 2000
-) -> Dict[int, List[Dict[str, Any]]]:
-    """仅沿初始方向直线追踪，不拐弯，HSV色相环形差值判定
-    修复：双向起点相遇时两边都停在meet中点，不会一侧变成dead_end；meet pin补齐side字段
+    comps: List[Any],
+    comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
+    boundary_thres: float = 0.9,
+    max_comp_back_ratio: float = 0.5
+) -> Tuple[List[Any], Dict[int, List[Tuple[int, int, str]]]]:
     """
-    h, w = gray.shape
-    hsv = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2HSV)
-    H = hsv[..., 0]
-    side2dir = {"right": (1, 0), "left": (-1, 0), "bottom": (0, 1), "top": (0, -1)}
+    1. 对指定label器件：每个start_point沿着side方向回退扫描，直到 ratio > boundary_thres；
+       找到则更新comp.bbox + 该start_ps坐标；一直走到对边都没找到则保持原样
+    2. 校验PIN数量：
+       - capacitor / resistor：固定2个pin，必须在不同边框；同坐标轴相近；缺则以现有点镜像到对边补点
+       - ground：固定1个pin；必须落在该边中心30%区间内，不在则剔除/修正
+       - pin / net_short：如果点位数量等于3，直接剔除该器件以及对应的点位
+    """
+    new_comps = []
+    # 拷贝原始点位字典
+    new_start_pts = {k: [p for p in v] for k, v in comp_start_pts.items()}
+    side_back_dir = {
+        "left": (1, 0),
+        "right": (-1, 0),
+        "top": (0, 1),
+        "bottom": (0, -1)
+    }
+    side_opposite = {
+        "left": ("right", "y"),
+        "right": ("left", "y"),
+        "top": ("bottom", "x"),
+        "bottom": ("top", "x"),
+    }
 
-    # map: (起点x,y) -> (器件cid, side)
-    start_point_map: Dict[Tuple[int, int], Tuple[int, str]] = {}
-    for cid, pts in comp_start_pts.items():
-        for x, y, side in pts:
-            start_point_map[(x, y)] = (cid, side)
+    for comp_idx, comp in enumerate(comps):
+        label = comp.label
+        pts = new_start_pts.get(comp_idx, [])
 
-    comp_pins: Dict[int, List[Dict[str, Any]]] = {cid: [] for cid in comp_start_pts.keys()}
-    # 记录【已经配对完成的起点对】，防止其中一方继续追踪跑到dead_end
-    handled_pairs = set()
-    win_radius = 1
+        if label in ("pin", "net_short") and len(pts) == 3:
+            if comp_idx in new_start_pts:
+                del new_start_pts[comp_idx]
+            # 不加入 new_comps，并且后面所有逻辑跳过
+            continue
 
-    for comp_idx, start_pts in comp_start_pts.items():
-        for (sx, sy, side) in start_pts:
-            dx, dy = side2dir[side]
-            cx, cy = sx, sy
-            path: List[Tuple[int, int]] = []
-            step = 0
+        target_pin_cnt = PIN_NUMBER.get(label, None)
+        if not target_pin_cnt or not pts:
+            new_comps.append(comp)
+            continue
 
-            while 0 <= cx < w and 0 <= cy < h and step < max_step:
-                if wire_binary[cy, cx] <= 0:
-                    break
-                path.append((cx, cy))
-                step += 1
+        x1, y1, x2, y2 = map(int, comp.bbox)
+        h_box = y2 - y1
+        w_box = x2 - x1
 
-                # HSV色相跳变检测（gradient pin，原有逻辑不变）
-                if len(path) >= 7:
-                    x_pre, y_pre = path[-5]
-                    x1p, x2p = max(0, x_pre - win_radius), min(w - 1, x_pre + win_radius)
-                    y1p, y2p = max(0, y_pre - win_radius), min(h - 1, y_pre + win_radius)
-                    h_pre_avg = H[y1p:y2p+1, x1p:x2p+1].mean()
+        if len(pts) != target_pin_cnt:
+            if label in ("capacitor", "resistor"):
+                final_pts = pts[:]
+                # 大于2个，边的对边映射 + 固定比较轴
+                if len(final_pts) > 2:
+                    keep = []
+                    for idx, p in enumerate(final_pts):
+                        px, py, s = p
+                        opp_side, axis = side_opposite[s]
+                        has_mate = False
+                        for jdx, q in enumerate(final_pts):
+                            if idx == jdx:
+                                continue
+                            qx, qy, qs = q
+                            if qs != opp_side:
+                                continue
+                            if axis == "y":
+                                diff = abs(py - qy)
+                            else:
+                                diff = abs(px - qx)
+                            if diff < 3:
+                                has_mate = True
+                                break
+                        if has_mate:
+                            keep.append(p)
+                    if len(keep) > 0:
+                        final_pts = keep
 
-                    x_post, y_post = path[-3]
-                    x1po, x2po = max(0, x_post - win_radius), min(w - 1, x_post + win_radius)
-                    y1po, y2po = max(0, y_post - win_radius), min(h - 1, y_post + win_radius)
-                    h_post_avg = H[y1po:y2po+1, x1po:x2po+1].mean()
+                # 不足2个：镜像补点到对边
+                elif len(final_pts) == 1:
+                    x0, y0, s0 = final_pts[0]
+                    if s0 == "left":
+                        new_p = (x2, y0, "right")
+                    elif s0 == "right":
+                        new_p = (x1, y0, "left")
+                    elif s0 == "top":
+                        new_p = (x0, y2, "bottom")
+                    elif s0 == "bottom":
+                        new_p = (x0, y1, "top")
+                    else:
+                        new_p = None
+                    if new_p is not None:
+                        final_pts.append(new_p)
 
-                    delta = abs(h_pre_avg - h_post_avg)
-                    delta = min(delta, 180 - delta)
-                    if delta > diff_thresh:
-                        comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "gradient", "side": side,
-                                                    "start_x": sx, "start_y": sy})
+                new_start_pts[comp_idx] = final_pts
+
+            elif label == "ground":
+                # 规则：仅1个pin；落在该边中心30%区间
+                final_pts = []
+                for (px, py, side) in pts:
+                    ok = False
+                    if side in ("left", "right"):
+                        h_seg = y2 - y1
+                        mid_y = (y1 + y2) / 2
+                        low = mid_y - 0.15 * h_seg
+                        high = mid_y + 0.15 * h_seg
+                        if low <= py <= high:
+                            ok = True
+                    else:
+                        w_seg = x2 - x1
+                        mid_x = (x1 + x2) / 2
+                        low = mid_x - 0.15 * w_seg
+                        high = mid_x + 0.15 * w_seg
+                        if low <= px <= high:
+                            ok = True
+                    if ok:
+                        final_pts.append((px, py, side))
+                new_start_pts[comp_idx] = final_pts
+
+        new_comps.append(comp)
+
+        if label in CSP_BACK_SEARCH_COMP:
+            updated_pts = []
+
+            for (px, py, side) in pts:
+                dx_back, dy_back = side_back_dir[side]
+                cx, cy = px, py
+                hit = False
+                while True:
+                    if side == "left" and cx >= x1 + max_comp_back_ratio * w_box:
+                        break
+                    if side == "right" and cx <= x2 - max_comp_back_ratio * w_box:
+                        break
+                    if side == "top" and cy >= y1 + max_comp_back_ratio * h_box:
+                        break
+                    if side == "bottom" and cy <= y2 - max_comp_back_ratio * h_box:
                         break
 
-                # ========== 相遇逻辑修复 ==========
-                if (cx, cy) in start_point_map:
-                    other_cid, other_side = start_point_map[(cx, cy)]
-                    if other_cid != comp_idx:
-                        # 构造起点标识对，无序key，A-B 和 B-A视为同一对
-                        key = frozenset({(sx, sy, comp_idx, side), (cx, cy, other_cid, other_side)})
-                        if key not in handled_pairs:
-                            handled_pairs.add(key)
-                            mid_idx = len(path) // 2
-                            mx, my = path[mid_idx]
-                            # 两个pin都带上各自的side！refine需要side
-                            comp_pins[comp_idx].append({"x": mx, "y": my, "type": "meet", "side": side,
-                                                        "start_x": sx, "start_y": sy})
-                            comp_pins[other_cid].append({"x": mx, "y": my, "type": "meet", "side": other_side,
-                                                         "start_x": cx, "start_y": cy})
-                        break
+                    if side in ("left", "right"):
+                        col = wire_binary[y1:y2+1, cx]
+                        ratio = np.sum(col > 0) / len(col)
+                        if ratio > boundary_thres:
+                            hit = True
+                            break
+                        cx += dx_back
+                    else:
+                        row = wire_binary[cy, x1:x2+1]
+                        ratio = np.sum(row > 0) / len(row)
+                        if ratio > boundary_thres:
+                            hit = True
+                            break
+                        cy += dy_back
+                if hit:
+                    new_pt = (cx, cy, side)
+                    updated_pts.append(new_pt)
+                    if side == "left":
+                        comp.bbox = (cx, y1, x2, y2)
+                        x1 = cx
+                    elif side == "right":
+                        comp.bbox = (x1, y1, cx, y2)
+                        x2 = cx
+                    elif side == "top":
+                        comp.bbox = (x1, cy, x2, y2)
+                        y1 = cy
+                    elif side == "bottom":
+                        comp.bbox = (x1, y1, x2, cy)
+                        y2 = cy
+                else:
+                    updated_pts.append((px, py, side))
+            new_start_pts[comp_idx] = updated_pts
+            pts = updated_pts
 
-                # 向前走一步
-                nx = cx + dx
-                ny = cy + dy
-                if not (0 <= nx < w and 0 <= ny < h and wire_binary[ny, nx] > 0):
-                    comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "dead_end", "side": side,
-                                                "start_x": sx, "start_y": sy})
-                    break
-                cx, cy = nx, ny
-            # end while
-    return comp_pins
+    return new_comps, new_start_pts
+
+
+# def extract_comp_pins_straight_hsv(
+#     bgr_img: np.ndarray,
+#     comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
+#     wire_binary: np.ndarray,
+#     diff_thresh: int = 20,
+#     max_step: int = 2000
+# ) -> Tuple[Dict[int, List[Dict[str, Any]]], np.ndarray]:
+#     """仅沿初始方向直线追踪，不拐弯，HSV色相环形差值判定
+#     修改：以 path[-3] 为中心，前后各2px（path[-5] / path[-1]）；
+#     增加前置条件：path[-5]、path[-4] 的 wire_binary 必须为1
+#     优先级：meet相遇 > gradient色相跳变 > dead_end断线
+#     """
+#     h, w = bgr_img.shape[:2]
+#     lab = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2LAB)
+#     L = lab[...,0]
+#     A = lab[...,1]
+#     B = lab[...,2]
+#     side2dir = {"right": (1, 0), "left": (-1, 0), "bottom": (0, 1), "top": (0, -1)}
+
+#     # map: (起点x,y) -> (器件cid, side)
+#     start_point_map: Dict[Tuple[int, int], Tuple[int, str]] = {}
+#     for cid, pts in comp_start_pts.items():
+#         for x, y, side in pts:
+#             start_point_map[(x, y)] = (cid, side)
+
+#     comp_pins: Dict[int, List[Dict[str, Any]]] = {cid: [] for cid in comp_start_pts.keys()}
+#     handled_pairs = set()
+#     delta_map = np.full((h, w), np.nan, dtype=np.float32)
+
+#     for comp_idx, start_pts in comp_start_pts.items():
+#         for (sx, sy, side) in start_pts:
+#             dx, dy = side2dir[side]
+#             cx, cy = sx, sy
+#             path: List[Tuple[int, int]] = []
+#             step = 0
+
+#             while 0 <= cx < w and 0 <= cy < h and step < max_step:
+#                 if wire_binary[cy, cx] <= 0:
+#                     break
+#                 path.append((cx, cy))
+#                 step += 1
+
+#                 # ========== 【优先级1：相遇meet检测，放到最前面】 ==========
+#                 if (cx, cy) in start_point_map:
+#                     other_cid, other_side = start_point_map[(cx, cy)]
+#                     if other_cid != comp_idx:
+#                         # 无序配对key，防止双向重复处理
+#                         key = frozenset({(sx, sy, comp_idx, side), (cx, cy, other_cid, other_side)})
+#                         if key not in handled_pairs:
+#                             handled_pairs.add(key)
+#                             mid_idx = len(path) // 2
+#                             mx, my = path[mid_idx]
+#                             comp_pins[comp_idx].append({"x": mx, "y": my, "type": "meet", "side": side})
+#                             comp_pins[other_cid].append({"x": mx, "y": my, "type": "meet", "side": other_side})
+#                         break
+
+#                 # ========== 【优先级2：gradient色相跳变检测】 ==========
+#                 # 中心：path[-3]，前2=path[-5]，后2=path[-1]，至少需要5个点
+#                 if len(path) >= 5:
+#                     # 取5个位置
+#                     x5, y5 = path[-5]
+#                     x4, y4 = path[-4]
+#                     x3, y3 = path[-3]   # 中心点（输出坐标）
+#                     x2, y2 = path[-2]
+#                     x1, y1 = path[-1]
+
+#                     # 前置校验：左右两组都必须在铜线上
+#                     if (wire_binary[y5, x5] > 0 and wire_binary[y4, x4] > 0 and
+#                         wire_binary[y2, x2] > 0 and wire_binary[y1, x1] > 0):
+
+#                         # ========== 沿走线方向 1×2 线型窗口采样：(x,y) 和向前一步(x+dx,y+dy) ==========
+#                         def get_lab_line_win(x, y, dx_, dy_):
+#                             pts = []
+#                             for off in [(0,0), (dx_, dy_)]:
+#                                 nx_p = x + off[0]
+#                                 ny_p = y + off[1]
+#                                 nx_p = np.clip(nx_p, 0, w-1)
+#                                 ny_p = np.clip(ny_p, 0, h-1)
+#                                 pts.append((nx_p, ny_p))
+#                             Ls = [L[yy, xx] for xx, yy in pts]
+#                             As = [A[yy, xx] for xx, yy in pts]
+#                             Bs = [B[yy, xx] for xx, yy in pts]
+#                             return np.median(Ls), np.median(As), np.median(Bs)
+
+#                         L5, A5, B5 = get_lab_line_win(x5, y5, dx, dy)
+#                         L4, A4, B4 = get_lab_line_win(x4, y4, dx, dy)
+#                         # 左组整体中值
+#                         L_left = np.median([L5, L4])
+#                         A_left = np.median([A5, A4])
+#                         B_left = np.median([B5, B4])
+
+#                         # ========== 右组：path[-2], path[-1] ==========
+#                         L2, A2, B2 = get_lab_line_win(x2, y2, dx, dy)
+#                         L1, A1, B1 = get_lab_line_win(x1, y1, dx, dy)
+#                         L_right = np.median([L2, L1])
+#                         A_right = np.median([A2, A1])
+#                         B_right = np.median([B2, B1])
+
+#                         # ΔE76
+#                         dL = L_left - L_right
+#                         dA = A_left - A_right
+#                         dB = B_left - B_right
+#                         delta = np.sqrt(dL*dL + dA*dA + dB*dB)
+#                         # print(f"center ({x3},{y3}), delta={delta:.2f}")
+#                         delta_map[y3, x3] = delta
+
+#                         if delta > diff_thresh:
+#                             # 中心点 path[-3] 作为梯度点
+#                             comp_pins[comp_idx].append({"x": x3, "y": y3, "type": "gradient", "side": side})
+#                             break
+
+
+#                 # ========== 【优先级3：判断下一步是否断线 dead_end】 ==========
+#                 nx = cx + dx
+#                 ny = cy + dy
+#                 if not (0 <= nx < w and 0 <= ny < h and wire_binary[ny, nx] > 0):
+#                     comp_pins[comp_idx].append({"x": cx, "y": cy, "type": "dead_end", "side": side})
+#                     break
+#                 cx, cy = nx, ny
+#             # end while
+#     return comp_pins, delta_map
+
+
+def plot_delta_heatmap(bgr_img: np.ndarray, delta_map: np.ndarray, diff_thresh: float, save_path=None):
+    """
+    叠加原图 + delta热力图
+    :param bgr_img: 原始BGR图
+    :param delta_map: extract 返回的delta_map，nan=无值
+    :param diff_thresh: 阈值，在色标上标注
+    :param save_path: 保存图片路径，None则直接show
+    """
+    rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
+    delta_abs = np.abs(delta_map)  # 取绝对值
+
+    plt.figure(figsize=(12, 9))
+    plt.imshow(rgb, alpha=0.25)  # 背景透明度调低（原图更淡）
+    im = plt.imshow(delta_abs, cmap="jet", vmin=0, vmax=diff_thresh * 0.6, alpha=1)
+    cbar = plt.colorbar(im)
+    cbar.set_label("|ΔE76|", fontsize=11)
+    cbar.ax.axhline(y=diff_thresh, color="white", linestyle="--", label=f"thresh={diff_thresh}")
+    cbar.ax.legend()
+    plt.title("Delta Heatmap |Gradient Center Points|", fontsize=12)
+    plt.axis("off")
+    plt.tight_layout()
+    if save_path is not None:
+        plt.savefig(save_path, dpi=200, bbox_inches="tight")
 
 
 def _cluster_1d(values: List[int], eps: int = 10) -> List[List[int]]:
@@ -447,9 +746,9 @@ def refine_and_cluster_pins(
     comp_pins: Dict[int, List[Dict[str, Any]]],
     comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
     wire_binary: np.ndarray,
-    scan_range: int = 30,
+    scan_range: int = 15,
     max_back_step: int = 120,
-    thres: float = 0.9
+    thres: float = 0.93
 ) -> Dict[int, List[Dict[str, Any]]]:
     """
     独立模块：
@@ -593,6 +892,303 @@ def refine_and_cluster_pins(
     return comp_pins
 
 
+def trace_and_collect_path(
+    sx: int,
+    sy: int,
+    dx: int,
+    dy: int,
+    wire_binary: np.ndarray,
+    L: np.ndarray,
+    A: np.ndarray,
+    B: np.ndarray,
+    w: int,
+    h: int,
+    max_step: int,
+    scan_range: int,
+    branch_sum_thres: float,
+    delta_map: np.ndarray,
+    all_start_points: List[Tuple[int, int, int, str]],
+    comp_idx: int,
+    near_start_thresh: int
+) -> Tuple[List[Tuple[int, int]], List[float], List[int], str, Optional[Tuple[int, int, int, str]]]:
+    """
+    单条直线追踪
+    返回：path, path_deltas, branch_cnt_list, stop_reason, hit_other_start
+    stop_reason: 'wire_zero' / 'near_other_start' / 'max_step'
+    hit_other_start: 只有 stop_reason=near_other_start 时不为None，是路径上碰到的那个start_pt
+    """
+    path: List[Tuple[int, int]] = []
+    path_deltas: List[float] = []
+    branch_cnt_list: List[int] = []
+    cx, cy = sx, sy
+    step = 0
+    stop_reason = "max_step"
+    hit_other_start: Optional[Tuple[int, int, int, str]] = None
+
+    def get_lab_line_win(x, y, dx_, dy_):
+        pts = []
+        for off in [(0, 0), (dx_, dy_)]:
+            nx_p = x + off[0]
+            ny_p = y + off[1]
+            nx_p = np.clip(nx_p, 0, w - 1)
+            ny_p = np.clip(ny_p, 0, h - 1)
+            pts.append((nx_p, ny_p))
+        Ls = [L[yy, xx] for xx, yy in pts]
+        As = [A[yy, xx] for xx, yy in pts]
+        Bs = [B[yy, xx] for xx, yy in pts]
+        return np.median(Ls), np.median(As), np.median(Bs)
+
+    def scan_perpendicular_continuous(x0, y0, dx_, dy_):
+        if dx_ != 0:
+            up_len = 0
+            yy = y0 - 1
+            while yy >= 0 and abs(yy - y0) <= scan_range and wire_binary[yy, x0] == 1:
+                up_len += 1
+                yy -= 1
+            down_len = 0
+            yy = y0 + 1
+            while yy < h and abs(yy - y0) <= scan_range and wire_binary[yy, x0] == 1:
+                down_len += 1
+                yy += 1
+            is_intersect = (up_len > scan_range * branch_sum_thres) or (down_len > scan_range * branch_sum_thres)
+        else:
+            left_len = 0
+            xx = x0 - 1
+            while xx >= 0 and abs(xx - x0) <= scan_range and wire_binary[y0, xx] == 1:
+                left_len += 1
+                xx -= 1
+            right_len = 0
+            xx = x0 + 1
+            while xx < w and abs(xx - x0) <= scan_range and wire_binary[y0, xx] == 1:
+                right_len += 1
+                xx += 1
+            is_intersect = (left_len > scan_range * branch_sum_thres) or (right_len > scan_range * branch_sum_thres)
+        bc = 1 if is_intersect else 0
+        return bc
+
+    while 0 <= cx < w and 0 <= cy < h and step < max_step:
+        if wire_binary[cy, cx] <= 0:
+            stop_reason = "wire_zero"
+            break
+
+        # 检测当前路径点是否靠近别的start point
+        hit: Optional[Tuple[int, int, int, str]] = None
+        for (ox, oy, ocid, oside) in all_start_points:
+            if ocid == comp_idx and (ox, oy) == (sx, sy):
+                continue
+            dist = np.hypot(cx - ox, cy - oy)
+            if dist < near_start_thresh:
+                hit = (ox, oy, ocid, oside)
+                break
+        if hit is not None:
+            stop_reason = "near_other_start"
+            hit_other_start = hit
+            break
+
+        path.append((cx, cy))
+        current_delta = np.nan
+
+        if len(path) >= 5:
+            x5, y5 = path[-5]
+            x4, y4 = path[-4]
+            x3, y3 = path[-3]
+            x2, y2 = path[-2]
+            x1, y1 = path[-1]
+            if (wire_binary[y5, x5] > 0 and wire_binary[y4, x4] > 0 and
+                wire_binary[y2, x2] > 0 and wire_binary[y1, x1] > 0):
+                L5, A5, B5 = get_lab_line_win(x5, y5, dx, dy)
+                L4, A4, B4 = get_lab_line_win(x4, y4, dx, dy)
+                L_left = np.median([L5, L4])
+                A_left = np.median([A5, A4])
+                B_left = np.median([B5, B4])
+
+                L2, A2, B2 = get_lab_line_win(x2, y2, dx, dy)
+                L1, A1, B1 = get_lab_line_win(x1, y1, dx, dy)
+                L_right = np.median([L2, L1])
+                A_right = np.median([A2, A1])
+                B_right = np.median([B2, B1])
+
+                dL = L_left - L_right
+                dA = A_left - A_right
+                dB = B_left - B_right
+                delta = np.sqrt(dL*dL + dA*dA + dB*dB)
+                current_delta = delta
+                delta_map[y3, x3] = delta
+
+        path_deltas.append(current_delta)
+        bc = scan_perpendicular_continuous(cx, cy, dx, dy)
+        branch_cnt_list.append(bc)
+
+        nx = cx + dx
+        ny = cy + dy
+        if not (0 <= nx < w and 0 <= ny < h and wire_binary[ny, nx] > 0):
+            stop_reason = "wire_zero"
+            break
+        cx, cy = nx, ny
+        step += 1
+
+    return path, path_deltas, branch_cnt_list, stop_reason, hit_other_start
+
+
+def classify_pin_from_path(
+    path: List[Tuple[int, int]],
+    path_deltas: List[float],
+    branch_cnt_list: List[int],
+    stop_reason: str,
+    hit_other_start: Optional[Tuple[int, int, int, str]],
+    sx: int,
+    sy: int,
+    side: str,
+    comp_idx: int,
+    handled_pairs: set,
+    delta_dev_thresh: float,
+    grad_end_near_judge: int = 5,
+    max_non_bent_steps: int = 100
+) -> List[Dict[str, Any]]:
+    pins: List[Dict[str, Any]] = []
+    if len(path) == 0:
+        return pins
+
+    bc_arr = np.array(branch_cnt_list)
+    delta_arr = np.array(path_deltas)
+
+    valid_delta = delta_arr[~np.isnan(delta_arr)]
+    med_delta = np.median(valid_delta) if len(valid_delta) > 0 else 0.0
+
+    # 找第一个颜色跳变点
+    jump_idx = None
+    # print(delta_arr - med_delta)
+    # print(delta_arr)
+    # import pdb; pdb.set_trace()
+    for i, d in enumerate(delta_arr):
+        if np.isnan(d):
+            continue
+        if abs(d - med_delta) > delta_dev_thresh:
+            jump_idx = i
+            break
+
+    # -------- 优先颜色分界跳变流程 --------
+    if jump_idx is not None:
+        jx, jy = path[jump_idx]
+        end_x, end_y = path[-1]
+        dist_jump_to_end = np.hypot(jx - end_x, jy - end_y)
+
+        trigger_grad = False
+        if stop_reason == "near_other_start":
+            trigger_grad = True
+        elif stop_reason == "wire_zero" and dist_jump_to_end > grad_end_near_judge:
+            trigger_grad = True
+
+        if trigger_grad:
+            pins.append({"x": jx, "y": jy, "type": "gradient", "side": side})
+            return pins
+
+    # -------- 颜色跳变分支未触发，进入下面 --------
+    
+    if stop_reason == "near_other_start" and hit_other_start is not None:
+        # 配对：当前起点 <-> 追踪路径上命中的那个start
+        ox, oy, ocid, oside = hit_other_start
+        mx = (sx + ox) // 2
+        my = (sy + oy) // 2
+        if np.all(bc_arr == 0):
+            key = frozenset({(sx, sy, comp_idx, side), (ox, oy, ocid, oside)})
+            if key not in handled_pairs:
+                handled_pairs.add(key)
+                pins.append({"x": mx, "y": my, "type": "meet", "side": side})
+                pins.append({"x": mx, "y": my, "type": "meet", "side": oside})
+        else:
+            pins.append({"x": mx, "y": my, "type": "grad", "side": side})
+        return pins
+
+    if stop_reason == "wire_zero":
+        if len(bc_arr) < max_non_bent_steps:
+            if len(bc_arr) > grad_end_near_judge:
+                abc_arr = bc_arr[-grad_end_near_judge:]
+            else:
+                abc_arr = bc_arr
+            no_branch = np.all(abc_arr == 0)
+            ex, ey = path[-1]
+            if no_branch:
+                # wire_zero / max_step，无分叉 → dead_end
+                pins.append({"x": ex, "y": ey, "type": "dead_end", "side": side})
+            else:
+                pins.append({"x": ex, "y": ey, "type": "grad", "side": side})
+    
+        else:
+            # if len(delta_arr) > grad_end_near_judge:
+            #     delta_arr = delta_arr[:-grad_end_near_judge]
+            # # 存在分叉分支：取全局最大delta作为gradient
+            # valid_mask = ~np.isnan(delta_arr)
+            # valid_idx = np.nonzero(valid_mask)[0]
+            # if len(valid_idx) == 0:
+            #     gx, gy = path[-1]
+            # else:
+            #     sub_idx = np.argmax(delta_arr[valid_mask])
+            #     grad_idx = valid_idx[sub_idx]
+            #     gx, gy = path[grad_idx]
+            gx, gy = path[0]
+            pins.append({"x": gx, "y": gy, "type": "gradient", "side": side})
+
+    return pins
+
+
+def extract_comp_pins_straight_hsv(
+    bgr_img: np.ndarray,
+    comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
+    wire_binary: np.ndarray,
+    max_step: int = 2000,
+    scan_range: int = 15,
+    branch_sum_thres: float = 0.99,
+    delta_dev_thresh: float = 8.0,
+    near_start_thresh: int = 5,
+    grad_end_near_judge: int = 5
+) -> Tuple[Dict[int, List[Dict[str, Any]]], np.ndarray]:
+    h, w = bgr_img.shape[:2]
+    lab = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2LAB)
+    L = lab[..., 0]
+    A = lab[..., 1]
+    B = lab[..., 2]
+    side2dir = {"right": (1, 0), "left": (-1, 0), "bottom": (0, 1), "top": (0, -1)}
+
+    all_start_points: List[Tuple[int, int, int, str]] = []
+    for cid, pts in comp_start_pts.items():
+        for x, y, side in pts:
+            all_start_points.append((x, y, cid, side))
+
+    comp_pins: Dict[int, List[Dict[str, Any]]] = {cid: [] for cid in comp_start_pts.keys()}
+    handled_pairs = set()
+    delta_map = np.full((h, w), np.nan, dtype=np.float32)
+
+    for comp_idx, start_pts in comp_start_pts.items():
+        for (sx, sy, side) in start_pts:
+            dx, dy = side2dir[side]
+            path, path_deltas, bc_list, stop_reason, hit_other_start = trace_and_collect_path(
+                sx=sx, sy=sy, dx=dx, dy=dy, wire_binary=wire_binary,
+                L=L, A=A, B=B, w=w, h=h, max_step=max_step,
+                scan_range=scan_range, branch_sum_thres=branch_sum_thres,
+                delta_map=delta_map,
+                all_start_points=all_start_points,
+                comp_idx=comp_idx,
+                near_start_thresh=near_start_thresh
+            )
+            pin_list = classify_pin_from_path(
+                path=path,
+                path_deltas=path_deltas,
+                branch_cnt_list=bc_list,
+                stop_reason=stop_reason,
+                hit_other_start=hit_other_start,
+                sx=sx, sy=sy, side=side, comp_idx=comp_idx,
+                handled_pairs=handled_pairs,
+                delta_dev_thresh=delta_dev_thresh,
+                grad_end_near_judge=grad_end_near_judge,
+                max_non_bent_steps= h * 0.2
+            )
+            for p in pin_list:
+                if p["side"] == side:
+                    comp_pins[comp_idx].append(p)
+    return comp_pins, delta_map
+
+
 def prepare_pin_data(
     comp_pins: Dict[int, List[Dict[str, Any]]]
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[Tuple[int, int], List[Dict[str, Any]]], Dict[str, Dict[str, Any]]]:
@@ -684,33 +1280,28 @@ def build_obstacle_mask(
     return comp_mask, start_pt_set
 
 
-# ===================== 底层工具函数（独立出来） =====================
 def orth_fork_check(
     x: int, y: int, dx: int, dy: int,
     wire_binary: np.ndarray,
-    H: np.ndarray,
+    bgr_img: np.ndarray,
     scan_range: int,
     thres: float,
-    diff_thresh: int,
-    block_len: int = 3
+    diff_thresh: int
 ) -> tuple[bool, int]:
     h, w = wire_binary.shape
 
-    def h_delta(a, b):
-        d = abs(a - b)
-        return min(d, 180 - d)
-
-    def sample_block_h(cx, cy, step_dx, step_dy):
-        """沿 (step_dx, step_dy) 取 block_len 个连续像素，返回H均值；越界像素丢弃"""
-        vals = []
-        for s in range(block_len):
-            nx = cx + step_dx * s
-            ny = cy + step_dy * s
-            if 0 <= nx < w and 0 <= ny < h:
-                vals.append(H[ny, nx])
-        if not vals:
-            return None
-        return float(np.mean(vals))
+    def get_lab_pixel(x: int, y: int) -> tuple[float, float, float]:
+        """单点BGR转LAB，适合少量采样（fork检测这种少量点很合适）
+        bgr_img: BGR通道顺序 (H,W,3)
+        """
+        h, w = bgr_img.shape[:2]
+        if not (0 <= x < w and 0 <= y < h):
+            return np.nan, np.nan, np.nan
+        # 单点转LAB
+        bgr_pix = bgr_img[y, x, :].reshape(1, 1, 3).astype(np.float32) / 255.0
+        lab_pix = cv2.cvtColor(bgr_pix, cv2.COLOR_BGR2LAB)
+        L, A, B = lab_pix[0,0]
+        return float(L), float(A), float(B)
 
     # 前进、左、右 正交方向
     fd_dir = (dx, dy)
@@ -718,7 +1309,7 @@ def orth_fork_check(
     right_dir = (dy, -dx)
     dirs = [fd_dir, left_dir, right_dir]
     ok = []
-    end_pos = []  # 每个方向scan_range远端坐标
+    end_pos = []  # 每个方向 scan_range 远端坐标
 
     for (ddx, ddy) in dirs:
         sum_val = 0
@@ -732,30 +1323,41 @@ def orth_fork_check(
             else:
                 break
         ok.append(sum_val > scan_range * thres)
-        end_pos.append((ex, ey, ddx, ddy))
+        end_pos.append((ex, ey))
 
     thres_cnt = sum(ok)
     fd_ok, left_ok, right_ok = ok
-    fd_end, left_end, right_end = end_pos
-    
+    (fx, fy), (lx, ly), (rx, ry) = end_pos
+
     # ========= 规则分支 =========
     if fd_ok and left_ok and right_ok:
-        # 三者全部满足，进入颜色校验
-        h_curr = sample_block_h(x, y, 0, 0)
-        if h_curr is None:
-            return False, thres_cnt
-        # 三个方向远端各取1*3色块
-        h_fd = sample_block_h(fd_end[0], fd_end[1], fd_dir[0], fd_dir[1])
-        h_left = sample_block_h(left_end[0], left_end[1], left_dir[0], left_dir[1])
-        h_right = sample_block_h(right_end[0], right_end[1], right_dir[0], right_dir[1])
-        for hv in [h_fd, h_left, h_right]:
-            if hv is not None and h_delta(h_curr, hv) < diff_thresh:
-                return False, thres_cnt
-        return True, thres_cnt
-    else:
-        # 三者不同时满足：左右任意ok就True，都不ok False
-        return left_ok or right_ok, thres_cnt
+        # 直接取最远像素点的 LAB，不带 window
+        L_curr, A_curr, B_curr = get_lab_pixel(x, y)
+        L_fd,   A_fd,   B_fd   = get_lab_pixel(fx, fy)
+        L_left, A_left, B_left = get_lab_pixel(lx, ly)
+        L_right,A_right,B_right= get_lab_pixel(rx, ry)
 
+        def calc_delta(l1, a1, b1, l2, a2, b2):
+            dL = l1 - l2
+            dA = a1 - a2
+            dB = b1 - b2
+            return np.sqrt(dL * dL + dA * dA + dB * dB)
+
+        delta_fd   = calc_delta(L_curr, A_curr, B_curr, L_fd,   A_fd,   B_fd)
+        delta_left = calc_delta(L_curr, A_curr, B_curr, L_left, A_left, B_left)
+        delta_right= calc_delta(L_curr, A_curr, B_curr, L_right,A_right,B_right)
+
+        # 前、左、右任意一个方向与当前点颜色差异不足 → return False
+        if (delta_fd < diff_thresh
+                or delta_left < diff_thresh
+                or delta_right < diff_thresh):
+            return False, thres_cnt
+
+        return True, thres_cnt
+
+    else:
+        # 三者不同时满足：左右任意 ok 就 True，都不 ok False
+        return left_ok or right_ok, thres_cnt
 
 
 def cross_shape_check(
@@ -845,11 +1447,53 @@ def find_pin_near_fast(
     return None
 
 
-def has_start_near_fast(
+def has_start_near_with_dir(
     x: int, y: int,
-    start_near_mask: np.ndarray
+    dx: int, dy: int,
+    start_near_mask: np.ndarray,
+    start_pt_set: Set[Tuple[int, int]],
+    angle_thresh_deg: float = 90.0
 ) -> bool:
-    return bool(start_near_mask[y, x] > 0)
+    """
+    条件：
+    1. (x,y) 在 start_near_mask 邻域内
+    2. 当前前进方向(dx,dy) 朝向最近的start中心点
+    angle_thresh_deg：夹角阈值，<=90°代表方向是朝着目标点（相向）
+    """
+    if not (0 <= x < start_near_mask.shape[1] and 0 <= y < start_near_mask.shape[0]):
+        return False
+    if start_near_mask[y, x] <= 0:
+        return False
+
+    # 找到这个邻域内距离当前(x,y)最近的start中心点
+    min_dist = float("inf")
+    best_pt = None
+    for (sx, sy) in start_pt_set:
+        d = np.hypot(sx - x, sy - y)
+        if d < min_dist:
+            min_dist = d
+            best_pt = (sx, sy)
+    if best_pt is None:
+        return False
+
+    # 向量 v：从当前像素指向start中心
+    vx = best_pt[0] - x
+    vy = best_pt[1] - y
+    # 走线前进方向向量 u
+    ux = dx
+    uy = dy
+
+    # 点积求夹角
+    dot = vx * ux + vy * uy
+    mod_v = np.hypot(vx, vy)
+    mod_u = np.hypot(ux, uy)
+    if mod_v < 1e-6 or mod_u < 1e-6:
+        return True
+    cos_theta = dot / (mod_v * mod_u)
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+    theta_deg = np.rad2deg(np.arccos(cos_theta))
+
+    return theta_deg <= angle_thresh_deg
 
 
 def clear_orth_wire(
@@ -941,21 +1585,20 @@ def trace_single_net_dfs(
     walkable: np.ndarray,
     wire_binary: np.ndarray,
     intersect: np.ndarray,
-    H: np.ndarray,          # HSV H通道
+    bgr_img: np.ndarray,          # HSV H通道
     diff_thresh: int,       # 和extract一致的色相阈值
     comp_mask: np.ndarray,
     pos_to_pins: Dict[Tuple[int, int], List[Dict[str, Any]]],
     pixel2pin: Dict[Tuple[int,int], List[Tuple[int,int]]],
     pin_near_mask: np.ndarray,
     start_near_mask: np.ndarray,
+    start_pt_set: Set[Tuple[int, int]],
     visited_pins: Set[int],
     visited_stop: Set[Tuple[int,int]],
     scan_range: int,
     thres: float,
-    fork_pad: int,
     stop_near_win: int,
     DIRS,
-    _split_continuous_segments,
     fly_back_step = 3
 ) -> Tuple[Set[str], List[List[Dict[str, int]]]]:
     h, w = wire_binary.shape
@@ -979,8 +1622,6 @@ def trace_single_net_dfs(
     # print(start_pin)
 
     while stack:
-        # if stack[-1] == (1211, 497, 0, -1, 1211, 498):
-        #     import pdb; pdb.set_trace
         cx, cy, dx, dy, last_kx, last_ky = stack.pop()
         curr_x, curr_y = cx, cy
         fork_points = []
@@ -988,13 +1629,13 @@ def trace_single_net_dfs(
         in_fork = False
         stop_type = None
         stop_x, stop_y = curr_x, curr_y
-        
+
         while True:
-            # print(f" -> ({curr_x}, {curr_y})")  # 上游调试输出，逐像素打印会刷屏
-            # if 1250 < curr_x < 1300 and 100 < curr_y < 150:
+            print(f" -> ({curr_x}, {curr_y})")
+            # if 1250 < curr_x < 1300 and 450 < curr_y < 500:
             #     import pdb; pdb.set_trace()
-            
-            cond = not (0 <= curr_x < w and 0 <= curr_y < h) or has_start_near_fast(curr_x, curr_y, start_near_mask)
+
+            cond = not (0 <= curr_x < w and 0 <= curr_y < h) or has_start_near_with_dir(curr_x, curr_y, dx, dy, start_near_mask, start_pt_set, angle_thresh_deg=90.0)
             fly_x = curr_x - dx * fly_back_step
             fly_y = curr_y - dy * fly_back_step
             if not cond and not is_near_stop(visited_stop, curr_x, curr_y, stop_near_win * 3) and walkable[curr_y, curr_x] == 0 and not in_fork and intersect[fly_y, fly_x] == 1:
@@ -1007,7 +1648,7 @@ def trace_single_net_dfs(
                 stop_type = "dead"
                 break
 
-            is_fork, num_forks = orth_fork_check(curr_x, curr_y, dx, dy, wire_binary, H, scan_range, thres, diff_thresh)
+            is_fork, num_forks = orth_fork_check(curr_x, curr_y, dx, dy, wire_binary, bgr_img, scan_range, thres, diff_thresh)
             max_num_fork = max(max_num_fork, num_forks)
             if is_fork:
                 if not in_fork:
@@ -1062,19 +1703,13 @@ def trace_single_net_dfs(
                 stop_type = "pin"
                 break
 
-                        
-            # if not in_fork:
-            #     clear_orth_wire(curr_x, curr_y, dx, dy, walkable, h, w)
             curr_x += dx
             curr_y += dy
         # end line trace
 
         if stop_type == "dead":
             continue
-# (Pdb) stop_key
-# (1258, 121)
-# (Pdb) pin_pos
-# (1258, 119)
+
         stop_key = (stop_x, stop_y)
         last_key = (last_kx, last_ky)
         # print(f"{last_key} -> {stop_key} | {stop_type}")
@@ -1104,7 +1739,7 @@ def trace_single_net_dfs(
                 continue
             nx, ny = stop_x + ndx, stop_y + ndy
             if 0 <= nx < w and 0 <= ny < h:
-                if walkable[ny, nx] > 0 and comp_mask[ny, nx] == 0:
+                if walkable[ny, nx] > 0 and intersect[ny, nx] == 1:
                     stack.append((nx, ny, ndx, ndy, stop_x, stop_y))
 
     return net_pin_ids, net_edge_list
@@ -1119,7 +1754,6 @@ def build_pcb_nets(
     comp_start_pts: Dict[int, List[Tuple[int, int, str]]],
     scan_range: int = 10,
     thres: float = 0.9,
-    fork_pad: int = 5,
     near_win: int = 5,
     stop_near_win: int = 5,
     diff_thresh: int = 20  # 和extract_comp_pins_straight_hsv默认对齐
@@ -1148,21 +1782,20 @@ def build_pcb_nets(
             walkable=walkable,
             wire_binary=wire_binary,
             intersect=intersect,
-            H=H,
+            bgr_img=bgr_img,
             diff_thresh=diff_thresh,
             comp_mask=comp_mask,
             pos_to_pins=pos_to_pins,
             pixel2pin=pixel2pin,
             pin_near_mask=pin_near_mask,
             start_near_mask=start_near_mask,
+            start_pt_set=start_pt_set,
             visited_pins=visited_pins,
             visited_stop=visited_stop,
             scan_range=scan_range,
             thres=thres,
-            fork_pad=fork_pad,
             stop_near_win=stop_near_win,
             DIRS=DIRS,
-            _split_continuous_segments=_split_continuous_segments
         )
         edges_dict = {}
         for idx, edge in enumerate(net_edge_list):
@@ -1251,16 +1884,6 @@ def visualize_start_points_with_pins(
     print(f"[viz] saved -> {save_path}")
 
 
-def visualize_binary(img_name, binary_raw, comp_binary, wire_binary):
-    viz_dir = Path("outputs/viz") / img_name
-    viz_dir.mkdir(parents=True, exist_ok=True)
-
-    # 0/1 -> 0/255
-    cv2.imwrite(str(viz_dir / "binary_raw.png"), binary_raw * 255)
-    cv2.imwrite(str(viz_dir / "comp_binary.png"), comp_binary * 255)
-    cv2.imwrite(str(viz_dir / "wire_binary.png"), wire_binary * 255)
-
-
 def extract_nets(
     img: np.ndarray,
     comps: List[Any],
@@ -1271,64 +1894,73 @@ def extract_nets(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     img_name = Path(img_path).parent.name
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     h, w = img.shape[:2]
 
-    binary_raw, comp_binary, wire_binary, _ = _get_wire_binary(img, gray, comps, offset=WB_OFFSET)
-    # visualize_binary(img_name, binary_raw, comp_binary, wire_binary)
-
-    cover_mask = _get_cross_mask((h,w), texts, comps, use_cross=False, scale=CM_SCALE, cross_width=CM_CROSS_WIDTH)
-    intersect = cv2.bitwise_and(binary_raw, cover_mask)
-
+    binary_raw, final_t = _get_wire_binary(img, gray, comps)
+    texts_cover_mask = _get_cross_mask((h,w), texts, is_cross=True, border_px=TEXT_CM_BORDER_PX)
+    comps_cover_mask = _get_cross_mask((h,w), comps, is_cross=False, border_px=COMP_CM_BORDER_PX)
+    all_cover_mask = cv2.bitwise_and(texts_cover_mask, comps_cover_mask)
+    
     comp_start_pts = _get_comp_start_points(
-        binary_raw,
+        cv2.bitwise_and(binary_raw, all_cover_mask),
         comps,
         step_cfg=CSP_STEP_CFG,
-        boundary_ratio_thresh=CSP_BOUNDARY_RATIO_THRESH
+        edge_pad_px=CSP_EDGE_PAD_PX
     )
-    comp_pins = extract_comp_pins_straight_hsv(
-        gray=gray,
-        bgr_img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
-        comp_start_pts=comp_start_pts,
+
+    comps, comp_start_pts = refine_comp_and_start_ps(
         wire_binary=binary_raw,
-        diff_thresh=EP_DIFF_THRESH
+        comps=comps,
+        comp_start_pts=comp_start_pts
     )
+    comps_cover_mask = _get_cross_mask((h,w), comps, is_cross=False, border_px=COMP_CM_BORDER_PX)
+    all_cover_mask = cv2.bitwise_and(texts_cover_mask, comps_cover_mask)
+
+    # comp_pins, delta_mat = extract_comp_pins_straight_hsv(
+    #     bgr_img=bgr,
+    #     comp_start_pts=comp_start_pts,
+    #     wire_binary=binary_raw,
+    #     diff_thresh=EP_DIFF_THRESH
+    # )
+
+    comp_pins, delta_mat = extract_comp_pins_straight_hsv(
+        bgr_img=bgr,
+        comp_start_pts=comp_start_pts,
+        wire_binary=cv2.bitwise_and(binary_raw, all_cover_mask),
+        scan_range=RCP_SCAN_RANGE,
+        delta_dev_thresh=EP_DIFF_THRESH,
+        near_start_thresh=BN_NEAR_WIN
+    )
+    # plot_delta_heatmap(bgr, delta_mat, diff_thresh=EP_DIFF_THRESH, save_path=f"outputs/viz/{img_name}/delta_heat.png")
     comp_pins = refine_and_cluster_pins(
         comp_pins=comp_pins,
         comp_start_pts=comp_start_pts,
         wire_binary=binary_raw,
-        scan_range=RCP_SCAN_RANGE,
         max_back_step=RCP_MAX_BACK_STEP
     )
+
+    # comp_pins = fix_pin_by_llm(binary_raw, img, comps, comp_pins, img_name)
     pins_dict, nets_dict = build_pcb_nets(
         comp_pins=comp_pins,
         wire_binary=binary_raw,
-        intersect=intersect,
+        intersect=cv2.bitwise_and(binary_raw, all_cover_mask),
         bgr_img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
         comps=comps,
         comp_start_pts=comp_start_pts,
         scan_range=BN_SCAN_RANGE,
         thres=BN_THRES,
-        fork_pad=BN_FORK_PAD,
         diff_thresh=BN_DIFF_THRESH,
         near_win=BN_NEAR_WIN,
         stop_near_win=BN_STOP_NEAR_WIN
     )
 
-    if visualize:
-        visualize_start_points_with_pins(
-            wire_binary=intersect,
-            comp_start_pts=comp_start_pts,
-            comp_pins=comp_pins,
-            nets_dict=nets_dict,
-            case_name=img_name,
-            out_root=viz_root,
-        )
+    # visualize_start_points_with_pins(
+    #     wire_binary=cv2.bitwise_and(binary_raw, all_cover_mask),
+    #     comp_start_pts=comp_start_pts,
+    #     comp_pins=comp_pins,
+    #     nets_dict=nets_dict,
+    #     case_name=img_name
+    # )
 
     return pins_dict, nets_dict
-
-# TODO:
-# 2. 两个非直连交叉点不能连接的问题 case10
-# 3. 线段相连 case12
-# 4. 出发点识别为文字部分 case13
-# 5. fly 点判定精进 case13
-# 6. 前后移动找中点会错误 case13

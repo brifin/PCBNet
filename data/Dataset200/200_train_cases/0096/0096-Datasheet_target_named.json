@@ -101,7 +101,7 @@
     },
     "U2": {
       "Name": "U2",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         1343.0,
@@ -112,7 +112,7 @@
     },
     "U3": {
       "Name": "U3",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         372.0,
@@ -233,7 +233,7 @@
     },
     "∅28": {
       "Name": "∅28",
-      "type": "other",
+      "type": "motor",
       "value": null,
       "bbox": [
         23.0,

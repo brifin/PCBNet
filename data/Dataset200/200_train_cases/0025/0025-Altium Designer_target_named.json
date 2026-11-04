@@ -68,7 +68,7 @@
     },
     "∅100": {
       "Name": "∅100",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         429.0,
@@ -101,7 +101,7 @@
     },
     "∅86": {
       "Name": "∅86",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         430.0,

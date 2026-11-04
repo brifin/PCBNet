@@ -79,7 +79,7 @@
     },
     "∅171": {
       "Name": "∅171",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         176.0,
@@ -101,7 +101,7 @@
     },
     "∅186": {
       "Name": "∅186",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         176.0,
@@ -134,7 +134,7 @@
     },
     "∅209": {
       "Name": "∅209",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         177.0,
@@ -167,7 +167,7 @@
     },
     "∅237": {
       "Name": "∅237",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         175.0,

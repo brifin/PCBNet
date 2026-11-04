@@ -79,7 +79,7 @@
     },
     "U1": {
       "Name": "LM7211",
-      "type": "box",
+      "type": "pin",
       "value": null,
       "bbox": [
         65.0,

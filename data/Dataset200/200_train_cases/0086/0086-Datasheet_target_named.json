@@ -475,7 +475,7 @@
     },
     "U4": {
       "Name": "U4",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         380.0,

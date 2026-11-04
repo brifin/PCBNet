@@ -563,7 +563,7 @@
     },
     "∅664": {
       "Name": "∅664",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         275.0,

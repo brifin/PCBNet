@@ -255,43 +255,6 @@ _OCR_ENGINE = None
 _OCR_ERROR_PRINTED = False
 
 
-def _install_torch_stub() -> None:
-    """Register a minimal fake `torch` so a torch-free process can import modelscope.
-
-    Only used inside the paddle-only OCR process where real torch cannot be loaded
-    (cudnn DLL clash). Provides just the names modelscope touches at import time.
-    """
-    import importlib.machinery as machinery
-    import sys
-    import types
-    from unittest.mock import MagicMock
-
-    def _spec(name: str, pkg: bool = False) -> machinery.ModuleSpec:
-        spec = machinery.ModuleSpec(name, loader=None, is_package=pkg)
-        return spec
-
-    torch = types.ModuleType("torch")
-    torch.__version__ = "0.0.0+stub"
-    torch.__spec__ = _spec("torch", pkg=True)
-    torch.__path__ = []  # type: ignore[attr-defined]
-    torch.__getattr__ = lambda name: MagicMock(name=f"torch.{name}")  # type: ignore[attr-defined]
-    mp = types.ModuleType("torch.multiprocessing")
-    mp.__spec__ = _spec("torch.multiprocessing")
-    mp.__getattr__ = lambda name: MagicMock(name=f"torch.multiprocessing.{name}")  # type: ignore[attr-defined]
-    dist = types.ModuleType("torch.distributed")
-    dist.__spec__ = _spec("torch.distributed")
-    dist.is_available = lambda: False  # type: ignore[attr-defined]
-    dist.is_initialized = lambda: False  # type: ignore[attr-defined]
-    dist.get_rank = lambda *a, **k: 0  # type: ignore[attr-defined]
-    dist.get_world_size = lambda *a, **k: 1  # type: ignore[attr-defined]
-    dist.__getattr__ = lambda name: MagicMock(name=f"torch.distributed.{name}")  # type: ignore[attr-defined]
-    torch.multiprocessing = mp  # type: ignore[attr-defined]
-    torch.distributed = dist  # type: ignore[attr-defined]
-    sys.modules["torch"] = torch
-    sys.modules["torch.multiprocessing"] = mp
-    sys.modules["torch.distributed"] = dist
-
-
 def _ocr_device() -> str:
     """device 字符串随 paddleocr 版本而异：3.x 用 "gpu:N"，2.x 用 "cuda:N"。
 
@@ -452,40 +415,6 @@ def _ocr_texts(img: np.ndarray, enabled: bool = True, lang: str = "en") -> list[
             print(f"[ocr] PaddleOCR unavailable: {exc}")
             _OCR_ERROR_PRINTED = True
         return []
-
-
-def _ocr_best_string(crop: np.ndarray, lang: str = "en") -> tuple[str, float]:
-    """OCR a crop upright and rotated 90 deg (for vertical labels); keep higher conf."""
-    best_txt, best_conf = "", 0.0
-    import cv2
-
-    variants = [crop]
-    if crop.shape[0] > crop.shape[1] * 1.3:  # tall crop -> likely vertical text
-        variants.append(cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE))
-        variants.append(cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE))
-    for var in variants:
-        for tb in _ocr_texts(var, enabled=True, lang=lang):
-            if tb.score > best_conf and tb.content:
-                best_txt, best_conf = tb.content, tb.score
-    return best_txt, best_conf
-
-
-def _ocr_on_boxes(img: np.ndarray, boxes: list[list[float]], lang: str = "en", pad: int = 3) -> list[TextBox]:
-    """Crop each detected text box (padded), OCR upright + rotated, keep best."""
-    h, w = img.shape[:2]
-    out: list[TextBox] = []
-    for bb in tqdm(boxes, desc="Text Box Infering: "):
-        x1 = max(0, int(bb[0]) - pad)
-        y1 = max(0, int(bb[1]) - pad)
-        x2 = min(w, int(bb[2]) + pad)
-        y2 = min(h, int(bb[3]) + pad)
-        if x2 - x1 < 3 or y2 - y1 < 3:
-            continue
-        crop = img[y1:y2, x1:x2]
-        txt, conf = _ocr_best_string(crop, lang=lang)
-        if txt:
-            out.append(TextBox(bbox=[x1, y1, x2, y2], content=txt, score=conf))
-    return out
 
 
 def _ocr_subprocess_env(pythonpath: str | None) -> dict[str, str]:
@@ -732,124 +661,6 @@ def _maybe_resize(img: np.ndarray, max_side: int) -> tuple[np.ndarray, float]:
     scale = max_side / float(max(h, w))
     small = cv2.resize(img, (max(1, int(w * scale)), max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
     return small, scale
-
-
-def _skeleton_wires(
-    img: np.ndarray, max_side: int = 1600, max_segments: int = 4000
-) -> tuple[np.ndarray, list[tuple[tuple[float, float], tuple[float, float]]]]:
-    work, scale = _maybe_resize(img, max_side)
-    gray = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY)
-    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
-    thick = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kernel, iterations=1)
-    thin = cv2.subtract(bw, thick)
-    try:
-        from skimage.morphology import skeletonize
-
-        skel_s = skeletonize(thin > 0).astype(np.uint8) * 255
-    except Exception:
-        skel_s = cv2.ximgproc.thinning(thin) if hasattr(cv2, "ximgproc") else thin
-    h, w = img.shape[:2]
-    skel = cv2.resize(skel_s, (w, h), interpolation=cv2.INTER_NEAREST) if scale < 1.0 else skel_s
-    segs = _skel_to_segments(skel, max_segments=max_segments)
-    return skel, segs
-
-
-def _skel_to_segments(
-    skel: np.ndarray, min_len: int = 6, max_segments: int = 4000
-) -> list[tuple[tuple[float, float], tuple[float, float]]]:
-    if skel is None or not np.any(skel):
-        return []
-    dil = cv2.dilate(skel, np.ones((3, 3), np.uint8), iterations=1)
-    contours, _ = cv2.findContours(dil, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-    segs = []
-    for cnt in contours:
-        if len(cnt) < min_len:
-            continue
-        pts = [(float(p[0][0]), float(p[0][1])) for p in cnt[:: max(1, len(cnt) // 40)]]
-        for i in range(len(pts) - 1):
-            if abs(pts[i][0] - pts[i + 1][0]) + abs(pts[i][1] - pts[i + 1][1]) >= 2:
-                segs.append((pts[i], pts[i + 1]))
-        if len(segs) >= max_segments:
-            break
-    return segs[:max_segments]
-
-
-def _try_unet_wires(
-    img: np.ndarray, weights: str, max_side: int, max_segments: int
-) -> tuple[np.ndarray, list, list[tuple[float, float]]] | None:
-    """双通道 UNet：导线 mask → 骨架线段；连接点 mask → 小连通斑的质心。"""
-    if not weights or not Path(weights).exists():
-        return None
-    try:
-        from skimage.morphology import skeletonize
-
-        from .unet import predict_wire_points
-
-        wmask, pmask = predict_wire_points(weights, img, size=min(512, max(256, max_side)))
-        skel = skeletonize(wmask > 0).astype(np.uint8) * 255
-        points: list[tuple[float, float]] = []
-        nlab, lab, stats, cent = cv2.connectedComponentsWithStats(pmask, 8)
-        for i in range(1, nlab):
-            area = int(stats[i, cv2.CC_STAT_AREA])
-            if 6 <= area <= 600:      # 太小=噪声，太大=不是点
-                points.append((float(cent[i, 0]), float(cent[i, 1])))
-        # NMS/去重：8px 内的点只留一个
-        points = sorted(points, key=lambda q: (-int(pmask[int(q[1]), int(q[0])]), q[0]))
-        dedup: list[tuple[float, float]] = []
-        for (px, py) in points:
-            if any((px - qx) ** 2 + (py - qy) ** 2 < 64 for qx, qy in dedup):
-                continue
-            dedup.append((px, py))
-        return skel, _skel_to_segments(skel, max_segments=max_segments), dedup
-    except Exception:
-        return None
-
-
-def _detect_ic_pins_crop(
-    img: np.ndarray, comps: list[DetBox], weights: str,
-    conf: float = 0.15, margin: float = 0.3, dedup_px: float = 8.0,
-) -> list[PinBox]:
-    """两阶段检测：对每个 ic（box）元件裁剪放大（含引脚范围）再跑一次 YOLO 检 pin_tip。
-
-    crop 范围 = box 外扩 margin*max(box宽,box高)（夹在图像内）；crop 放大后引脚更清晰。
-    结果按 8px 去重（保留置信度高的），与全图检测互不干扰。
-    """
-    from ultralytics import YOLO
-
-    model = YOLO(weights)
-    h, w = img.shape[:2]
-    found: list[PinBox] = []
-    for comp in comps:
-        if comp.label != "ic":
-            continue
-        x1, y1, x2, y2 = (float(v) for v in comp.bbox)
-        m = margin * max(x2 - x1, y2 - y1, 1.0)
-        cx1, cy1 = max(0.0, x1 - m), max(0.0, y1 - m)
-        cx2, cy2 = min(float(w), x2 + m), min(float(h), y2 + m)
-        if cx2 - cx1 < 16 or cy2 - cy1 < 16:
-            continue
-        crop = img[int(cy1):int(cy2), int(cx1):int(cx2)]
-        try:
-            res = model.predict(crop, imgsz=640, conf=conf, verbose=False)[0]
-        except Exception:
-            continue
-        if res.boxes is None:
-            continue
-        for b, cl, cf in zip(res.boxes.xyxy.tolist(), res.boxes.cls.tolist(), res.boxes.conf.tolist()):
-            if int(cl) != 15:      # pin_tip
-                continue
-            px = (b[0] + b[2]) / 2 + cx1
-            py = (b[1] + b[3]) / 2 + cy1
-            found.append(PinBox(xy=(px, py), score=float(cf)))
-    # NMS/去重：8px 内只留置信度最高的
-    found.sort(key=lambda p: -float(getattr(p, "score", 0.5)))
-    keep: list[PinBox] = []
-    for p in found:
-        if any((p.xy[0] - q.xy[0]) ** 2 + (p.xy[1] - q.xy[1]) ** 2 < dedup_px * dedup_px for q in keep):
-            continue
-        keep.append(p)
-    return keep
 
 
 def _bbox_iou(a: list[float], b: list[float]) -> float:

@@ -134,7 +134,7 @@
     },
     "U1": {
       "Name": "U1",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         90.0,
@@ -145,7 +145,7 @@
     },
     "U2": {
       "Name": "U2",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         563.0,
@@ -156,7 +156,7 @@
     },
     "U3": {
       "Name": "U3",
-      "type": "box",
+      "type": "v",
       "value": null,
       "bbox": [
         90.0,

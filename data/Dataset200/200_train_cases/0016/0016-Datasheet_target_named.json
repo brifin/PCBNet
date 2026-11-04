@@ -519,7 +519,7 @@
     },
     "∅700": {
       "Name": "∅700",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         388.0,

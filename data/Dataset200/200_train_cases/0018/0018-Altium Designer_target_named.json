@@ -420,7 +420,7 @@
     },
     "∅513": {
       "Name": "∅513",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         1037.0,
@@ -431,7 +431,7 @@
     },
     "∅520": {
       "Name": "∅520",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         509.0,
@@ -442,7 +442,7 @@
     },
     "∅527": {
       "Name": "∅527",
-      "type": "other",
+      "type": "switch",
       "value": null,
       "bbox": [
         508.0,

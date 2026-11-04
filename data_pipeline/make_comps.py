@@ -21,6 +21,8 @@ for case_name in os.listdir(data_dir):
     case_dir = os.path.join(data_dir, case_name)
     if not os.path.isdir(case_dir):
         continue
+    if int(case_name) > 300:
+        continue
     # 自动识别json和png文件
     json_file = None
     img_file = None
@@ -45,8 +47,6 @@ for case_name in os.listdir(data_dir):
         comp_name = comp_info.get("Name", comp_id)
         comp_name = str(case_name) + '_' + comp_name
         comp_type = comp_info.get("type", "unknown")
-        if comp_type == "pin":
-            continue
         bbox = comp_info.get("bbox", None)
         if not bbox or len(bbox) != 4:
             print(f"跳过 {comp_id}: bbox 格式错误")
