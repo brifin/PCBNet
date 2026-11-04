@@ -2,19 +2,20 @@ import os
 import json
 import sqlite3
 from PIL import Image
-import time
 import imagehash
 
 # ===================== 配置区 =====================
-ROOT_DIR = r"data/Dataset200/200_train_cases"
-DB_PATH = "data/image_db.sqlite3"
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1] / "data" / "Dataset200" / "200_train_cases"
+DB_PATH = Path(__file__).resolve().parents[1] / "data" / "image_db.sqlite3"
 SIM_THRESHOLD = 5
 # ==================================================
 
 
 def init_db():
     """初始化sqlite表：phash 存储十六进制字符串，json_data存原始json文本"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cur = conn.cursor()
     cur.execute("""
     CREATE TABLE IF NOT EXISTS image_index (
@@ -45,7 +46,7 @@ def build_database():
     # ✅ 【修复点】入库前先初始化表
     init_db()
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cur = conn.cursor()
     count = 0
 
@@ -90,10 +91,11 @@ def build_database():
 
 
 def query_image(img_path: str, threshold: int = SIM_THRESHOLD):
-    time.sleep(5)
+    if not DB_PATH.exists():
+        return {}
     q_hash = compute_phash(img_path)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cur = conn.cursor()
     cur.execute("SELECT phash, json_data, src_folder FROM image_index")
     rows = cur.fetchall()
@@ -108,10 +110,27 @@ def query_image(img_path: str, threshold: int = SIM_THRESHOLD):
             match_list.append((dist, js, src_folder))
 
     match_list.sort(key=lambda x: x[0])
-    if len(match_list) == 0:
+    if not match_list:
         return {}
-    else:
-        return match_list[0]
+    # 返回 JSON 本体；距离/来源可通过 query_image_debug 获取
+    return match_list[0][1]
+
+
+def query_image_debug(img_path: str, threshold: int = SIM_THRESHOLD):
+    """诊断用：返回 (distance, json, src_folder) 或 None。"""
+    if not DB_PATH.exists():
+        return None
+    q_hash = compute_phash(img_path)
+    conn = sqlite3.connect(str(DB_PATH))
+    rows = conn.execute("SELECT phash, json_data, src_folder FROM image_index").fetchall()
+    conn.close()
+    hits = []
+    for phash_str, json_text, src_folder in rows:
+        dist = hamming_dist(q_hash, imagehash.hex_to_hash(phash_str))
+        if dist <= threshold:
+            hits.append((dist, json.loads(json_text), src_folder))
+    hits.sort(key=lambda x: x[0])
+    return hits[0] if hits else None
 
 
 def clear_db():

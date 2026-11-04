@@ -32,6 +32,9 @@ def main() -> int:
     parser.add_argument("--device", default="[0,1,2,3,4,5,6,7]")
     parser.add_argument("--smoke", action="store_true", help="1 epoch / imgsz 640 sanity run")
     parser.add_argument("--config", default=str(ROOT / "configs" / "default.yaml"))
+    parser.add_argument("--init-weights", default="", help="从上一轮 best.pt 继续训练（迭代训练）")
+    parser.add_argument("--lr0", type=float, default=None, help="继续训练时覆盖初始学习率")
+    parser.add_argument("--freeze", default="", help="冻结前 N 层，例如 10")
     args = parser.parse_args()
     try:
         from ultralytics import YOLO
@@ -54,7 +57,7 @@ def main() -> int:
     batch = 2 if args.smoke else int(train_cfg.get("batch", 4))
     project = project_root() / cfg.get("output_root", "outputs") / "models" / "yolo"
     project.mkdir(parents=True, exist_ok=True)
-    model_name = _resolve_model(train_cfg.get("model") or "yolo11n.pt")
+    model_name = _resolve_model(args.init_weights or train_cfg.get("model") or "yolo11n.pt")
     if not Path(model_name).exists() and Path(model_name).name == "yolo11n.pt":
         bundled = project / "yolo11n.pt"
         if bundled.exists():
@@ -67,7 +70,7 @@ def main() -> int:
         "project": str(project),
         "name": "smoke" if args.smoke else "train",
         "exist_ok": True,
-        "patience": 10,
+        "patience": int(train_cfg.get("patience", 10)),
         "workers": 0,
         "plots": False,
         # "cls_pw": 1.0,
@@ -75,7 +78,12 @@ def main() -> int:
         "amp": False,  # 跳过 AMP 检查（会联网下载 yolo26n.pt，无外网服务器会卡住）
         "device": eval(args.device) if args.device else None,
     }
-    print(f"[yolo] model={model_name} data={data} epochs={epochs} imgsz={imgsz} batch={batch}")
+    if args.lr0 is not None:
+        kwargs["lr0"] = args.lr0
+        kwargs["optimizer"] = "AdamW"
+    if args.freeze:
+        kwargs["freeze"] = int(args.freeze)
+    print(f"[yolo] model={model_name} data={data} epochs={epochs} imgsz={imgsz} batch={batch} lr0={args.lr0}")
     try:
         results = YOLO(model_name).train(**kwargs)
     except Exception as exc:
