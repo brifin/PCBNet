@@ -950,12 +950,7 @@ def extract_vision(
         ]
         texts = _full_image_ocr(image_path, lang=lang, focus_boxes=focus)
 
-    wired = _try_unet_wires(img, models.get("unet_weights") or "", max_side, max_segments)
-    unet_points: list[tuple[float, float]] = []
-    if wired is None:
-        skel, segs = _skeleton_wires(img, max_side=max_side, max_segments=max_segments)
-    else:
-        skel, segs, unet_points = wired
+    skel, segs = None, []
 
     # 可视化（agents/ 批量跑时可用 visualize=False 跳过，不影响检测结果）
     if visualize:

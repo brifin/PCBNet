@@ -59,4 +59,4 @@ stage3:
   time_budget_sec: 60
   use_vlm_crop: false
 image_db:
-  threshold: -1
+  threshold: 5
