@@ -34,7 +34,7 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 BASE_COMPS_DIR = PROJECT_DIR / "data/base_comps"
 PINS_JSON_PATH = BASE_COMPS_DIR / "pins.json"
 OUTPUT_DIR = PROJECT_DIR / "data/Synthetic_Data"
-WRITE_DEBUG = True  # 生成后校验比例，训练前删除 debug.json
+WRITE_DEBUG = False  # 生成后校验比例，训练前删除 debug.json
 
 # Number of requested outputs. Sample IDs use 1-based, four-digit folders.
 NUM_SAMPLES = 600
@@ -131,7 +131,10 @@ NEARBY_TEXT_PROBABILITY = 0.30
 NEARBY_TEXT_FONT_RANGE = (16, 30)
 NEARBY_TEXT_GAP_RANGE = (1, 5)
 NOISE_WIRE_WIDTH_RANGE = (2, 4)
-LED_PAIR_COUNT_RANGE = (2, 3)
+LED_PAIR_COUNT_RANGE = (3, 5)
+GND_PAIR_COUNT_RANGE = (2, 4)
+# case11 风格：成对符号只留 2-6 px 间隙（普通器件安全间距是 30 px）
+TIGHT_PAIR_GAP_RANGE = (2, 6)
 
 # Non-box orientation distribution: unchanged, 90, 180, and 270 degrees.
 ROTATION_ANGLES = (0, 90, 180, 270)
@@ -225,17 +228,17 @@ TYPE_SAMPLE_WEIGHTS = {
     "v": {"0009_∅124": 0.45, "0011_∅611": 0.45, "0001_∅580": 0.10},
 }
 COLD_MIN_COUNTS = {
-    "v": 16,
-    "gnd": 18,
+    "v": 12,
+    "gnd": 14,
     "r": 3,
-    "c": 3,
+    "c": 4,
     "l": 3,
-    "led": 12,
+    "led": 10,
     "d": 2,
     "switch": 3,
     "circle_header": 1,
-    "net_input": 10,
-    "net_output": 6,
+    "net_input": 8,
+    "net_output": 4,
 }
 
 # Set to an integer for reproducible output, or None for fresh randomness.
@@ -890,46 +893,56 @@ def place_free_component(candidates: list[dict],
     return None
 
 
-def place_led_pair(candidates: list[dict], palette_color: tuple[int, int, int],
-                   counters: defaultdict[str, int], board_size: tuple[int, int],
-                   placed: list[dict]) -> list[dict]:
-    """放一对紧挨的 LED：两者相差 180°，长边贴长边对齐。"""
-    candidate = choose_type_candidate(candidates, "led")
+def place_tight_pair(candidates: list[dict], palette_color: tuple[int, int, int],
+                    counters: defaultdict[str, int], board_size: tuple[int, int],
+                    placed: list[dict], comp_type: str, mirror: bool) -> list[dict]:
+    """放一对紧挨的同类符号（case11 风格）。
+
+    LED 用 180° 镜像后长边贴长边；GND/v 保持同向，只留 2-6 px 间隙。
+    注意：普通 filler 的安全间距是 30 px，这里刻意跳过，让两枚符号紧贴。
+    """
+    candidate = choose_type_candidate(candidates, comp_type)
     if candidate is None:
         return []
     scale = next_scale()
     angle = random.choice((0, 90))
     prepared = [
         prepare_component(candidate, palette_color, scale_mult=scale, rotation=angle),
-        prepare_component(candidate, palette_color, scale_mult=scale,
-                          rotation=(angle + 180) % 360),
+        prepare_component(
+            candidate, palette_color, scale_mult=scale,
+            rotation=(angle + 180) % 360 if mirror else angle,
+        ),
     ]
-    width, height = prepared[0]["extent_size"]
-    gap = random.randint(6, 10)
+    b1 = prepared[0]["local_body_bbox"]
+    b2 = prepared[1]["local_body_bbox"]
+    bw1, bh1 = b1[2] - b1[0], b1[3] - b1[1]
+    bw2, bh2 = b2[2] - b2[0], b2[3] - b2[1]
+    gap = random.randint(*TIGHT_PAIR_GAP_RANGE)
     bw, bh = board_size
     margin_x, margin_y = content_margins(bw, bh)
+    w1, h1 = prepared[0]["extent_size"]
+    w2, h2 = prepared[1]["extent_size"]
+    # 以真实标注框（body bbox）计算第二枚的 origin，保证两个 GT 框只隔 2-6 px。
+    vertical = bh1 >= bw1
     for _ in range(MAX_FREE_PLACEMENT_ATTEMPTS):
-        x = random.randint(margin_x, bw - margin_x - width)
-        y = random.randint(margin_y, bh - margin_y - height)
-        # 长边相邻：横向元件左右贴，纵向元件上下贴
-        if width >= height:
-            if random.random() < 0.5 and x + width + gap + width <= bw - margin_x:
-                origins = [(x, y), (x + width + gap, y)]
-            elif x - width - gap >= margin_x:
-                origins = [(x, y), (x - width - gap, y)]
+        x = random.randint(margin_x, bw - margin_x - max(w1, w2))
+        y = random.randint(margin_y, bh - margin_y - max(h1, h2))
+        if vertical:
+            if random.random() < 0.5:
+                oy2 = y + b1[3] + gap - b2[1]
             else:
-                continue
+                oy2 = y + b1[1] - gap - b2[3]
+            origins = [(x, y), (x, oy2)]
         else:
-            if random.random() < 0.5 and y + height + gap + height <= bh - margin_y:
-                origins = [(x, y), (x, y + height + gap)]
-            elif y - height - gap >= margin_y:
-                origins = [(x, y), (x, y - height - gap)]
+            if random.random() < 0.5:
+                ox2 = x + b1[2] + gap - b2[0]
             else:
-                continue
+                ox2 = x + b1[0] - gap - b2[2]
+            origins = [(x, y), (ox2, y)]
         pair = []
         for prep, origin, name in zip(
             prepared, origins,
-            (make_display_name("led", counters), make_display_name("led", counters)),
+            (make_display_name(comp_type, counters), make_display_name(comp_type, counters)),
         ):
             comp = materialize_component(prep, origin, name)
             if not component_content_ok(comp, board_size):
@@ -946,6 +959,17 @@ def place_led_pair(candidates: list[dict], palette_color: tuple[int, int, int],
             continue
         return pair
     return []
+
+def place_led_pair(candidates: list[dict], palette_color: tuple[int, int, int],
+                   counters: defaultdict[str, int], board_size: tuple[int, int],
+                   placed: list[dict]) -> list[dict]:
+    return place_tight_pair(candidates, palette_color, counters, board_size, placed, "led", True)
+
+
+def place_gnd_pair(candidates: list[dict], palette_color: tuple[int, int, int],
+                   counters: defaultdict[str, int], board_size: tuple[int, int],
+                   placed: list[dict]) -> list[dict]:
+    return place_tight_pair(candidates, palette_color, counters, board_size, placed, "gnd", False)
 
 
 def make_terminal(component: dict, pin_key: str, board_size: tuple[int, int]):
@@ -1795,7 +1819,24 @@ def attempt_layout(candidates: list[dict]):
     # 这些器件只写 components/pins，不加入任何网络。
     if len(components) > MAX_COMPONENTS_PER_SAMPLE:
         return None
-    # 先保证低检测率类别的最低出现次数（同一张图里多放几个冷门样例）。
+    # 先放 case11 风格的紧贴对，避免被后续最低配额占满位置。
+    # LED：两枚相差 180°、长边相邻（2-6 px 间隙）。
+    for _ in range(random.randint(*LED_PAIR_COUNT_RANGE)):
+        if len(components) + 2 > MAX_COMPONENTS_PER_SAMPLE:
+            break
+        pair = place_led_pair(candidates, palette_color, counters, board_size, components)
+        if not pair:
+            continue
+        components.extend(pair)
+    # GND：同向、2-6 px 间隙，模拟 case11 的 ∅346/∅695。
+    for _ in range(random.randint(*GND_PAIR_COUNT_RANGE)):
+        if len(components) + 2 > MAX_COMPONENTS_PER_SAMPLE:
+            break
+        pair = place_gnd_pair(candidates, palette_color, counters, board_size, components)
+        if not pair:
+            continue
+        components.extend(pair)
+    # 再保证低检测率类别的最低出现次数（同一张图里多放几个冷门样例）。
     for cold_type, minimum in COLD_MIN_COUNTS.items():
         while (
             sum(1 for c in components if c["type"] == cold_type) < minimum
@@ -1830,14 +1871,6 @@ def attempt_layout(candidates: list[dict]):
             filler["is_filler"] = True
             components.append(filler)
             existing.add(angle)
-    # 增加 LED 成对样例：两枚相差 180°、长边相邻。
-    for _ in range(random.randint(*LED_PAIR_COUNT_RANGE)):
-        if len(components) + 2 > MAX_COMPONENTS_PER_SAMPLE:
-            break
-        pair = place_led_pair(candidates, palette_color, counters, board_size, components)
-        if not pair:
-            continue
-        components.extend(pair)
     if len(components) > MAX_COMPONENTS_PER_SAMPLE:
         return None
     target_components = max(
@@ -2030,8 +2063,27 @@ def ensure_component_wires(components: list[dict], pin_nets: list[dict],
                     best = (distance, point, other_point)
         if best is not None:
             _, point, other_point = best
-            if not any(segment_hits_rect(point, other_point, box) for box in boxes):
-                wires.append([point, other_point])
+            # 紧贴对（LED/GND）的引脚可能不对齐：只允许横平竖直，斜连会触发
+            # segment_hits_rect 的“非正交线段”异常。用 L 形折线连接。
+            if point[0] == other_point[0] or point[1] == other_point[1]:
+                path = [point, other_point]
+            else:
+                candidates = ([point, (other_point[0], point[1]), other_point],
+                              [point, (point[0], other_point[1]), other_point])
+                path = None
+                for candidate in candidates:
+                    if all(
+                        not segment_hits_rect(a, b, box)
+                        for a, b in zip(candidate, candidate[1:])
+                        for box in boxes
+                    ):
+                        path = candidate
+                        break
+            if path is not None and all(
+                not segment_hits_rect(a, b, box)
+                for a, b in zip(path, path[1:]) for box in boxes
+            ):
+                wires.append(path)
                 continue
         added = False
         for pin in component["pins"].values():
