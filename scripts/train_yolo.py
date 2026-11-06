@@ -35,6 +35,10 @@ def main() -> int:
     parser.add_argument("--init-weights", default="", help="从上一轮 best.pt 继续训练（迭代训练）")
     parser.add_argument("--lr0", type=float, default=None, help="继续训练时覆盖初始学习率")
     parser.add_argument("--freeze", default="", help="冻结前 N 层，例如 10")
+    parser.add_argument("--epochs", type=int, default=None, help="覆盖 train.yolo.epochs（续训建议 8-15）")
+    parser.add_argument("--batch", type=int, default=None, help="覆盖 train.yolo.batch")
+    parser.add_argument("--patience", type=int, default=None, help="覆盖 train.yolo.patience")
+    parser.add_argument("--name", default="train", help="输出子目录（默认 train；专项续训用独立目录）")
     args = parser.parse_args()
     try:
         from ultralytics import YOLO
@@ -52,9 +56,9 @@ def main() -> int:
     if not Path(data).exists():
         print(f"缺少 {data}，先运行: py scripts\\prepare_labels.py --splits train,val")
         return 1
-    epochs = 1 if args.smoke else int(train_cfg.get("epochs", 50))
+    epochs = 1 if args.smoke else int(args.epochs or train_cfg.get("epochs", 50))
     imgsz = 640 if args.smoke else int(train_cfg.get("imgsz", 1280))
-    batch = 2 if args.smoke else int(train_cfg.get("batch", 4))
+    batch = 2 if args.smoke else int(args.batch or train_cfg.get("batch", 4))
     project = project_root() / cfg.get("output_root", "outputs") / "models" / "yolo"
     project.mkdir(parents=True, exist_ok=True)
     model_name = _resolve_model(args.init_weights or train_cfg.get("model") or "yolo11n.pt")
@@ -68,9 +72,9 @@ def main() -> int:
         "imgsz": imgsz,
         "batch": batch,
         "project": str(project),
-        "name": "smoke" if args.smoke else "train",
+        "name": "smoke" if args.smoke else args.name,
         "exist_ok": True,
-        "patience": int(train_cfg.get("patience", 10)),
+        "patience": int(args.patience or train_cfg.get("patience", 10)),
         "workers": 0,
         "plots": False,
         # "cls_pw": 1.0,

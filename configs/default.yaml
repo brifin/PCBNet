@@ -1,9 +1,7 @@
-dataset_root: "data/Dataset200/200_train_cases"
-test_root: "data/Dataset200/10gt"
-# 文本框标注目录（真实 + 合成 case 共用），用于导出 YOLO 的 text 类标签
-text_bbox_root: "data/Dataset200/text_bbox"
-
-output_root: "outputs"
+dataset_root: data/Dataset200/200_train_cases
+test_root: data/Dataset200/10gt
+text_bbox_root: data/Dataset200/text_bbox
+output_root: outputs
 split_seed: 42
 split_ratio:
 - 0.95
@@ -22,18 +20,12 @@ weights:
   net_line: 0.1
 models:
   yolo_weights: outputs/models/yolo/train/weights/best.pt
-  unet_weights: ''
 train:
   yolo:
     model: yolo26x.pt
     epochs: 100
     imgsz: 1280
     batch: 8
-  unet:
-    epochs: 20
-    size: 512
-    batch: 2
-    lr: 0.001
 ocr:
   enabled: true
   lang: en
@@ -44,12 +36,13 @@ vision:
   max_segments: 4000
   pin_snap_px: 0.0
   pin_dedup_px: 5.0
-  yolo_conf: 0.25
+  yolo_conf: 0.2
   yolo_imgsz:
   - 1280
   yolo_box_merge: nms
   yolo_scale_nms_iou: 0.55
   yolo_iou: 0.7
+  comp_nms_iou: 0.25
 use_llm: false
 stage3:
   enabled: false
@@ -59,4 +52,5 @@ stage3:
   time_budget_sec: 60
   use_vlm_crop: false
 image_db:
+  enabled: false
   threshold: 5

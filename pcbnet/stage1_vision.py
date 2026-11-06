@@ -688,7 +688,31 @@ def _cover_frac(inner: list[float], outer: list[float]) -> float:
 
 # Symbol-like classes where a box fully covered by printed text is a misdetection.
 # Power/label classes are inherently text-like and excluded from that filter.
-_TEXTLIKE_EXEMPT = {"net_label", "gnd", "vcc"}
+_TEXTLIKE_EXEMPT = {
+    "net_label", "gnd", "vcc", "power", "ground",
+    "network_input", "network_output", "network_short", "network_bidirection",
+}
+# 这些符号的 OCR 文本就是 value（+5V/3.3V/GND/网络名），不能被“文本压住器件”规则删掉
+_VALUE_TEXT_LABELS = {
+    "power", "ground", "gnd", "vcc", "net_label",
+    "network_input", "network_output", "network_short", "network_bidirection",
+}
+
+
+def _value_like_text(label: str, content: str) -> bool:
+    """True 表示该文本是符号的 value/网络名，不能按“文本压器件”规则删。"""
+    import re
+
+    t = str(content).strip()
+    if not t:
+        return False
+    if label in {"power", "gnd", "ground", "vcc"}:
+        if re.fullmatch(r"[+\-]?\d+(?:\.\d+)?\s*V\d*", t, re.I):
+            return True
+        return t.upper() in {"GND", "VCC", "VDD", "VSS", "AGND", "DGND", "PGND"}
+    if label == "net_label" or label.startswith("network_"):
+        return bool(re.fullmatch(r"[A-Za-z0-9_+\-.]{2,24}", t))
+    return False
 
 def _nms_components(comps: list[DetBox], iou_thr: float = 0.5) -> list[DetBox]:
     """按类 NMS：同类元件框 IoU>阈值只留置信度最高者（防重复检测框）。"""
@@ -749,6 +773,8 @@ def _clean_components(
     for tb in text_boxes:
         remove_flag = False
         for c in comps:
+            if c.label in _VALUE_TEXT_LABELS and _value_like_text(c.label, tb.content):
+                continue
             # _cover_frac(inner=器件bbox, outer=文本bbox)：器件面积被文本覆盖比例
             cov = _cover_frac(c.bbox, tb.bbox)
             if cov >= remove_text_with_comp_thr:
@@ -970,6 +996,9 @@ def extract_vision(
     skele_nets_raw: dict = {}
     wire_nets: dict = {}
     skele_pins: list[PinBox] = []
+    # skele_wire 的 CSP 回退会临时收缩电容 bbox（用于找引线边界）。
+    # 这里保存检测原框，net 提取结束后恢复，避免把收缩框写进最终 components。
+    original_comp_bboxes = [list(c.bbox) for c in comps]
     try:
         skele_pins_raw, skele_nets_raw = extract_skele_nets(
             img, comps, texts, str(image_path), visualize=visualize
@@ -977,6 +1006,8 @@ def extract_vision(
         skele_pins, wire_nets = _adapt_skele_output(skele_pins_raw, skele_nets_raw)
     except Exception as exc:  # noqa: BLE001 异常兜底：退回旧的 topo_graph
         print(f"[vision] skele_wire.extract_nets 失败({type(exc).__name__}: {exc})，退回 topo_graph", flush=True)
+    for c, bb in zip(comps, original_comp_bboxes):
+        c.bbox = list(bb)
 
     if visualize and wire_nets:
         run_wire_visualize(wire_nets, img, image_path)
