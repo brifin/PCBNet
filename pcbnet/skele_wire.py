@@ -12,7 +12,7 @@ from tqdm import tqdm
 import math
 from pathlib import Path
 from sklearn.cluster import KMeans
-from .llm import fix_pin_by_llm, PIN_NUMBER
+from .pin_constants import PIN_NUMBER
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
