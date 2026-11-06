@@ -14,25 +14,26 @@ from pathlib import Path
 from sklearn.cluster import KMeans
 from .llm import fix_pin_by_llm, PIN_NUMBER
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 # ===================== PCB走线提取配置参数区（统一管理） =====================
 TEXT_CM_BORDER_PX = 5
 COMP_CM_BORDER_PX = 3
 CSP_STEP_CFG = {
-    "default": (0, 15),
+    "default": (0, 10),
     "resistor": (0, 10)
 }
 CSP_EDGE_PAD_PX = 5
 CSP_TRY_BOUNDRY = ['ic']
 CSP_BACK_SEARCH_COMP = ['capacitor']
-EP_DIFF_THRESH = 40
+EP_DIFF_THRESH = 30
 RCP_SCAN_RANGE = 10
 RCP_MAX_BACK_STEP = 10
 
 # build_pcb_nets
 BN_SCAN_RANGE = 15
 BN_THRES = 0.99
-BN_DIFF_THRESH = 40
+BN_DIFF_THRESH = 30
 BN_NEAR_WIN = 5
 BN_STOP_NEAR_WIN = 5
 
@@ -82,14 +83,16 @@ def _get_cross_mask(
     bboxs: List[Any],
     is_cross: bool,
     cross_width=2,
-    border_px=5  # is_cross=False：外围保留border_px边框；is_cross=True：在向内缩border_px后的区域内画米字
+    border_px=5,  # is_cross=False：外围保留border_px边框；is_cross=True：在向内缩border_px后的区域内画米字
+    grid_step=9
 ) -> np.ndarray:
     """
     mask规则：
     1. 原图mask默认 255
     2. 每个bbox使用原始[x1,y1,x2,y2]
        - is_cross=False：外框保留 border_px 一圈边框，内部全部挖空置0
-       - is_cross=True：先向内收缩 border_px 得到内框，**只在这个内框里面画米字**，原bbox其余区域保持255
+       - is_cross=True：先向内收缩 border_px 得到内框，**只在这个内框里面画米字+网格线**
+         ✅ 网格线：横线撑满内框宽度、竖线撑满内框高度，间隔 grid_step
     """
     h, w = img_shape[:2]
     mask = np.full((h, w), 255, dtype=np.uint8)
@@ -103,7 +106,7 @@ def _get_cross_mask(
         if x2 - x1 <= 0 or y2 - y1 <= 0:
             continue
 
-        # 向内收缩 border_px 得到内框（米字的有效范围）
+        # 向内收缩 border_px 得到内框（米字+网格有效范围）
         inner_x1 = x1 + border_px
         inner_y1 = y1 + border_px
         inner_x2 = x2 - border_px
@@ -120,7 +123,7 @@ def _get_cross_mask(
             # 保留外围border_px边框，内部挖空
             mask[inner_y1:inner_y2, inner_x1:inner_x2] = 0
         else:
-            # 米字只画在收缩后的内框 [inner_x1, inner_y1, inner_x2, inner_y2] 内部
+            # ========== 原有中心米字 ==========
             # 水平中线
             xc1 = max(0, cx_int - half_cross)
             xc2 = min(w, cx_int + half_cross + 1)
@@ -132,6 +135,16 @@ def _get_cross_mask(
             # 两条对角线（内框四角）
             cv2.line(mask, (inner_x1, inner_y1), (inner_x2, inner_y2), 0, thickness=cross_width)
             cv2.line(mask, (inner_x2, inner_y1), (inner_x1, inner_y2), 0, thickness=cross_width)
+
+            # ========== 网格线：横线撑满内框宽，竖线撑满内框高 ==========
+            # 竖线：每个x位置，从inner_y1画到inner_y2
+            xs = range(inner_x1, inner_x2 + 1, grid_step)
+            for x in xs:
+                cv2.line(mask, (x, inner_y1), (x, inner_y2), 0, thickness=cross_width)
+            # 横线：每个y位置，从inner_x1画到inner_x2
+            ys = range(inner_y1, inner_y2 + 1, grid_step)
+            for y in ys:
+                cv2.line(mask, (inner_x1, y), (inner_x2, y), 0, thickness=cross_width)
     return mask
 
 
@@ -404,15 +417,10 @@ def refine_comp_and_start_ps(
     max_comp_back_ratio: float = 0.5
 ) -> Tuple[List[Any], Dict[int, List[Tuple[int, int, str]]]]:
     """
-    1. 对指定label器件：每个start_point沿着side方向回退扫描，直到 ratio > boundary_thres；
-       找到则更新comp.bbox + 该start_ps坐标；一直走到对边都没找到则保持原样
-    2. 校验PIN数量：
-       - capacitor / resistor：固定2个pin，必须在不同边框；同坐标轴相近；缺则以现有点镜像到对边补点
-       - ground：固定1个pin；必须落在该边中心30%区间内，不在则剔除/修正
-       - pin / net_short：如果点位数量等于3，直接剔除该器件以及对应的点位
+    顺序：先pin校验补点 → 再CSP回退扫描
+    【修复：杜绝新旧点位同时残留，CSP一定覆盖】
     """
     new_comps = []
-    # 拷贝原始点位字典
     new_start_pts = {k: [p for p in v] for k, v in comp_start_pts.items()}
     side_back_dir = {
         "left": (1, 0),
@@ -426,123 +434,128 @@ def refine_comp_and_start_ps(
         "top": ("bottom", "x"),
         "bottom": ("top", "x"),
     }
+    h_img, w_img = wire_binary.shape
 
     for comp_idx, comp in enumerate(comps):
         label = comp.label
+        # 【重要】每次都从点位字典拿最新，不要依赖局部变量缓存
         pts = new_start_pts.get(comp_idx, [])
 
+        # 1. pin / net_short 点位=3 → 直接剔除
         if label in ("pin", "net_short") and len(pts) == 3:
             if comp_idx in new_start_pts:
                 del new_start_pts[comp_idx]
-            # 不加入 new_comps，并且后面所有逻辑跳过
             continue
 
         target_pin_cnt = PIN_NUMBER.get(label, None)
-        if not target_pin_cnt or not pts:
+        # 标记：是否需要跳过pin修正
+        skip_pin_fix = (target_pin_cnt is None) or (len(pts) == 0)
+        if skip_pin_fix:
             new_comps.append(comp)
-            continue
-
-        x1, y1, x2, y2 = map(int, comp.bbox)
-        h_box = y2 - y1
-        w_box = x2 - x1
-
-        if len(pts) != target_pin_cnt:
-            if label in ("capacitor", "resistor"):
-                final_pts = pts[:]
-                # 大于2个，边的对边映射 + 固定比较轴
-                if len(final_pts) > 2:
-                    keep = []
-                    for idx, p in enumerate(final_pts):
-                        px, py, s = p
-                        opp_side, axis = side_opposite[s]
-                        has_mate = False
-                        for jdx, q in enumerate(final_pts):
-                            if idx == jdx:
-                                continue
-                            qx, qy, qs = q
-                            if qs != opp_side:
-                                continue
-                            if axis == "y":
-                                diff = abs(py - qy)
-                            else:
-                                diff = abs(px - qx)
-                            if diff < 3:
-                                has_mate = True
-                                break
-                        if has_mate:
-                            keep.append(p)
-                    if len(keep) > 0:
-                        final_pts = keep
-
-                # 不足2个：镜像补点到对边
-                elif len(final_pts) == 1:
-                    x0, y0, s0 = final_pts[0]
-                    if s0 == "left":
-                        new_p = (x2, y0, "right")
-                    elif s0 == "right":
-                        new_p = (x1, y0, "left")
-                    elif s0 == "top":
-                        new_p = (x0, y2, "bottom")
-                    elif s0 == "bottom":
-                        new_p = (x0, y1, "top")
-                    else:
-                        new_p = None
-                    if new_p is not None:
-                        final_pts.append(new_p)
-
+            # 【重点：这里不能continue！continue会跳过CSP回退！】
+            # 不continue，直接往下走，进入CSP判断
+            pass
+        else:
+            x1, y1, x2, y2 = map(int, comp.bbox)
+            h_box = y2 - y1
+            w_box = x2 - x1
+            final_pts = pts[:]
+            if len(pts) != target_pin_cnt:
+                if label in ("capacitor", "resistor", "inductor", "diode"):
+                    if len(final_pts) > 2:
+                        keep = []
+                        for idx, p in enumerate(final_pts):
+                            px, py, s = p
+                            opp_side, axis = side_opposite[s]
+                            has_mate = False
+                            for jdx, q in enumerate(final_pts):
+                                if idx == jdx:
+                                    continue
+                                qx, qy, qs = q
+                                if qs != opp_side:
+                                    continue
+                                diff = abs(py - qy) if axis == "y" else abs(px - qx)
+                                if diff < 3:
+                                    has_mate = True
+                                    break
+                            if has_mate:
+                                keep.append(p)
+                        if len(keep) > 0:
+                            final_pts = keep
+                    elif len(final_pts) == 1:
+                        x0, y0, s0 = final_pts[0]
+                        if s0 == "left":
+                            new_p = (x2, y0, "right")
+                        elif s0 == "right":
+                            new_p = (x1, y0, "left")
+                        elif s0 == "top":
+                            new_p = (x0, y2, "bottom")
+                        elif s0 == "bottom":
+                            new_p = (x0, y1, "top")
+                        else:
+                            new_p = None
+                        if new_p is not None:
+                            final_pts.append(new_p)
+                elif label in ["ground", "v"]:
+                    filter_pts = []
+                    for (px, py, side) in pts:
+                        ok = False
+                        if side in ("left", "right"):
+                            mid_y = (y1 + y2) / 2
+                            seg = y2 - y1
+                            low = mid_y - 0.15 * seg
+                            high = mid_y + 0.15 * seg
+                            if low <= py <= high:
+                                ok = True
+                        else:
+                            mid_x = (x1 + x2) / 2
+                            seg = x2 - x1
+                            low = mid_x - 0.15 * seg
+                            high = mid_x + 0.15 * seg
+                            if low <= px <= high:
+                                ok = True
+                        if ok:
+                            filter_pts.append((px, py, side))
+                    final_pts = filter_pts
+                # 写回pin修正后的点位
                 new_start_pts[comp_idx] = final_pts
+                pts = final_pts
+            new_comps.append(comp)
 
-            elif label == "ground":
-                # 规则：仅1个pin；落在该边中心30%区间
-                final_pts = []
-                for (px, py, side) in pts:
-                    ok = False
-                    if side in ("left", "right"):
-                        h_seg = y2 - y1
-                        mid_y = (y1 + y2) / 2
-                        low = mid_y - 0.15 * h_seg
-                        high = mid_y + 0.15 * h_seg
-                        if low <= py <= high:
-                            ok = True
-                    else:
-                        w_seg = x2 - x1
-                        mid_x = (x1 + x2) / 2
-                        low = mid_x - 0.15 * w_seg
-                        high = mid_x + 0.15 * w_seg
-                        if low <= px <= high:
-                            ok = True
-                    if ok:
-                        final_pts.append((px, py, side))
-                new_start_pts[comp_idx] = final_pts
-
-        new_comps.append(comp)
-
+        # ========== CSP回退：不管有没有走pin fix，都在这里判断 ==========
         if label in CSP_BACK_SEARCH_COMP:
+            # 【强制刷新：从字典拿最新的pin fix后的点位】
+            pts = new_start_pts.get(comp_idx, [])
             updated_pts = []
+            bx1, by1, bx2, by2 = map(int, comp.bbox)
+            f_x1, f_y1, f_x2, f_y2 = bx1, by1, bx2, by2
+            h_box = by2 - by1
+            w_box = bx2 - bx1
 
             for (px, py, side) in pts:
                 dx_back, dy_back = side_back_dir[side]
                 cx, cy = px, py
                 hit = False
                 while True:
-                    if side == "left" and cx >= x1 + max_comp_back_ratio * w_box:
+                    if side == "left" and cx >= bx1 + max_comp_back_ratio * w_box:
                         break
-                    if side == "right" and cx <= x2 - max_comp_back_ratio * w_box:
+                    if side == "right" and cx <= bx2 - max_comp_back_ratio * w_box:
                         break
-                    if side == "top" and cy >= y1 + max_comp_back_ratio * h_box:
+                    if side == "top" and cy >= by1 + max_comp_back_ratio * h_box:
                         break
-                    if side == "bottom" and cy <= y2 - max_comp_back_ratio * h_box:
+                    if side == "bottom" and cy <= by2 - max_comp_back_ratio * h_box:
                         break
-
+                    if not (0 <= cx < w_img and 0 <= cy < h_img):
+                        break
                     if side in ("left", "right"):
-                        col = wire_binary[y1:y2+1, cx]
+                        col = wire_binary[by1:by2+1, cx]
                         ratio = np.sum(col > 0) / len(col)
                         if ratio > boundary_thres:
                             hit = True
                             break
                         cx += dx_back
                     else:
-                        row = wire_binary[cy, x1:x2+1]
+                        row = wire_binary[cy, bx1:bx2+1]
                         ratio = np.sum(row > 0) / len(row)
                         if ratio > boundary_thres:
                             hit = True
@@ -552,23 +565,22 @@ def refine_comp_and_start_ps(
                     new_pt = (cx, cy, side)
                     updated_pts.append(new_pt)
                     if side == "left":
-                        comp.bbox = (cx, y1, x2, y2)
-                        x1 = cx
+                        f_x1 = cx
                     elif side == "right":
-                        comp.bbox = (x1, y1, cx, y2)
-                        x2 = cx
+                        f_x2 = cx
                     elif side == "top":
-                        comp.bbox = (x1, cy, x2, y2)
-                        y1 = cy
+                        f_y1 = cy
                     elif side == "bottom":
-                        comp.bbox = (x1, y1, x2, cy)
-                        y2 = cy
+                        f_y2 = cy
                 else:
                     updated_pts.append((px, py, side))
+            # ✅ 【强制覆盖】CSP结果，覆盖前面pin fix的点位
+            comp.bbox = (f_x1, f_y1, f_x2, f_y2)
             new_start_pts[comp_idx] = updated_pts
             pts = updated_pts
 
     return new_comps, new_start_pts
+
 
 
 # def extract_comp_pins_straight_hsv(
@@ -1040,7 +1052,8 @@ def classify_pin_from_path(
     sy: int,
     side: str,
     comp_idx: int,
-    handled_pairs: set,
+    handled_pairs: dict,
+    used_start_points: set,
     delta_dev_thresh: float,
     grad_end_near_judge: int = 5,
     max_non_bent_steps: int = 100
@@ -1051,21 +1064,21 @@ def classify_pin_from_path(
 
     bc_arr = np.array(branch_cnt_list)
     delta_arr = np.array(path_deltas)
+    bc_all_zero = np.all(bc_arr == 0)
 
     valid_delta = delta_arr[~np.isnan(delta_arr)]
     med_delta = np.median(valid_delta) if len(valid_delta) > 0 else 0.0
 
     # 找第一个颜色跳变点
     jump_idx = None
-    # print(delta_arr - med_delta)
-    # print(delta_arr)
-    # import pdb; pdb.set_trace()
     for i, d in enumerate(delta_arr):
         if np.isnan(d):
             continue
         if abs(d - med_delta) > delta_dev_thresh:
             jump_idx = i
             break
+
+    has_jump = jump_idx is not None
 
     # -------- 优先颜色分界跳变流程 --------
     if jump_idx is not None:
@@ -1080,25 +1093,72 @@ def classify_pin_from_path(
             trigger_grad = True
 
         if trigger_grad:
-            pins.append({"x": jx, "y": jy, "type": "gradient", "side": side})
+            pins.append({"x": jx, "y": jy, "type": "gradient", "side": side, "comp_idx": comp_idx})
+            # 如果是碰到别的起点才跳变，先注册配对，标记这一端有jump，状态pending
+            if stop_reason == "near_other_start" and hit_other_start is not None:
+                ox, oy, ocid, oside = hit_other_start
+                key = frozenset({(sx, sy, comp_idx, side), (ox, oy, ocid, oside)})
+                if key not in handled_pairs:
+                    handled_pairs[key] = {
+                        "a": (sx, sy, comp_idx, side, bc_all_zero, has_jump),
+                        "b": None,
+                        "status": "pending"
+                    }
+                else:
+                    entry = handled_pairs[key]
+                    if entry["a"] is None:
+                        entry["a"] = (sx, sy, comp_idx, side, bc_all_zero, has_jump)
+                    else:
+                        entry["b"] = (sx, sy, comp_idx, side, bc_all_zero, has_jump)
+                    # 两端都齐了，判定是否meet
+                    if entry["a"] is not None and entry["b"] is not None:
+                        (_, _, _, _, az, aj) = entry["a"]
+                        (_, _, _, _, bz, bj) = entry["b"]
+                        if (not aj) and (not bj) and az and bz:
+                            entry["status"] = "meet"
+                        else:
+                            entry["status"] = "reject"
             return pins
 
     # -------- 颜色跳变分支未触发，进入下面 --------
-    
     if stop_reason == "near_other_start" and hit_other_start is not None:
-        # 配对：当前起点 <-> 追踪路径上命中的那个start
         ox, oy, ocid, oside = hit_other_start
         mx = (sx + ox) // 2
         my = (sy + oy) // 2
-        if np.all(bc_arr == 0):
-            key = frozenset({(sx, sy, comp_idx, side), (ox, oy, ocid, oside)})
-            if key not in handled_pairs:
-                handled_pairs.add(key)
-                pins.append({"x": mx, "y": my, "type": "meet", "side": side})
-                pins.append({"x": mx, "y": my, "type": "meet", "side": oside})
+        key = frozenset({(sx, sy, comp_idx, side), (ox, oy, ocid, oside)})
+
+        if key not in handled_pairs:
+            # 第一次发现配对，只存当前端，pending，不生成meet
+            handled_pairs[key] = {
+                "a": (sx, sy, comp_idx, side, bc_all_zero, has_jump),
+                "b": None,
+                "status": "pending"
+            }
+            # 当前端没有跳变，先不产出pin，等另一端补齐再统一判定
+            return pins
         else:
-            pins.append({"x": mx, "y": my, "type": "grad", "side": side})
-        return pins
+            entry = handled_pairs[key]
+            # 补齐另一端信息
+            if entry["a"] is None:
+                entry["a"] = (sx, sy, comp_idx, side, bc_all_zero, has_jump)
+            else:
+                entry["b"] = (sx, sy, comp_idx, side, bc_all_zero, has_jump)
+
+            # 两端信息收集完整，开始判定
+            if entry["a"] is not None and entry["b"] is not None:
+                (x1, y1, c1, s1, az, aj) = entry["a"]
+                (x2, y2, c2, s2, bz, bj) = entry["b"]
+                if (not aj) and (not bj) and az and bz:
+                    # ✅ 两端都没有颜色跳变、两端都无分支：meet
+                    entry["status"] = "meet"
+                    pins.append({"x": mx, "y": my, "type": "meet", "side": s1, "comp_idx": c1})
+                    pins.append({"x": mx, "y": my, "type": "meet", "side": s2, "comp_idx": c2})
+                    used_start_points.add((x1, y1, c1, s1))
+                    used_start_points.add((x2, y2, c2, s2))
+                else:
+                    entry["status"] = "reject"
+                    pins.append({"x": mx, "y": my, "type": "grad", "side": side, "comp_idx": comp_idx})
+            return pins
 
     if stop_reason == "wire_zero":
         if len(bc_arr) < max_non_bent_steps:
@@ -1109,25 +1169,12 @@ def classify_pin_from_path(
             no_branch = np.all(abc_arr == 0)
             ex, ey = path[-1]
             if no_branch:
-                # wire_zero / max_step，无分叉 → dead_end
-                pins.append({"x": ex, "y": ey, "type": "dead_end", "side": side})
+                pins.append({"x": ex, "y": ey, "type": "dead_end", "side": side, "comp_idx": comp_idx})
             else:
-                pins.append({"x": ex, "y": ey, "type": "grad", "side": side})
-    
+                pins.append({"x": ex, "y": ey, "type": "grad", "side": side, "comp_idx": comp_idx})
         else:
-            # if len(delta_arr) > grad_end_near_judge:
-            #     delta_arr = delta_arr[:-grad_end_near_judge]
-            # # 存在分叉分支：取全局最大delta作为gradient
-            # valid_mask = ~np.isnan(delta_arr)
-            # valid_idx = np.nonzero(valid_mask)[0]
-            # if len(valid_idx) == 0:
-            #     gx, gy = path[-1]
-            # else:
-            #     sub_idx = np.argmax(delta_arr[valid_mask])
-            #     grad_idx = valid_idx[sub_idx]
-            #     gx, gy = path[grad_idx]
             gx, gy = path[0]
-            pins.append({"x": gx, "y": gy, "type": "gradient", "side": side})
+            pins.append({"x": gx, "y": gy, "type": "gradient", "side": side, "comp_idx": comp_idx})
 
     return pins
 
@@ -1156,11 +1203,15 @@ def extract_comp_pins_straight_hsv(
             all_start_points.append((x, y, cid, side))
 
     comp_pins: Dict[int, List[Dict[str, Any]]] = {cid: [] for cid in comp_start_pts.keys()}
-    handled_pairs = set()
+    handled_pairs = dict()
+    used_start_points = set()
     delta_map = np.full((h, w), np.nan, dtype=np.float32)
 
     for comp_idx, start_pts in comp_start_pts.items():
         for (sx, sy, side) in start_pts:
+            if (sx, sy, comp_idx, side) in used_start_points:
+                continue
+
             dx, dy = side2dir[side]
             path, path_deltas, bc_list, stop_reason, hit_other_start = trace_and_collect_path(
                 sx=sx, sy=sy, dx=dx, dy=dy, wire_binary=wire_binary,
@@ -1179,14 +1230,17 @@ def extract_comp_pins_straight_hsv(
                 hit_other_start=hit_other_start,
                 sx=sx, sy=sy, side=side, comp_idx=comp_idx,
                 handled_pairs=handled_pairs,
+                used_start_points=used_start_points,
                 delta_dev_thresh=delta_dev_thresh,
                 grad_end_near_judge=grad_end_near_judge,
                 max_non_bent_steps= h * 0.2
             )
             for p in pin_list:
-                if p["side"] == side:
-                    comp_pins[comp_idx].append(p)
+                cid = p["comp_idx"]
+                if cid in comp_pins:
+                    comp_pins[cid].append(p)
     return comp_pins, delta_map
+
 
 
 def prepare_pin_data(
@@ -1290,18 +1344,31 @@ def orth_fork_check(
 ) -> tuple[bool, int]:
     h, w = wire_binary.shape
 
-    def get_lab_pixel(x: int, y: int) -> tuple[float, float, float]:
-        """单点BGR转LAB，适合少量采样（fork检测这种少量点很合适）
-        bgr_img: BGR通道顺序 (H,W,3)
+    def get_lab_window_mean(cx: int, cy: int, dir_ddx: int, dir_ddy: int, win_len: int = 3) -> tuple[float, float, float]:
         """
-        h, w = bgr_img.shape[:2]
-        if not (0 <= x < w and 0 <= y < h):
+        沿着 dir_ddx, dir_ddy 方向，以(cx,cy)为中心，取 win_len 个连续点（1×3窗口），返回LAB均值
+        win_len=3 → s = -1,0,+1
+        越界像素直接跳过；无有效像素返回 nan
+        """
+        pts = []
+        half = win_len // 2
+        for s in range(-half, half + 1):
+            nx = cx + dir_ddx * s
+            ny = cy + dir_ddy * s
+            if 0 <= nx < w and 0 <= ny < h:
+                pts.append((nx, ny))
+        if not pts:
             return np.nan, np.nan, np.nan
-        # 单点转LAB
-        bgr_pix = bgr_img[y, x, :].reshape(1, 1, 3).astype(np.float32) / 255.0
-        lab_pix = cv2.cvtColor(bgr_pix, cv2.COLOR_BGR2LAB)
-        L, A, B = lab_pix[0,0]
-        return float(L), float(A), float(B)
+        L_sum, A_sum, B_sum = 0.0, 0.0, 0.0
+        for (px, py) in pts:
+            bgr_pix = bgr_img[py, px, :].reshape(1, 1, 3).astype(np.float32) / 255.0
+            lab = cv2.cvtColor(bgr_pix, cv2.COLOR_BGR2LAB)
+            L, A, B = lab[0, 0]
+            L_sum += L
+            A_sum += A
+            B_sum += B
+        n = len(pts)
+        return L_sum / n, A_sum / n, B_sum / n
 
     # 前进、左、右 正交方向
     fd_dir = (dx, dy)
@@ -1331,30 +1398,94 @@ def orth_fork_check(
 
     # ========= 规则分支 =========
     if fd_ok and left_ok and right_ok:
-        # 直接取最远像素点的 LAB，不带 window
-        L_curr, A_curr, B_curr = get_lab_pixel(x, y)
-        L_fd,   A_fd,   B_fd   = get_lab_pixel(fx, fy)
-        L_left, A_left, B_left = get_lab_pixel(lx, ly)
-        L_right,A_right,B_right= get_lab_pixel(rx, ry)
+        # # 当前位置：沿【行进方向fd_dir】取1×3窗口均值
+        # L_curr, A_curr, B_curr = get_lab_window_mean(x, y, fd_dir[0], fd_dir[1], win_len=3)
+        # # forward末端：沿forward方向取1×3窗口均值
+        # L_fd, A_fd, B_fd = get_lab_window_mean(fx, fy, fd_dir[0], fd_dir[1], win_len=3)
+        # # left末端：沿left方向取1×3窗口均值
+        # L_left, A_left, B_left = get_lab_window_mean(lx, ly, left_dir[0], left_dir[1], win_len=3)
+        # # right末端：沿right方向取1×3窗口均值
+        # L_right, A_right, B_right = get_lab_window_mean(rx, ry, right_dir[0], right_dir[1], win_len=3)
 
-        def calc_delta(l1, a1, b1, l2, a2, b2):
-            dL = l1 - l2
-            dA = a1 - a2
-            dB = b1 - b2
-            return np.sqrt(dL * dL + dA * dA + dB * dB)
+        # def calc_delta(l1, a1, b1, l2, a2, b2):
+        #     if any(np.isnan(v) for v in [l1, a1, b1, l2, a2, b2]):
+        #         return np.inf
+        #     dL = l1 - l2
+        #     dA = a1 - a2
+        #     dB = b1 - b2
+        #     return np.sqrt(dL * dL + dA * dA + dB * dB)
 
-        delta_fd   = calc_delta(L_curr, A_curr, B_curr, L_fd,   A_fd,   B_fd)
-        delta_left = calc_delta(L_curr, A_curr, B_curr, L_left, A_left, B_left)
-        delta_right= calc_delta(L_curr, A_curr, B_curr, L_right,A_right,B_right)
+        # if 1410 < x < 1440 and 800 < y < 850:
+        #     import pdb; pdb.set_trace()
 
-        # 前、左、右任意一个方向与当前点颜色差异不足 → return False
-        if (delta_fd < diff_thresh
-                or delta_left < diff_thresh
-                or delta_right < diff_thresh):
+        # delta_fd = calc_delta(L_curr, A_curr, B_curr, L_fd, A_fd, B_fd)
+        # delta_left = calc_delta(L_curr, A_curr, B_curr, L_left, A_left, B_left)
+        # delta_right = calc_delta(L_curr, A_curr, B_curr, L_right, A_right, B_right)
+
+        # # 前、左、右任意一个方向与当前窗口颜色差异不足 → return False
+        # if (delta_fd < diff_thresh
+        #         or delta_left < diff_thresh
+        #         or delta_right < diff_thresh):
+        #     print(delta_fd, delta_left, delta_right)
+        #     return False, thres_cnt
+
+        # return True, thres_cnt
+
+        # ========= 新逻辑：沿行进方向 [-scan_range, +scan_range] 逐点取窗口，生成delta序列 =========
+        fd_ddx, fd_ddy = fd_dir
+        # 第一步：遍历s从 -scan_range ~ +scan_range，每个s位置取1×3窗口LAB均值
+        lab_seq = []
+        valid_s = []
+        for s in range(-scan_range, scan_range + 1):
+            cx = x + fd_ddx * s
+            cy = y + fd_ddy * s
+            L, A, B = get_lab_window_mean(cx, cy, fd_ddx, fd_ddy, win_len=3)
+            lab_seq.append((L, A, B))
+            valid_s.append(s)
+
+        # 第二步：计算相邻窗口之间的DeltaE，delta_list长度 = len(lab_seq)-1
+        delta_list = []
+        for i in range(len(lab_seq)-1):
+            L1, A1, B1 = lab_seq[i]
+            L2, A2, B2 = lab_seq[i+1]
+            if any(np.isnan(v) for v in [L1,A1,B1,L2,A2,B2]):
+                delta_list.append(0.0)
+            else:
+                dL = L1 - L2
+                dA = A1 - A2
+                dB = B1 - B2
+                de = np.sqrt(dL*dL + dA*dA + dB*dB)
+                delta_list.append(de)
+
+        # 第三步：寻找delta_list里面所有波峰
+        peaks = []
+        for i in range(1, len(delta_list)-1):
+            val = delta_list[i]
+            left = delta_list[i-1]
+            right = delta_list[i+1]
+            if val > left and val > right and val > diff_thresh:
+                peaks.append(i)
+        # 每个delta下标对应s区间：delta[i] 是 s_start = (-scan_range + i) 与 s_start+1之间的跳变
+        # 映射：delta index i 对应跳变位置在 s = (-scan_range + i) ~ (-scan_range + i + 1)
+        # 拆分峰：s<0（原点前方）、s>0（原点后方）
+        peak_before = False  # 原点前面（s<0）存在峰
+        peak_after = False   # 原点后面（s>0）存在峰
+        for peak_idx in peaks:
+            s_peak = -scan_range + peak_idx
+            if s_peak < 0:
+                peak_before = True
+            if s_peak >= 0:
+                peak_after = True
+
+        # 调试断点保留
+        # if 1410 < x < 1440 and 800 < y < 850:
+        #     import pdb; pdb.set_trace()
+
+        # 判定：前后都有满足阈值的波峰 → 判定fork，返回True
+        if peak_before and peak_after:
+            return True, thres_cnt
+        else:
             return False, thres_cnt
-
-        return True, thres_cnt
-
     else:
         # 三者不同时满足：左右任意 ok 就 True，都不 ok False
         return left_ok or right_ok, thres_cnt
@@ -1607,6 +1738,7 @@ def trace_single_net_dfs(
 
     sx, sy = start_pin["x"], start_pin["y"]
     start_key = (sx, sy)
+    start_type = "pin"
     for p in pos_to_pins.get(start_key, []):
         net_pin_ids.add(p["full_id"])
         visited_pins.add(p["gid"])
@@ -1617,12 +1749,12 @@ def trace_single_net_dfs(
         nx, ny = sx + dx, sy + dy
         if 0 <= nx < w and 0 <= ny < h:
             if walkable[ny, nx] > 0 and comp_mask[ny, nx] == 0:
-                stack.append((nx, ny, dx, dy, sx, sy))
+                stack.append((nx, ny, dx, dy, sx, sy, start_type))
 
     # print(start_pin)
 
     while stack:
-        cx, cy, dx, dy, last_kx, last_ky = stack.pop()
+        cx, cy, dx, dy, last_kx, last_ky, last_stop_type = stack.pop()
         curr_x, curr_y = cx, cy
         fork_points = []
         max_num_fork = 0
@@ -1632,7 +1764,7 @@ def trace_single_net_dfs(
 
         while True:
             print(f" -> ({curr_x}, {curr_y})")
-            # if 1250 < curr_x < 1300 and 450 < curr_y < 500:
+            # if 1410 < curr_x < 1440 and 800 < curr_y < 850:
             #     import pdb; pdb.set_trace()
 
             cond = not (0 <= curr_x < w and 0 <= curr_y < h) or has_start_near_with_dir(curr_x, curr_y, dx, dy, start_near_mask, start_pt_set, angle_thresh_deg=90.0)
@@ -1721,8 +1853,8 @@ def trace_single_net_dfs(
         not_near_pins = not (last_key in pos_to_pins and stop_key in pos_to_pins and math.hypot(last_kx - stop_x, last_ky - stop_y) < stop_near_win)
         if last_key != stop_key and not_near_pins:
             net_edge_list.append([
-                {"x": last_kx, "y": last_ky},
-                {"x": stop_x, "y": stop_y}
+                {"x": last_kx, "y": last_ky, "stop_type": last_stop_type},
+                {"x": stop_x, "y": stop_y, "stop_type": stop_type}
             ])
 
         if stop_type == 'fly':
@@ -1740,7 +1872,7 @@ def trace_single_net_dfs(
             nx, ny = stop_x + ndx, stop_y + ndy
             if 0 <= nx < w and 0 <= ny < h:
                 if walkable[ny, nx] > 0 and intersect[ny, nx] == 1:
-                    stack.append((nx, ny, ndx, ndy, stop_x, stop_y))
+                    stack.append((nx, ny, ndx, ndy, stop_x, stop_y, stop_type))
 
     return net_pin_ids, net_edge_list
 
@@ -1884,6 +2016,105 @@ def visualize_start_points_with_pins(
     print(f"[viz] saved -> {save_path}")
 
 
+def simplify_nets(nets_dict):
+    """
+    简化nets_dict，清理冗余fork点：
+    规则：
+    1. fork度数=1：端点fork → 删除该边
+    2. fork度数=2：**且两段横平竖直共线不拐弯** → 合并抹除fork；拐弯则保留
+    3. 迭代循环处理，连续链式共线fork持续合并直到稳定
+    4. fork度数>=3：分支点，保留不动
+    """
+    out_nets = deepcopy(nets_dict)
+
+    for net_key, net_data in out_nets.items():
+        edges = net_data["edges"]
+        if not edges:
+            continue
+
+        # 加载边 & 点类型表
+        edge_set = set()
+        point_info = {}  # (x,y) -> stop_type
+        for e in edges.values():
+            p0, p1 = e[0], e[1]
+            pt0 = (p0["x"], p0["y"])
+            pt1 = (p1["x"], p1["y"])
+            point_info[pt0] = p0["stop_type"]
+            point_info[pt1] = p1["stop_type"]
+            # 无向边统一排序存储，消除方向
+            u, v = tuple(sorted([pt0, pt1]))
+            edge_set.add((u, v))
+
+        changed = True
+        while changed:
+            changed = False
+            # 重建邻接表
+            adj = {}
+            for (a, b) in edge_set:
+                if a not in adj:
+                    adj[a] = []
+                adj[a].append(b)
+                if b not in adj:
+                    adj[b] = []
+                adj[b].append(a)
+
+            # 遍历所有fork点
+            for pt, nbs in adj.items():
+                if point_info[pt] != "fork":
+                    continue
+                deg = len(nbs)
+                if deg == 1:
+                    # 规则2：端点fork，直接删边
+                    nb = nbs[0]
+                    u, v = tuple(sorted([pt, nb]))
+                    if (u, v) in edge_set:
+                        edge_set.remove((u, v))
+                    changed = True
+                    break
+                elif deg == 2:
+                    nb1, nb2 = nbs[0], nbs[1]
+                    px, py = pt
+                    p1x, p1y = nb1
+                    p2x, p2y = nb2
+                    # ========= 关键判断：是否横平竖直共线 =========
+                    # 水平共线：y全部相等
+                    horizontal = (p1y == py) and (p2y == py)
+                    # 竖直共线：x全部相等
+                    vertical = (p1x == px) and (p2x == px)
+                    if not (horizontal or vertical):
+                        # 拐弯！不合并，跳过这个fork
+                        continue
+                    # 共线，满足条件，执行合并
+                    # 删除 pt-nb1, pt-nb2
+                    u1, v1 = tuple(sorted([pt, nb1]))
+                    if (u1, v1) in edge_set:
+                        edge_set.remove((u1, v1))
+                    u2, v2 = tuple(sorted([pt, nb2]))
+                    if (u2, v2) in edge_set:
+                        edge_set.remove((u2, v2))
+                    # 添加 nb1 <-> nb2
+                    unew, vnew = tuple(sorted([nb1, nb2]))
+                    edge_set.add((unew, vnew))
+                    changed = True
+                    break
+            # end for pt
+        # end while
+
+        # 转回原始edges字典格式
+        new_edges = {}
+        for idx, (a, b) in enumerate(edge_set):
+            ax, ay = a
+            bx, by = b
+            ta = point_info[a]
+            tb = point_info[b]
+            new_edges[f"edge_{idx}"] = [
+                {"x": ax, "y": ay, "stop_type": ta},
+                {"x": bx, "y": by, "stop_type": tb},
+            ]
+        net_data["edges"] = new_edges
+    return out_nets
+
+
 def extract_nets(
     img: np.ndarray,
     comps: List[Any],
@@ -1910,7 +2141,7 @@ def extract_nets(
     )
 
     comps, comp_start_pts = refine_comp_and_start_ps(
-        wire_binary=binary_raw,
+        wire_binary=cv2.bitwise_and(binary_raw, texts_cover_mask),
         comps=comps,
         comp_start_pts=comp_start_pts
     )
@@ -1944,7 +2175,7 @@ def extract_nets(
     pins_dict, nets_dict = build_pcb_nets(
         comp_pins=comp_pins,
         wire_binary=binary_raw,
-        intersect=cv2.bitwise_and(binary_raw, all_cover_mask),
+        intersect=cv2.bitwise_and(binary_raw, texts_cover_mask),
         bgr_img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
         comps=comps,
         comp_start_pts=comp_start_pts,
@@ -1955,7 +2186,10 @@ def extract_nets(
         stop_near_win=BN_STOP_NEAR_WIN
     )
 
+    nets_dict = simplify_nets(nets_dict)
+
     # visualize_start_points_with_pins(
+    #     # wire_binary=cv2.bitwise_and(binary_raw, all_cover_mask),
     #     wire_binary=cv2.bitwise_and(binary_raw, all_cover_mask),
     #     comp_start_pts=comp_start_pts,
     #     comp_pins=comp_pins,

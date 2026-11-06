@@ -717,14 +717,15 @@ def _nms_components(comps: list[DetBox], iou_thr: float = 0.5) -> list[DetBox]:
 
 def _clean_components(
     comps: list[DetBox],
-    text_boxes: list[list[float]],
+    text_boxes: list[TextBox],
     text_cover_thr: float = 0.7,
     dedup_iou: float = 0.55,
     contain_thr: float = 0.8,
     cross_class_iou_thr: float = 0.65,
     comp_score_thr: float = 0.0,
     text_box_score_thr: float = 0.0,
-) -> list[DetBox]:
+    remove_text_with_comp_thr: float = 0.7
+) -> tuple[list[DetBox], list[TextBox]]:
     """
     规则更新：
     1. 剔除被文字大面积覆盖的器件框
@@ -734,24 +735,39 @@ def _clean_components(
     # ========== 过滤低置信元器件框 ==========
     comps = [c for c in comps if c.score >= comp_score_thr]
     if not comps:
-        return []
-    # ========== 过滤低置信YOLO文本框 ==========
-    filtered_text_boxes: list[list[float]] = []
+        return [], text_boxes
+
+    # ========== 过滤低置信文本框（现在是TextBox对象，访问.score） ==========
+    filtered_text_boxes: list[TextBox] = []
     for tb in text_boxes:
-        if tb[4] >= text_box_score_thr:
+        if tb.score >= text_box_score_thr:
             filtered_text_boxes.append(tb)
     text_boxes = filtered_text_boxes
+
+    # ========== 【新增规则】去掉文本占据器件框比例超过remove_text_with_comp_thr的文本框 ==========
+    new_text_boxes: list[TextBox] = []
+    for tb in text_boxes:
+        remove_flag = False
+        for c in comps:
+            # _cover_frac(inner=器件bbox, outer=文本bbox)：器件面积被文本覆盖比例
+            cov = _cover_frac(c.bbox, tb.bbox)
+            if cov >= remove_text_with_comp_thr:
+                remove_flag = True
+                break
+        if not remove_flag:
+            new_text_boxes.append(tb)
+    text_boxes = new_text_boxes
 
     # 1) 剔除几乎完全被文本覆盖的器件框（豁免_net_label,gnd,vcc）
     kept: list[DetBox] = []
     for c in comps:
         if c.label not in _TEXTLIKE_EXEMPT and text_boxes:
-            max_cover = max((_cover_frac(c.bbox, tb) for tb in text_boxes), default=0.0)
+            max_cover = max((_cover_frac(c.bbox, tb.bbox) for tb in text_boxes), default=0.0)
             if max_cover >= text_cover_thr:
                 continue
         kept.append(c)
     if not kept:
-        return []
+        return [], text_boxes
 
     def box_area(bbox):
         return (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
@@ -803,8 +819,7 @@ def _clean_components(
                     break
         if not dup:
             final.append(c)
-    return final
-
+    return final, text_boxes
 
 
 def _split_detections(dets: list[DetBox]) -> tuple[list[DetBox], list[list[float]], list[PinBox], list[PinBox]]:
@@ -921,18 +936,9 @@ def extract_vision(
     # 引脚与网络完全交给 skele_wire.extract_nets。
     dets = _try_yolo_main(img, models, vision_cfg)
     comps, text_boxes, pins, endpoints = _split_detections(dets)
-    comps = _clean_components(comps, text_boxes)
     comps = _nms_components(comps, iou_thr=float(vision_cfg.get("comp_nms_iou", 0.5)))
     # 新方案不再使用 YOLO 的 pin_tip / wire_endpoint，也不做 box 引脚裁剪补检
     pins, endpoints = [], []
-
-    if not comps:
-        # No detector: rule-based component fallback (weak, low score expected).
-        work, scale = _maybe_resize(img, max_side)
-        comps = _rule_components(work, max_components=max_components)
-        if scale < 1.0:
-            for box in comps:
-                box.bbox = [v / scale for v in box.bbox]
 
     # 文字识别完全由整图 PaddleOCR 完成：
     #   - 不读 ocr_cache（每次推理都重新识别）；
@@ -949,6 +955,8 @@ def extract_vision(
                            "network_short", "network_bidirection"}
         ]
         texts = _full_image_ocr(image_path, lang=lang, focus_boxes=focus)
+
+    comps, texts = _clean_components(comps, texts)
 
     skel, segs = None, []
 
@@ -969,15 +977,6 @@ def extract_vision(
         skele_pins, wire_nets = _adapt_skele_output(skele_pins_raw, skele_nets_raw)
     except Exception as exc:  # noqa: BLE001 异常兜底：退回旧的 topo_graph
         print(f"[vision] skele_wire.extract_nets 失败({type(exc).__name__}: {exc})，退回 topo_graph", flush=True)
-        import traceback
-
-        traceback.print_exc(limit=5)
-        all_endpoints = list(endpoints) + [PinBox(xy=(px, py), score=0.6) for (px, py) in unet_points]
-        try:
-            wire_nets = extract_wire_nets(img, image_path, pins, comps, all_endpoints, visualize=False) or {}
-        except Exception as exc2:  # noqa: BLE001
-            print(f"[vision] topo_graph 兜底也失败({exc2})，nets 置空", flush=True)
-            wire_nets = {}
 
     if visualize and wire_nets:
         run_wire_visualize(wire_nets, img, image_path)

@@ -9,27 +9,46 @@ import os
 import json
 
 def run_vision_visualize(img_path, img, comps, texts, skel, pins, endpoints):
+    from pathlib import Path
+    import os
+    from os.path import join
+    import cv2
+    import matplotlib.pyplot as plt
+    from .gt_adapter import load_category_map
+
     img_path = Path(img_path)
     save_dir = f"outputs/viz/{img_path.parent.name}"
     os.makedirs(save_dir, exist_ok=True)
     img_bgr = img.copy()
+    h_img, w_img = img_bgr.shape[:2]
 
-    # ========== 图1：组件框(标 type) + 文本框(标 content) + pin 打点 ==========
-    from .gt_adapter import load_category_map
-
+    # ========== 图1：组件框(标 type) + 文本框(标 content) + pin 打点 + 坐标刻度(每50px) ==========
     cmap = load_category_map()
     vis_comp = img_bgr.copy()
+
+    # ---------------------- 新增：绘制网格，间隔50 ----------------------
+    step = 50
+    # 竖线（x固定，y遍历）
+    for x in range(0, w_img, step):
+        cv2.line(vis_comp, (x, 0), (x, h_img), (80, 80, 80), 1)
+        cv2.putText(vis_comp, f"{x}", (x + 3, 12), cv2.FONT_HERSHEY_SIMPLEX, 0.32, (80,80,80), 1)
+    # 横线（y固定，x遍历）
+    for y in range(0, h_img, step):
+        cv2.line(vis_comp, (0, y), (w_img, y), (80, 80, 80), 1)
+        cv2.putText(vis_comp, f"{y}", (3, y + 12), cv2.FONT_HERSHEY_SIMPLEX, 0.32, (80,80,80), 1)
+    # -------------------------------------------------------------------
+
     for comp in comps:
         x1, y1, x2, y2 = map(int, comp.bbox)
         cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (255, 0, 0), 1)
         cv2.putText(vis_comp, cmap.get(comp.label, comp.label), (x1, max(y1 - 5, 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         
-    # for t in texts:
-    #     x1, y1, x2, y2 = map(int, t.bbox)
-    #     cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (0, 0, 255), 1)
-    #     cv2.putText(vis_comp, f"{t.content}", (x1, max(y1 - 5, 10)),
-    #                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+    for t in texts:
+        x1, y1, x2, y2 = map(int, t.bbox)
+        cv2.rectangle(vis_comp, (x1, y1), (x2, y2), (0, 0, 255), 1)
+        cv2.putText(vis_comp, f"{t.content}", (x1, max(y1 - 5, 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
     for pin in pins:
         x, y = pin.xy
         cx, cy = int(round(x)), int(round(y))
